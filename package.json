@@ -4,7 +4,11 @@
   "private": true,
   "license": "GPL-3.0-or-later",
   "type": "module",
+  "bin": {
+    "runebender-serve": "server/serve.mjs"
+  },
   "scripts": {
+    "serve": "node server/serve.mjs",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
