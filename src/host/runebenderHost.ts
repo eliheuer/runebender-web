@@ -146,8 +146,15 @@ export type RunebenderHost = {
   // Optional: hosts that can observe the workspace (the local server's
   // file watcher) call `handler` whenever files change externally. The
   // editor applies the changes live — the "watch the agent work" loop.
+  // The handler returns the paths it actually APPLIED; changes it held
+  // back (unsaved local edits) are excluded, so the host must keep its
+  // conflict state (e.g. ETags) at the editor's version — a later save
+  // of the held-back file then surfaces as a conflict instead of
+  // silently overwriting the external edit.
   watchWorkspaceChanges?(
-    handler: (changes: WorkspaceExternalChange[]) => void | Promise<void>,
+    handler: (
+      changes: WorkspaceExternalChange[],
+    ) => void | string[] | Promise<void | string[]>,
   ): void;
 };
 

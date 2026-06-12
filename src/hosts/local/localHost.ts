@@ -67,12 +67,19 @@ export function createLocalHost(
   // server-relative path -> last seen content ETag
   const etags = new Map<string, string>();
 
-  async function fetchFileText(rel: string): Promise<string | null> {
+  // `record: false` fetches without committing the ETag — used by the
+  // watch path, where the ETag must only advance if the editor actually
+  // applies the change (a held-back change keeps the stale ETag so the
+  // user's next save 409s instead of clobbering the external edit).
+  async function fetchFile(
+    rel: string,
+    { record = true } = {},
+  ): Promise<{ text: string; etag: string | null } | null> {
     const res = await fetch(fileUrl(rel));
     if (!res.ok) return null;
-    const etag = res.headers.get("etag")?.replaceAll('"', "");
-    if (etag) etags.set(rel, etag);
-    return await res.text();
+    const etag = res.headers.get("etag")?.replaceAll('"', "") ?? null;
+    if (record && etag) etags.set(rel, etag);
+    return { text: await res.text(), etag };
   }
 
   return {
@@ -94,8 +101,8 @@ export function createLocalHost(
       const wanted = files.filter((f) => isTextPath(f.path));
       const entries = await Promise.all(
         wanted.map(async (f) => {
-          const text = await fetchFileText(f.path);
-          return text === null ? null : { path: f.path, text };
+          const got = await fetchFile(f.path);
+          return got === null ? null : { path: f.path, text: got.text };
         }),
       );
       return {
@@ -189,19 +196,23 @@ export function createLocalHost(
           return;
         }
         if (!data.path || !isTextPath(data.path)) return;
-        const change: WorkspaceExternalChange | null =
-          data.type === "change"
-            ? await (async () => {
-                const text = await fetchFileText(data.path!);
-                return text === null
-                  ? null
-                  : { type: "change" as const, path: `${slot}/${data.path}`, text };
-              })()
-            : data.type === "delete"
-              ? (etags.delete(data.path),
-                { type: "delete" as const, path: `${slot}/${data.path}` })
-              : null;
-        if (change) void handler([change]);
+        const rel = data.path;
+        const prefixed = `${slot}/${rel}`;
+        if (data.type === "change") {
+          const got = await fetchFile(rel, { record: false });
+          if (!got) return;
+          const applied = await handler([
+            { type: "change", path: prefixed, text: got.text },
+          ]);
+          // Commit the ETag only for changes the editor applied; a
+          // held-back change keeps the stale one (see fetchFile).
+          if (Array.isArray(applied) && applied.includes(prefixed) && got.etag) {
+            etags.set(rel, got.etag);
+          }
+        } else if (data.type === "delete") {
+          etags.delete(rel);
+          void handler([{ type: "delete", path: prefixed }]);
+        }
       };
       source.onerror = () => {
         // EventSource auto-reconnects; nothing to do.

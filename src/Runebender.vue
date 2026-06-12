@@ -4814,10 +4814,11 @@ async function loadWorkspaceSlot(slot: string) {
 // 409s and surfaces the conflict) or revert.
 async function applyExternalWorkspaceChanges(
   changes: WorkspaceExternalChange[],
-) {
-  if (!currentFontPath.value) return;
+): Promise<string[]> {
+  if (!currentFontPath.value) return [];
   let structural = false;
   let touched = false;
+  const applied: string[] = [];
 
   for (const change of changes) {
     if (!change.path.endsWith(".glif")) {
@@ -4862,6 +4863,7 @@ async function applyExternalWorkspaceChanges(
         ) {
           loadGlyphIntoEditor(name, { preserveHistory: true });
         }
+        applied.push(change.path);
         status.value = `reloaded ${name} from disk`;
         break;
       }
@@ -4880,7 +4882,7 @@ async function applyExternalWorkspaceChanges(
     if (hasDirtyChanges.value) {
       status.value =
         "external workspace changes detected — save or revert to reload";
-      return;
+      return applied;
     }
     const prevGlyph = currentGlyph.value;
     const prevMaster = activeMasterName.value;
@@ -4892,7 +4894,13 @@ async function applyExternalWorkspaceChanges(
       loadGlyphIntoEditor(prevGlyph, { preserveHistory: false });
     }
     status.value = "reloaded workspace from disk";
+    // The full reload re-fetched everything (re-recording conflict
+    // state host-side), so every change in this batch is applied.
+    for (const change of changes) {
+      if (!applied.includes(change.path)) applied.push(change.path);
+    }
   }
+  return applied;
 }
 
 async function loadSingleUfo(
