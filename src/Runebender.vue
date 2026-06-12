@@ -4834,6 +4834,16 @@ async function applyExternalWorkspaceChanges(
           structural = true;
           break;
         }
+        // Canvas edits sync into glyphBytes lazily — flush them first
+        // so an in-progress, not-yet-synced edit to this glyph counts
+        // as dirty below instead of being silently replaced.
+        if (
+          masterName === activeMasterName.value &&
+          currentGlyph.value === name &&
+          flushDeferredGlyphSync()
+        ) {
+          markGlyphDirty(name, masterName);
+        }
         if (dirtyGlyphsByMaster.value.get(masterName)?.has(name)) {
           status.value = `external change to ${name} held back — you have unsaved edits`;
           break;
