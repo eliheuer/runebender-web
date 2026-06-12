@@ -149,6 +149,9 @@ const status = ref<string>("initializing");
 const lastSavedDisplay = ref<string | null>(null);
 const mirroredSaveWrites = ref<number>(0);
 const sourceSaveLabel = ref<string | null>(null);
+// Visible workspace warnings: save conflicts and external changes held
+// back behind unsaved edits. Rendered in the TopBar save-status row.
+const workspaceNotice = ref<string | null>(null);
 const designspacePath = ref<string | null>(null);
 const designspaceText = ref<string>("");
 const designspaceFileHandle = ref<FileSystemFileHandle | null>(null);
@@ -4845,6 +4848,7 @@ async function applyExternalWorkspaceChanges(
           markGlyphDirty(name, masterName);
         }
         if (dirtyGlyphsByMaster.value.get(masterName)?.has(name)) {
+          workspaceNotice.value = `${name} changed on disk — held back (you have unsaved edits)`;
           status.value = `external change to ${name} held back — you have unsaved edits`;
           break;
         }
@@ -4904,6 +4908,7 @@ async function applyExternalWorkspaceChanges(
       loadGlyphIntoEditor(prevGlyph, { preserveHistory: false });
     }
     status.value = "reloaded workspace from disk";
+    workspaceNotice.value = null;
     // The full reload re-fetched everything (re-recording conflict
     // state host-side), so every change in this batch is applied.
     for (const change of changes) {
@@ -6145,18 +6150,28 @@ async function onSave(): Promise<boolean> {
 
     let savedGlyphs = 0;
     const unsavedGlyphs: Array<{ masterName: string; glyphName: string }> = [];
+    const conflictGlyphs: string[] = [];
     const dirtyEntries = Array.from(dirtyGlyphsByMaster.value.entries());
     for (const [masterName, glyphs] of dirtyEntries) {
       const masterData = masterDataMap.value.get(masterName);
       if (!masterData) continue;
       for (const glyphName of glyphs) {
-        if (await persistGlyphData(masterData, glyphName)) {
+        const outcome = await persistGlyphData(masterData, glyphName);
+        if (outcome === "saved") {
           clearGlyphDirty(glyphName, masterName);
           savedGlyphs += 1;
+        } else if (outcome === "conflict") {
+          conflictGlyphs.push(glyphName);
         } else {
           unsavedGlyphs.push({ masterName, glyphName });
         }
       }
+    }
+
+    if (conflictGlyphs.length > 0) {
+      workspaceNotice.value = `save conflict: ${conflictGlyphs.join(", ")} changed on disk while you edited — your version is still unsaved`;
+    } else if (savedGlyphs > 0) {
+      workspaceNotice.value = null;
     }
 
     if (unsavedGlyphs.length === 1 && dirtyGlyphCount.value === 1) {
@@ -6200,24 +6215,33 @@ async function onSave(): Promise<boolean> {
   }
 }
 
-async function persistGlyphData(data: MasterData, glyphName: string): Promise<boolean> {
+type PersistOutcome = "saved" | "conflict" | "failed";
+
+async function persistGlyphData(
+  data: MasterData,
+  glyphName: string,
+): Promise<PersistOutcome> {
   const bytes = data.glyphBytes.get(glyphName);
-  if (!bytes) return false;
+  if (!bytes) return "failed";
 
   const slotPath = data.glyphPaths.get(glyphName);
   if (currentFontPath.value && slotPath) {
     const res = await runebenderHost.writeWorkspaceFile(slotPath, new TextDecoder().decode(bytes));
     await recordWorkspaceWriteResult(res);
-    return res.ok;
+    if (res.ok) return "saved";
+    // 409: the file changed on disk since we last read it (an agent or
+    // another tool wrote it). The user's version stays in the editor,
+    // marked unsaved — never fall through to the export picker here.
+    return res.status === 409 ? "conflict" : "failed";
   }
 
   const fileHandle = data.glyphFileHandles.get(glyphName);
-  if (!fileHandle) return false;
+  if (!fileHandle) return "failed";
   const writable = await fileHandle.createWritable();
   await writable.write(bytes);
   await writable.close();
   await invalidateCompiledWorkspacePath(slotPath);
-  return true;
+  return "saved";
 }
 
 async function exportGlyphData(data: MasterData, glyphName: string): Promise<boolean> {
@@ -7439,6 +7463,7 @@ onBeforeUnmount(() => {
       :unsaved="hasDirtyChanges"
       :last-saved="lastSavedDisplay"
       :source-label="sourceSaveLabel"
+      :notice="workspaceNotice"
       :masters="masters"
       :active-master="activeMasterIndex"
       :master-previews="masterPreviewSvgs"
@@ -7570,6 +7595,7 @@ onBeforeUnmount(() => {
             :unsaved="hasDirtyChanges"
             :last-saved="lastSavedDisplay"
             :source-label="sourceSaveLabel"
+            :notice="workspaceNotice"
             file-only
           />
 

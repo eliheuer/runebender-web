@@ -21,6 +21,8 @@ defineProps<{
   lastSaved?: string | null;
   /** Source destination summary, e.g. linked disk root. */
   sourceLabel?: string | null;
+  /** Workspace notice: save conflicts, external changes held back. */
+  notice?: string | null;
   /** Names of available masters. Stubbed to a single entry until
    *  designspace loading lands (Phase 7). */
   masters?: string[];
@@ -64,7 +66,8 @@ defineEmits<{
         :class="{ saved: !unsaved && lastSaved }"
       >
         <span class="save-state">{{ !unsaved && lastSaved ? `Saved ${lastSaved}` : "Not saved" }}</span>
-        <span v-if="sourceLabel" class="source-label" :title="sourceLabel"> · {{ sourceLabel }}</span>
+        <span v-if="notice" class="notice" :title="notice"> · {{ notice }}</span>
+        <span v-else-if="sourceLabel" class="source-label" :title="sourceLabel"> · {{ sourceLabel }}</span>
       </div>
     </div>
 
@@ -164,6 +167,12 @@ defineEmits<{
 }
 .save-state {
   flex: 0 0 auto;
+}
+.notice {
+  color: var(--rb-warning, #ffdc32);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .source-label {
   color: var(--rb-secondary-text, #707070);
