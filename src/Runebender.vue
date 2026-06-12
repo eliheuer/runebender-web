@@ -6174,7 +6174,14 @@ async function onSave(): Promise<boolean> {
       workspaceNotice.value = null;
     }
 
-    if (unsavedGlyphs.length === 1 && dirtyGlyphCount.value === 1) {
+    // Single-glif export is a browser-mode fallback only. With a
+    // workspace host the project saves as a whole — a lone .glif
+    // download is never the intended save model.
+    if (
+      !currentFontPath.value &&
+      unsavedGlyphs.length === 1 &&
+      dirtyGlyphCount.value === 1
+    ) {
       const unsaved = unsavedGlyphs[0];
       const masterData = masterDataMap.value.get(unsaved.masterName);
       if (masterData && (await exportGlyphData(masterData, unsaved.glyphName))) {
