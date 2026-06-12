@@ -66,7 +66,9 @@
 		<string>g</string>
 		<string>h</string>
 		<string>i</string>
+		<string>idotless</string>
 		<string>j</string>
+		<string>jdotless</string>
 		<string>k</string>
 		<string>l</string>
 		<string>m</string>
@@ -201,7 +203,6 @@
 		<string>heh-ar</string>
 		<string>heh-ar.fina</string>
 		<string>heh-ar.medi</string>
-		<string>heh-ar.medi.001</string>
 		<string>heh-ar.init</string>
 		<string>tehMarbuta-ar</string>
 		<string>tehMarbuta-ar.fina</string>
@@ -252,6 +253,16 @@
 		<string>seven</string>
 		<string>eight</string>
 		<string>nine</string>
+		<string>zero.tf</string>
+		<string>one.tf</string>
+		<string>two.tf</string>
+		<string>three.tf</string>
+		<string>four.tf</string>
+		<string>five.tf</string>
+		<string>six.tf</string>
+		<string>seven.tf</string>
+		<string>eight.tf</string>
+		<string>nine.tf</string>
 		<string>space</string>
 		<string>comma-ar</string>
 		<string>semicolon-ar</string>
@@ -269,6 +280,8 @@
 		<string>question</string>
 		<string>questiondown</string>
 		<string>periodcentered</string>
+		<string>periodcentered.loclCAT.case</string>
+		<string>periodcentered.loclCAT</string>
 		<string>bullet</string>
 		<string>asterisk</string>
 		<string>numbersign</string>
@@ -358,11 +371,12 @@
 		<string>E019</string>
 		<string>E020</string>
 		<string>E021</string>
-		<string>newGlyph</string>
+		<string>uniF000</string>
 		<string>F001</string>
 		<string>F002</string>
 		<string>F003</string>
-		<string>yabaha</string>
+		<string>.notdef</string>
+		<string>idotaccent</string>
 	</array>
 	<key>public.postscriptNames</key>
 	<dict>
@@ -568,8 +582,6 @@
 		<string>uni0647.init</string>
 		<key>heh-ar.medi</key>
 		<string>uni0647.medi</string>
-		<key>heh-ar.medi.001</key>
-		<string>uni0647.medi.001</string>
 		<key>jeem-ar</key>
 		<string>uni062C</string>
 		<key>jeem-ar.fina</key>
@@ -640,8 +652,6 @@
 		<string>uni0645.medi</string>
 		<key>miniKeheh-ar</key>
 		<string>miniKehehar</string>
-		<key>newGlyph</key>
-		<string>uniF000</string>
 		<key>nine-ar</key>
 		<string>uni0669</string>
 		<key>noon-ar</key>
@@ -786,6 +796,8 @@
 		<string>twodotsverticalabovear</string>
 		<key>twodotsverticalbelow-ar</key>
 		<string>twodotsverticalbelowar</string>
+		<key>uniF000</key>
+		<string>uniF000</string>
 		<key>veh-ar</key>
 		<string>uni06A4</string>
 		<key>veh-ar.fina</key>
@@ -835,5 +847,25 @@
 		<key>zero-ar</key>
 		<string>uni0660</string>
 	</dict>
+	<key>public.skipExportGlyphs</key>
+	<array>
+		<string>dotabove-ar</string>
+		<string>dotbelow-ar</string>
+		<string>dotcenter-ar</string>
+		<string>doublestroke-ar</string>
+		<string>gafsarkashabove-ar</string>
+		<string>gafsarkashcenter-ar</string>
+		<string>miniKeheh-ar</string>
+		<string>threedotsdownabove-ar</string>
+		<string>threedotsdownbelow-ar</string>
+		<string>threedotsdowncenter-ar</string>
+		<string>threedotsupabove-ar</string>
+		<string>threedotsupbelow-ar</string>
+		<string>twodotshorizontalabove-ar</string>
+		<string>twodotshorizontalbelow-ar</string>
+		<string>twodotsverticalabove-ar</string>
+		<string>twodotsverticalbelow-ar</string>
+		<string>wasla-ar</string>
+	</array>
 </dict>
 </plist>
