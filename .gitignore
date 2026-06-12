@@ -1,0 +1,16 @@
+# Node / Vite
+node_modules/
+dist/
+.vite/
+*.log
+
+# Rust
+core/target/
+
+# NOTE: wasm/ artifacts and assets/test-fonts/ are deliberately
+# COMMITTED — `git clone && pnpm install && pnpm dev` must work with no
+# Rust toolchain and ship the demo font. Rebuild wasm with `pnpm wasm`,
+# refresh the demo font with `pnpm demo-font`.
+
+# macOS
+.DS_Store

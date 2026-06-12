@@ -1,0 +1,21 @@
+{
+  "name": "runebender-web",
+  "type": "module",
+  "description": "WASM core for the Runebender web editor — ported from runebender-xilem",
+  "version": "0.0.1",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eliheuer/runebender-web"
+  },
+  "files": [
+    "runebender_web_bg.wasm",
+    "runebender_web.js",
+    "runebender_web.d.ts"
+  ],
+  "main": "runebender_web.js",
+  "types": "runebender_web.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
