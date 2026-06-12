@@ -19,6 +19,22 @@ pnpm install
 pnpm dev        # editor at http://localhost:5173 with the demo font
 ```
 
+## Edit a real font on disk
+
+```sh
+pnpm build                              # once, or after editor changes
+pnpm serve ~/fonts/MyFont.designspace   # or a .ufo, or a directory
+# → editor at http://localhost:8765 with MyFont open
+```
+
+The workspace server (`server/serve.mjs`, zero dependencies) serves the
+editor plus a file API over the font's directory. Cmd+S writes dirty
+files back to disk. A file watcher streams external changes into the
+editor live — edit a `.glif` in another program (or let an AI agent do
+it) and the editor updates in place. Writes are guarded by content-hash
+ETags, so a stale editor can never silently overwrite a file something
+else just changed.
+
 No Rust toolchain needed — the compiled WebAssembly module in `wasm/`
 is committed. You need a browser with WebGPU (current Chrome, Edge, or
 Safari 18+).

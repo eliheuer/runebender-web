@@ -105,6 +105,15 @@ export type TraceBackgroundCandidateResult = {
   error?: string;
 };
 
+// A change made to the workspace by something OTHER than this editor —
+// an AI agent editing the UFO on disk, a git checkout, another tool.
+// `path` is slot-prefixed to match MasterData.glyphPaths values.
+export type WorkspaceExternalChange = {
+  type: "change" | "delete";
+  path: string;
+  text?: string;
+};
+
 export type RunebenderHost = {
   log?(level: string, message: string): void;
   publishState(payload: RunebenderStatePayload): Promise<void>;
@@ -134,6 +143,12 @@ export type RunebenderHost = {
     data: TraceBackgroundCandidateResult;
   }>;
   invalidateWorkspacePath(path: string): Promise<void>;
+  // Optional: hosts that can observe the workspace (the local server's
+  // file watcher) call `handler` whenever files change externally. The
+  // editor applies the changes live — the "watch the agent work" loop.
+  watchWorkspaceChanges?(
+    handler: (changes: WorkspaceExternalChange[]) => void | Promise<void>,
+  ): void;
 };
 
 export const runebenderHostKey: InjectionKey<RunebenderHost> = Symbol("runebender-host");

@@ -62,6 +62,7 @@ import TransformPanel, {
 import WelcomePanel from "./components/WelcomePanel.vue";
 import WorkspaceToolbar from "./components/WorkspaceToolbar.vue";
 import { runebenderHostKey } from "./host/runebenderHost";
+import type { WorkspaceExternalChange } from "./host/runebenderHost";
 import { browserHost } from "./hosts/browser/browserHost";
 
 const props = defineProps<{
@@ -1185,6 +1186,10 @@ onMounted(async () => {
 
     if (currentFontPath.value) {
       await loadWorkspaceSlot(currentFontPath.value);
+      // Hosts with a file watcher (the local workspace server) push
+      // external edits — an agent rewriting glifs on disk — into the
+      // editor live.
+      runebenderHost.watchWorkspaceChanges?.(applyExternalWorkspaceChanges);
     } else if (props.initialFiles) {
       const loaded = await loadDevTestFont();
       if (!loaded) {
@@ -4796,6 +4801,97 @@ async function loadWorkspaceSlot(slot: string) {
     : "Managed copy (workspace cache)";
   if (data.refreshed_from_source) {
     status.value = "reloaded source changes from disk";
+  }
+}
+
+// Apply changes made to the workspace by something other than this
+// editor — typically an AI agent rewriting .glif files on disk while
+// the editor is open as a viewer. Known glyphs reload in place
+// (preserving editor state); structural changes (new/deleted glyphs,
+// plists, the designspace) trigger a full workspace reload when the
+// editor is clean. A glyph with unsaved local edits is never silently
+// replaced — the user keeps their version until they save (which then
+// 409s and surfaces the conflict) or revert.
+async function applyExternalWorkspaceChanges(
+  changes: WorkspaceExternalChange[],
+) {
+  if (!currentFontPath.value) return;
+  let structural = false;
+  let touched = false;
+
+  for (const change of changes) {
+    if (!change.path.endsWith(".glif")) {
+      structural = true;
+      continue;
+    }
+    let found = false;
+    for (const [masterName, data] of masterDataMap.value) {
+      for (const [name, p] of data.glyphPaths) {
+        if (p !== change.path) continue;
+        found = true;
+        if (change.type === "delete") {
+          structural = true;
+          break;
+        }
+        if (dirtyGlyphsByMaster.value.get(masterName)?.has(name)) {
+          status.value = `external change to ${name} held back — you have unsaved edits`;
+          break;
+        }
+        const bytes = new TextEncoder().encode(change.text ?? "");
+        data.glyphBytes.set(name, bytes);
+        data.glyphXmlByName = null;
+        data.glyphXmlVersion += 1;
+        const info = parseGlyphInfo(bytes);
+        data.glyphMetadata.set(name, {
+          name,
+          width: info.width,
+          contours: info.contours,
+          unicode: info.unicode,
+          unicodes: info.unicodes,
+        });
+        if (info.unicode) data.glyphUnicodes.set(name, info.unicode);
+        else data.glyphUnicodes.delete(name);
+        if (info.markColor) data.glyphMarkColors.set(name, info.markColor);
+        else data.glyphMarkColors.delete(name);
+        refreshGridGlyphSvg(data, name, bytes);
+        syncEditorComponentGlyphCacheEntry(data, name, bytes);
+        touched = true;
+        if (
+          masterName === activeMasterName.value &&
+          currentGlyph.value === name
+        ) {
+          loadGlyphIntoEditor(name, { preserveHistory: true });
+        }
+        status.value = `reloaded ${name} from disk`;
+        break;
+      }
+      if (found) break;
+    }
+    // A .glif at a path we don't know is a newly added glyph —
+    // membership lives in contents.plist, so treat it structurally.
+    if (!found && change.type === "change") structural = true;
+  }
+
+  if (touched) {
+    masterDataMap.value = new Map(masterDataMap.value);
+  }
+
+  if (structural) {
+    if (hasDirtyChanges.value) {
+      status.value =
+        "external workspace changes detected — save or revert to reload";
+      return;
+    }
+    const prevGlyph = currentGlyph.value;
+    const prevMaster = activeMasterName.value;
+    await loadWorkspaceSlot(currentFontPath.value);
+    if (prevMaster && masterDataMap.value.has(prevMaster)) {
+      activeMasterName.value = prevMaster;
+    }
+    if (prevGlyph && activeMasterData.value?.glyphBytes.has(prevGlyph)) {
+      loadGlyphIntoEditor(prevGlyph, { preserveHistory: false });
+    }
+    status.value = "reloaded workspace from disk";
   }
 }
 

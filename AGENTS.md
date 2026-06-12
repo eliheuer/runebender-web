@@ -8,8 +8,25 @@ this repo or using the editor during type-design sessions.
 
 ```sh
 pnpm install        # first time only; no Rust toolchain required
-pnpm dev            # http://localhost:5173
+pnpm dev            # http://localhost:5173 (demo font, no disk access)
 ```
+
+To let the user view/edit a real font on disk — THE primary agent
+workflow — run the workspace server instead and give them the URL:
+
+```sh
+pnpm build                                   # if dist/ is stale
+node server/serve.mjs <path-to-font> --port 8765
+# <path-to-font>: .designspace file, .ufo directory, or a directory
+# containing them. Editor at http://localhost:8765.
+```
+
+While it runs, any edits you make to the font's files on disk stream
+into the open editor live (SSE + file watcher, self-writes suppressed).
+The user's Cmd+S saves write through with If-Match content hashes —
+your edits can never be silently clobbered by a stale editor (the
+editor gets a 409 and keeps the file marked unsaved). When writing
+UFOs yourself, write .glif files BEFORE updating contents.plist.
 
 The dev server auto-loads the bundled Virtua Grotesk demo font from
 `assets/test-fonts/`. The page needs a WebGPU browser (current
@@ -45,10 +62,11 @@ Chrome/Edge, Safari 18+). `pnpm build` produces a static `dist/`;
 
 ## Known limits (don't chase these as bugs)
 
-- **Saving is not implemented in the browser host.** Every write path
-  in `browserHost.ts` intentionally returns 501. Loading works
-  (drag-drop a `.ufo` or `.designspace`, and the bundled demo). Save
-  support is planned (download-as-zip, then File System Access API).
+- **The browser host (no server) cannot save.** Every write path in
+  `browserHost.ts` intentionally returns 501; loading works (drag-drop,
+  bundled demo). Real load/save/watch is the workspace server's job
+  (`server/serve.mjs` + `src/hosts/local/localHost.ts`). A File System
+  Access API host is planned for the hosted editor at runebender.org.
 - The ComfyUI integration does not live here — that's
   [runebender-comfy](https://github.com/eliheuer/runebender-comfy),
   which imports this package and provides its own host
