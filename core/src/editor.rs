@@ -1533,7 +1533,22 @@ impl EditorState {
             && let Some(Path::Cubic(path)) = self.paths.get_mut(index)
             && !path.closed
         {
-            path.points.make_mut().extend(smooth_points.clone());
+            let points = path.points.make_mut();
+            // If the previous point is a bare on-curve (a corner, or the
+            // end of a straight run), give it an outgoing handle so the
+            // joining segment becomes a real two-off-curve cubic instead
+            // of a single-handle quadratic. This is what RoboFont / Glyphs
+            // / Fontra do when a line flows into a curve.
+            if points.last().is_some_and(|p| p.is_on_curve()) {
+                let prev_on = points.last().expect("checked above").point;
+                let auto_out = snap_point_to_grid(prev_on.lerp(origin, 1.0 / 3.0));
+                points.push(PathPoint {
+                    id: EntityId::next(),
+                    point: auto_out,
+                    typ: PointType::OffCurve { auto: false },
+                });
+            }
+            points.extend(smooth_points.clone());
             index
         } else {
             // For a new open contour, start with the on-curve point so
@@ -4198,6 +4213,47 @@ mod tests {
     use super::*;
     use crate::path::{PathPoints, QuadraticPath};
     use crate::text::{TextDirection, TextSort};
+
+    // Compact description of a contour's point types: 'C' corner on-curve,
+    // 'S' smooth on-curve, 'o' off-curve. Lets the pen tests assert the
+    // exact handle structure each gesture produces.
+    fn point_shape(state: &EditorState, path_index: usize) -> String {
+        state.paths[path_index]
+            .points()
+            .iter()
+            .map(|p| match p.typ {
+                PointType::OnCurve { smooth: false } => 'C',
+                PointType::OnCurve { smooth: true } => 'S',
+                PointType::OffCurve { .. } => 'o',
+            })
+            .collect()
+    }
+
+    #[test]
+    fn pen_all_drag_makes_two_offcurve_cubics() {
+        // Drawing every point with a click-drag should yield proper cubic
+        // segments: two off-curves between consecutive on-curve points.
+        let mut state = EditorState::default();
+        let idx = state.append_smooth_pen_point(None, Point::new(0.0, 0.0), Point::new(10.0, 10.0));
+        state.append_smooth_pen_point(Some(idx), Point::new(100.0, 0.0), Point::new(110.0, 10.0));
+        state.append_smooth_pen_point(Some(idx), Point::new(200.0, 0.0), Point::new(210.0, 10.0));
+        // S o o S o o S o  → each S..S gap has two off-curves = cubic.
+        assert_eq!(point_shape(&state, idx), "SooSooSo");
+    }
+
+    #[test]
+    fn pen_corner_then_drag_makes_two_offcurve_cubic() {
+        // Clicking two corners (a line) then dragging the third point must
+        // produce a proper cubic: an auto outgoing handle on corner #2 and
+        // the dragged point's incoming handle — TWO off-curves between
+        // them, not a single-handle quadratic.
+        let mut state = EditorState::default();
+        let idx = state.start_pen_path(Point::new(0.0, 0.0));
+        state.append_pen_point(idx, Point::new(100.0, 0.0));
+        state.append_smooth_pen_point(Some(idx), Point::new(200.0, 0.0), Point::new(210.0, 10.0));
+        // C C o o S o → corner2 gains an outgoing handle; gap = two off-curves.
+        assert_eq!(point_shape(&state, idx), "CCooSo");
+    }
 
     #[test]
     fn toggle_point_type_flips_selected_on_curve_points() {

@@ -228,7 +228,10 @@ const METRIC_LINE_PX: f64 = 1.0 * STROKE_SCALE;
 const TOOL_PREVIEW_LINE_PX: f64 = 1.0 * STROKE_SCALE;
 const SEGMENT_HOVER_LINE_PX: f64 = 3.0;
 const TOOL_PREVIEW_DOT_RADIUS_PX: f64 = 3.0;
-const KNIFE_PREVIEW_DASH: [f64; 2] = [4.0, 4.0];
+// Dash pattern shared by every in-progress tool preview (pen rubber-band,
+// knife line) so lines that have not "landed" yet read consistently as
+// provisional. Mirrors runebender-xilem `theme::tool_preview::LINE_DASH`.
+const TOOL_PREVIEW_DASH: [f64; 2] = [4.0, 4.0];
 const TEXT_CURSOR_LINE_PX: f64 = 1.5;
 const TEXT_CURSOR_LINE_MAX_PX: f64 = 4.0;
 const TEXT_CURSOR_TRIANGLE_WIDTH_PX: f64 = 24.0;
@@ -1925,7 +1928,13 @@ impl Renderer {
     }
 
     fn draw_pen_preview(&mut self, preview: PenPreview) {
-        let stroke = Stroke::new(TOOL_PREVIEW_LINE_PX);
+        // Dashed + device-scaled, matching the knife preview, so the
+        // not-yet-committed rubber-band reads as provisional and is no
+        // longer the faint hairline it was when it skipped `px()`.
+        let stroke = Stroke::new(self.px(TOOL_PREVIEW_LINE_PX))
+            .with_dashes(0.0, TOOL_PREVIEW_DASH.map(|dash| self.px(dash)).to_vec());
+        let dot_r = self.px(TOOL_PREVIEW_DOT_RADIUS_PX);
+
         if let Some(start) = preview.line_start {
             let target = preview
                 .close_target
@@ -1940,7 +1949,7 @@ impl Renderer {
             );
         }
 
-        let dot = Circle::new(preview.cursor, TOOL_PREVIEW_DOT_RADIUS_PX);
+        let dot = Circle::new(preview.cursor, dot_r);
         self.scene.fill(
             Fill::NonZero,
             Affine::IDENTITY,
@@ -1950,7 +1959,7 @@ impl Renderer {
         );
 
         if let Some(close_target) = preview.close_target {
-            let close_zone = Circle::new(close_target, TOOL_PREVIEW_DOT_RADIUS_PX * 2.0);
+            let close_zone = Circle::new(close_target, dot_r * 2.0);
             self.scene.stroke(
                 &stroke,
                 Affine::IDENTITY,
@@ -1960,7 +1969,7 @@ impl Renderer {
             );
         }
         if let Some(snap_target) = preview.snap_target {
-            let snap_zone = Circle::new(snap_target, TOOL_PREVIEW_DOT_RADIUS_PX * 2.5);
+            let snap_zone = Circle::new(snap_target, dot_r * 2.5);
             self.scene.stroke(
                 &stroke,
                 Affine::IDENTITY,
@@ -2005,7 +2014,7 @@ impl Renderer {
 
     fn draw_knife_preview(&mut self, preview: &KnifePreview, zoom: f64) {
         let stroke = Stroke::new(self.px(TOOL_PREVIEW_LINE_PX))
-            .with_dashes(0.0, KNIFE_PREVIEW_DASH.map(|dash| self.px(dash)).to_vec());
+            .with_dashes(0.0, TOOL_PREVIEW_DASH.map(|dash| self.px(dash)).to_vec());
         self.scene.stroke(
             &stroke,
             Affine::IDENTITY,
