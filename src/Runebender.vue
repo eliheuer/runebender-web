@@ -161,6 +161,11 @@ const selectedContourCount = ref<number>(0);
 const currentGlyph = ref<string>("");
 const fontLabel = ref<string>("");
 const viewMode = ref<"grid" | "editor">("grid");
+// True from first paint until the dev/demo font (props.initialFiles)
+// finishes loading, so we never flash the welcome / file-picker panel
+// before jumping straight into the loaded editor. Mirrors the
+// currentFontPath guard the host-path (ComfyUI) load already gets.
+const initialFontLoading = ref<boolean>(Boolean(props.initialFiles));
 const selectedCategory = ref<Category>("All");
 const selectedSidebarFilter = ref<GlyphSidebarFilter>({ kind: "all" });
 const sidebarSearchQuery = ref("");
@@ -1194,9 +1199,13 @@ onMounted(async () => {
       // editor live.
       runebenderHost.watchWorkspaceChanges?.(applyExternalWorkspaceChanges);
     } else if (props.initialFiles) {
-      const loaded = await loadDevTestFont();
-      if (!loaded) {
-        loadWelcomeDemoGlyph();
+      try {
+        const loaded = await loadDevTestFont();
+        if (!loaded) {
+          loadWelcomeDemoGlyph();
+        }
+      } finally {
+        initialFontLoading.value = false;
       }
     } else {
       loadWelcomeDemoGlyph();
@@ -7633,7 +7642,7 @@ onBeforeUnmount(() => {
              window before glyphs populate, and a momentary flash of
              "Drop a .ufo folder" would be confusing. -->
         <WelcomePanel
-          v-if="glyphNames.length === 0 && !currentFontPath"
+          v-if="glyphNames.length === 0 && !currentFontPath && !initialFontLoading"
           @open-ufo="openFontDirectoryPicker"
         />
 
