@@ -2597,7 +2597,11 @@ function nudgeSelectedBackgroundImage(dx: number, dy: number): boolean {
 }
 
 function backgroundTraceArgs() {
-  if (!backgroundImage.value || !editor || !currentGlyph.value || !currentFontPath.value) {
+  // No currentFontPath requirement: the trace runs in-browser via the
+  // img2bez wasm and applies to the in-memory glyph, so it works in the
+  // standalone browser host (no workspace server) too. `slot` below is
+  // only read by the backend fallback, which is a no-op stub here.
+  if (!backgroundImage.value || !editor || !currentGlyph.value) {
     return null;
   }
   const data = activeMasterData.value;
@@ -2716,10 +2720,10 @@ async function traceBackgroundImageToGlyph(refit = false): Promise<boolean> {
     status.value = "open a glyph before tracing";
     return false;
   }
-  if (!currentFontPath.value) {
-    status.value = "background tracing requires a workspace font";
-    return false;
-  }
+  // The trace is in-browser (img2bez wasm) and applies to the in-memory
+  // glyph, so it does not require a workspace font path. Without this,
+  // tracing no-ops in the standalone browser build (e.g. runebender.org),
+  // where the bundled demo font has no currentFontPath.
   const data = activeMasterData.value;
   if (!data) {
     status.value = "no active master to trace into";
