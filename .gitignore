@@ -17,3 +17,6 @@ core/target/
 
 # run-app.sh: records the img2bez rev the committed wasm was built from
 wasm/.img2bez-rev
+
+# Local workspace scratch (font staging for the dev server)
+workspace/
