@@ -19,9 +19,6 @@ struct TraceImageConfig {
     y_offset: Option<f64>,
     grid: Option<i32>,
     accuracy: Option<f64>,
-    smooth: Option<usize>,
-    alphamax: Option<f64>,
-    global_fit: Option<bool>,
     invert: Option<bool>,
     threshold: Option<u8>,
 }
@@ -57,9 +54,6 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
         lsb: (x_offset / snap_grid).round() * snap_grid,
         grid,
         fit_accuracy: config.accuracy.unwrap_or(4.0).max(0.1),
-        smooth_iterations: config.smooth.unwrap_or(0),
-        alphamax: config.alphamax.unwrap_or(0.35),
-        global_fit: config.global_fit.unwrap_or(false),
         invert: config.invert.unwrap_or(false),
         threshold: config
             .threshold
@@ -73,7 +67,6 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
     let glif = img2bez::glif::to_glif(&config.glyph, &result, &tracing_config)
         .map_err(|e| format!("img2bez glif serialize failed: {e}"))?;
     let (curves, lines, on_curves, off_curves) = count_path_geometry(&result.paths);
-    let diagnostics = result.diagnostics;
 
     Ok(TraceImageReport {
         glif,
@@ -85,17 +78,6 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
         advance_width: result.advance_width,
         reposition_shift_x: result.reposition_shift.0,
         reposition_shift_y: result.reposition_shift.1,
-        diagnostics: TraceImageDiagnostics {
-            missed_extrema_fixed: diagnostics.missed_extrema_fixed,
-            high_deviation_splits: diagnostics.high_deviation_splits,
-            strong_tangent_overrides: diagnostics.strong_tangent_overrides,
-            clean_tangent_overrides: diagnostics.clean_tangent_overrides,
-            visible_tangent_overrides: diagnostics.visible_tangent_overrides,
-            rejected_tangent_near_misses: diagnostics.rejected_tangent_near_misses,
-            oversegmented_splits_removed: diagnostics.oversegmented_splits_removed,
-            final_outline_divergences: diagnostics.final_outline_divergences,
-            final_outline_repairs: diagnostics.final_outline_repairs,
-        },
     })
 }
 
@@ -111,21 +93,6 @@ struct TraceImageReport {
     advance_width: f64,
     reposition_shift_x: f64,
     reposition_shift_y: f64,
-    diagnostics: TraceImageDiagnostics,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TraceImageDiagnostics {
-    missed_extrema_fixed: usize,
-    high_deviation_splits: usize,
-    strong_tangent_overrides: usize,
-    clean_tangent_overrides: usize,
-    visible_tangent_overrides: usize,
-    rejected_tangent_near_misses: usize,
-    oversegmented_splits_removed: usize,
-    final_outline_divergences: usize,
-    final_outline_repairs: usize,
 }
 
 fn count_path_geometry(paths: &[img2bez::kurbo::BezPath]) -> (usize, usize, usize, usize) {

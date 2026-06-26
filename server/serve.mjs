@@ -252,7 +252,9 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, {
       server: "runebender-serve",
       root: path.basename(root),
+      rootPath: root,
       entry,
+      entryPath: entry ? path.join(root, entry) : root,
       readOnly: false,
     });
   }

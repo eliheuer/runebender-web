@@ -87,6 +87,15 @@ impl ActiveTool {
         }
     }
 
+    /// Backspace with the pen active deletes the last point of the contour
+    /// currently being drawn.
+    pub fn pen_delete_last_point(&mut self, state: &mut EditorState) -> bool {
+        match self {
+            ActiveTool::Pen(tool) => tool.delete_last_point(state),
+            _ => false,
+        }
+    }
+
     pub fn is_preview(&self) -> bool {
         matches!(self, ActiveTool::Preview(_))
     }
@@ -437,6 +446,15 @@ impl MouseDelegate for PenTool {
         let design_pos = state.screen_to_glyph_design(event.pos);
         let snap_radius = 10.0 / state.viewport.zoom.max(1e-6);
 
+        // Alt-click a line segment converts it to a curve. Gated on alt so
+        // it never interferes with ordinary point placement; falls through
+        // when the cursor isn't over a line.
+        if event.mods.alt && state.convert_line_segment_to_curve(design_pos, snap_radius) {
+            state.pen_preview = None;
+            self.drag_origin = None;
+            return;
+        }
+
         if self.current_path.is_none()
             && state.insert_point_on_nearest_segment(design_pos, snap_radius)
         {
@@ -523,6 +541,23 @@ impl MouseDelegate for PenTool {
 }
 
 impl PenTool {
+    /// Delete the last point of the contour being drawn (Backspace).
+    /// Resets the active contour when it becomes empty.
+    pub fn delete_last_point(&mut self, state: &mut EditorState) -> bool {
+        let Some(path_index) = self.current_path else {
+            return false;
+        };
+        let Some(remaining) = state.delete_last_pen_point(path_index) else {
+            return false;
+        };
+        if remaining == 0 {
+            state.remove_tool_path(path_index);
+            self.current_path = None;
+        }
+        state.pen_preview = None;
+        true
+    }
+
     fn update_preview(&self, event: MouseEvent, state: &mut EditorState) {
         let cursor_design = state.screen_to_glyph_design(event.pos);
         let line_start = self

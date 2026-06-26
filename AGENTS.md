@@ -45,7 +45,9 @@ Chrome/Edge, Safari 18+). `pnpm build` produces a static `dist/`;
   browser host, auto-loads the demo font via `src/devTestFont.ts`.
 - `core/` — Rust crate `runebender-web`. Editor model, editing tools,
   Vello renderer, `wasm_api.rs` (wasm-bindgen surface). Path-depends on
-  sibling checkouts `../../runebender-core` and `../../img2bez`.
+  the sibling checkout `../../runebender-core`. The autotracer `img2bez`
+  is a git dependency on `github.com/eliheuer/img2bez` (default branch,
+  commit pinned in `Cargo.lock`); `cargo update -p img2bez` pulls newer.
 - `wasm/` — committed wasm-pack output. NEVER edit by hand.
 - `src/gfSidebarData.generated.ts` — generated (see `pnpm gf-sidebar`),
   don't edit by hand.

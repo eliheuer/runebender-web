@@ -267,6 +267,11 @@ type GlyphKerningGroups = {
   right?: string;
 };
 
+const KERNING_GROUP_PREFIX = {
+  left: "public.kern1.",
+  right: "public.kern2.",
+} as const;
+
 type BackgroundImageState = {
   url: string;
   file: File;
@@ -318,17 +323,6 @@ type WasmTraceReport = {
   advanceWidth: number;
   repositionShiftX: number;
   repositionShiftY: number;
-  diagnostics: {
-    missedExtremaFixed: number;
-    highDeviationSplits: number;
-    strongTangentOverrides: number;
-    cleanTangentOverrides: number;
-    visibleTangentOverrides: number;
-    rejectedTangentNearMisses: number;
-    oversegmentedSplitsRemoved: number;
-    finalOutlineDivergences: number;
-    finalOutlineRepairs: number;
-  };
 };
 
 type ContourContextMenuState = {
@@ -984,6 +978,7 @@ type Editor = {
   copySelection(): boolean;
   pasteSelection(): boolean;
   deleteSelection(): boolean;
+  penDeleteLastPoint(): boolean;
   togglePointType(): boolean;
   roundSelectedCorners(): boolean;
   togglePointTypeAt(x: number, y: number): boolean;
@@ -1182,6 +1177,7 @@ onMounted(async () => {
     updateGridViewportSize();
     window.addEventListener("keydown", onGlobalKeyDownCapture, { capture: true });
     window.addEventListener("keyup", onGlobalKeyUpCapture, { capture: true });
+    window.addEventListener("paste", onWindowPaste, { capture: true });
     window.addEventListener("blur", onWindowBlur);
     window.addEventListener("pointerdown", onWindowPointerDown);
     // Window-level drag listeners stop the browser from "opening" a
@@ -2071,27 +2067,11 @@ function otsuThresholdFromImageData(imageData: ImageData): number {
   return threshold;
 }
 
-function highContrastTraceThresholdFromImageData(imageData: ImageData): number {
-  const otsu = otsuThresholdFromImageData(imageData);
-  const data = imageData.data;
-  const total = Math.max(1, imageData.width * imageData.height);
-  let darkPixels = 0;
-  let lightPixels = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    const luma = compositedLuma(data, i);
-    if (luma <= 32) darkPixels += 1;
-    if (luma >= 240) lightPixels += 1;
-  }
-  const darkRatio = darkPixels / total;
-  const lightRatio = lightPixels / total;
-  if (darkRatio >= 0.005 && lightRatio >= 0.55) {
-    return Math.max(otsu, 192);
-  }
-  return otsu;
-}
-
+// Otsu, matching img2bez's default (and so the CLI's out-of-the-box
+// behavior). Used only to position the background image under the
+// trace; the trace itself lets img2bez compute its own Otsu.
 async function thresholdForBackgroundTrace(file: File): Promise<number> {
-  return highContrastTraceThresholdFromImageData(await imageDataForFile(file));
+  return otsuThresholdFromImageData(await imageDataForFile(file));
 }
 
 async function foregroundPixelBoundsForTrace(
@@ -2650,7 +2630,6 @@ function backgroundTraceArgs() {
   // Use img2bez's current structural default. Lower values preserve too many
   // bitmap stair-step corners and produce noisy point structure.
   const traceFitAccuracy = 4;
-  const traceAlphaMax = 0.8;
   return {
     slot: currentFontPath.value,
     master: activeMasterName.value,
@@ -2672,9 +2651,6 @@ function backgroundTraceArgs() {
     descender,
     grid,
     accuracy: traceFitAccuracy,
-    smooth: 0,
-    alphamax: traceAlphaMax,
-    globalFit: false,
     invert: false,
     threshold: undefined as number | undefined,
   };
@@ -2712,6 +2688,11 @@ async function alignBackgroundImageToTrace(
 }
 
 function wasmTraceConfig(args: NonNullable<ReturnType<typeof backgroundTraceArgs>>) {
+  // Mirror img2bez's out-of-the-box defaults so the trace matches the
+  // `img2bez --input … ` CLI. `threshold: null` lets img2bez compute its
+  // own Otsu (what the CLI does); width/targetHeight/xOffset/yOffset only
+  // place and size the result onto the background image — they do not
+  // change the traced curve shape.
   return {
     glyph: args.glyph,
     unicode: args.unicode,
@@ -2721,11 +2702,8 @@ function wasmTraceConfig(args: NonNullable<ReturnType<typeof backgroundTraceArgs
     yOffset: args.yOffset,
     grid: args.grid,
     accuracy: args.accuracy,
-    smooth: args.smooth,
-    alphamax: args.alphamax,
-    globalFit: args.globalFit,
     invert: args.invert,
-    threshold: args.threshold,
+    threshold: null,
   };
 }
 
@@ -2767,10 +2745,29 @@ async function traceBackgroundImageToGlyph(refit = false): Promise<boolean> {
     }
     const traceThreshold =
       args.threshold === undefined ? await thresholdForBackgroundTrace(args.image) : args.threshold;
-    const traceArgs = { ...args, threshold: traceThreshold };
+    // Place the trace at the image's current INK position, not its left
+    // edge. img2bez snaps the outline's left ink edge to `xOffset`, and
+    // the image is re-aligned to the same x afterwards; if `xOffset` is
+    // the image's left edge, both jump left by the image's left
+    // whitespace when the trace appears. Shift `xOffset` right by that
+    // whitespace (foreground minX) so the trace lands under the ink and
+    // nothing moves. On a re-trace `traceXOffset` already holds this.
+    let xOffset = args.xOffset;
+    if (backgroundImage.value?.traceXOffset === undefined) {
+      const scale = args.targetHeight / Math.max(1, args.imageHeight);
+      const bounds = await foregroundPixelBoundsForTrace(
+        args.image,
+        traceThreshold,
+        args.invert,
+      );
+      if (bounds) {
+        xOffset = snapTraceValue(args.xOffset + bounds.minX * scale, args.grid);
+      }
+    }
+    const traceArgs = { ...args, threshold: traceThreshold, xOffset };
     runebenderHost.log?.(
       "info",
-      `[runebender] trace request glyph=${glyphName} slot=${traceArgs.slot} master=${traceArgs.master} image=${traceArgs.image.name} accuracy=${traceArgs.accuracy} alphamax=${traceArgs.alphamax} threshold=${traceArgs.threshold}`,
+      `[runebender] trace request glyph=${glyphName} slot=${traceArgs.slot} master=${traceArgs.master} image=${traceArgs.image.name} accuracy=${traceArgs.accuracy} threshold=otsu`,
     );
     let trace;
     try {
@@ -2779,14 +2776,10 @@ async function traceBackgroundImageToGlyph(refit = false): Promise<boolean> {
         traceImageToGlifReport(imageBytes, JSON.stringify(wasmTraceConfig(traceArgs))),
       ) as WasmTraceReport;
       const glif = report.glif;
-      trace = { success: true, glyph: glyphName, glif, wasmReport: report };
+      trace = { success: true, glyph: glyphName, glif };
       runebenderHost.log?.(
         "info",
         `[runebender] trace wasm ok glyph=${glyphName} glif_bytes=${glif.length} contours=${report.contours} curves=${report.curves} lines=${report.lines} on=${report.onCurves} off=${report.offCurves} width=${report.advanceWidth.toFixed(1)} shift=(${report.repositionShiftX.toFixed(1)},${report.repositionShiftY.toFixed(1)})`,
-      );
-      runebenderHost.log?.(
-        "info",
-        `[runebender] trace wasm diagnostics extrema=${report.diagnostics.missedExtremaFixed} deviation_splits=${report.diagnostics.highDeviationSplits} tangent_overrides=${report.diagnostics.strongTangentOverrides}/${report.diagnostics.cleanTangentOverrides}/${report.diagnostics.visibleTangentOverrides} tangent_rejects=${report.diagnostics.rejectedTangentNearMisses} oversegment_removed=${report.diagnostics.oversegmentedSplitsRemoved} final_divergences=${report.diagnostics.finalOutlineDivergences} final_repairs=${report.diagnostics.finalOutlineRepairs}`,
       );
     } catch (wasmError) {
       runebenderHost.log?.(
@@ -2853,23 +2846,7 @@ async function traceBackgroundImageToGlyph(refit = false): Promise<boolean> {
     }
     requestRender();
     queueComfyStateSync(true);
-    const wasmReport = "wasmReport" in trace ? (trace.wasmReport as WasmTraceReport) : undefined;
-    const unrepairedFinalDivergences = wasmReport
-      ? Math.max(
-          0,
-          wasmReport.diagnostics.finalOutlineDivergences -
-            wasmReport.diagnostics.finalOutlineRepairs,
-        )
-      : 0;
-    if (unrepairedFinalDivergences > 0) {
-      status.value = `traced ${glyphName}; ${unrepairedFinalDivergences} outline divergence${unrepairedFinalDivergences === 1 ? "" : "s"} need review`;
-      runebenderHost.log?.(
-        "warn",
-        `[runebender] trace applied with ${unrepairedFinalDivergences} unrepaired final outline divergence${unrepairedFinalDivergences === 1 ? "" : "s"}`,
-      );
-    } else {
-      status.value = `traced ${glyphName} with img2bez`;
-    }
+    status.value = `traced ${glyphName} with img2bez`;
     return true;
   } catch (e) {
     console.warn("background trace failed:", e);
@@ -3310,7 +3287,7 @@ function onToolSelect(tool: ToolId) {
   requestRender();
 }
 
-function eventTargetAcceptsText(event: KeyboardEvent): boolean {
+function eventTargetAcceptsText(event: Event): boolean {
   const target = event.target as HTMLElement | null;
   return (
     target instanceof HTMLInputElement ||
@@ -3462,17 +3439,25 @@ function insertTextCharacter(char: string): boolean {
 /// breaks. Characters with no glyph in the font are skipped. State is
 /// refreshed once at the end rather than per character so long pastes
 /// stay snappy.
-async function pasteTextIntoBuffer(): Promise<boolean> {
-  if (!editor || !textModeActive.value) return false;
-  let text = "";
-  try {
-    text = (await navigator.clipboard?.readText()) ?? "";
-  } catch (e) {
-    console.warn("clipboard read failed:", e);
-    status.value = "clipboard read blocked — check browser permissions";
-    return false;
+async function pasteTextIntoBuffer(clipboardText?: string): Promise<boolean> {
+  if (!editor || !textPasteTargetActive()) return false;
+  let text = clipboardText ?? "";
+  if (!text) {
+    try {
+      text = (await navigator.clipboard?.readText()) ?? "";
+    } catch (e) {
+      console.warn("clipboard read failed:", e);
+      status.value = "clipboard read blocked — check browser permissions";
+      return false;
+    }
   }
   if (!text) return false;
+
+  if (activeTool.value !== "Text") {
+    activeTool.value = "Text";
+    editor.setTool("Text");
+  }
+  syncTextKerningModelToEditor();
 
   let inserted = 0;
   let skipped = 0;
@@ -3499,6 +3484,10 @@ async function pasteTextIntoBuffer(): Promise<boolean> {
     ? `pasted ${inserted} character${inserted === 1 ? "" : "s"} (${skipped} with no glyph skipped)`
     : `pasted ${inserted} character${inserted === 1 ? "" : "s"}`;
   return true;
+}
+
+function textPasteTargetActive(): boolean {
+  return activeTool.value === "Text" || hasTextBufferSession.value;
 }
 
 function textGlyphPayload(glyphName: string): {
@@ -4300,9 +4289,9 @@ function buildGlyphKerningGroups(
 ): Map<string, GlyphKerningGroups> {
   const byGlyph = new Map<string, GlyphKerningGroups>();
   for (const [groupName, members] of groups) {
-    const side = groupName.startsWith("public.kern1.")
+    const side = groupName.startsWith(KERNING_GROUP_PREFIX.left)
       ? "left"
-      : groupName.startsWith("public.kern2.")
+      : groupName.startsWith(KERNING_GROUP_PREFIX.right)
         ? "right"
         : null;
     if (!side) continue;
@@ -4315,6 +4304,23 @@ function buildGlyphKerningGroups(
   return byGlyph;
 }
 
+function stripKerningGroupPrefix(groupName: string | undefined): string {
+  if (!groupName) return "";
+  return groupName
+    .replace(KERNING_GROUP_PREFIX.left, "")
+    .replace(KERNING_GROUP_PREFIX.right, "");
+}
+
+function normalizeKerningGroupName(
+  side: "left" | "right",
+  value: string,
+): string {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "-") return "";
+  const bare = stripKerningGroupPrefix(trimmed).trim();
+  return bare ? `${KERNING_GROUP_PREFIX[side]}${bare}` : "";
+}
+
 function plistKerningGroupsForGlyph(
   groupsMap: Map<string, string[]>,
   glyphName: string,
@@ -4322,9 +4328,9 @@ function plistKerningGroupsForGlyph(
   const groups: GlyphKerningGroups = {};
   for (const [groupName, members] of groupsMap) {
     if (!members.includes(glyphName)) continue;
-    if (groupName.startsWith("public.kern1.") && !groups.left) {
+    if (groupName.startsWith(KERNING_GROUP_PREFIX.left) && !groups.left) {
       groups.left = groupName;
-    } else if (groupName.startsWith("public.kern2.") && !groups.right) {
+    } else if (groupName.startsWith(KERNING_GROUP_PREFIX.right) && !groups.right) {
       groups.right = groupName;
     }
   }
@@ -4473,7 +4479,7 @@ function updateGlyphKerningGroup(side: "left" | "right", value: string) {
   if (!glyphName || !data) return;
   const bytes = data.glyphBytes.get(glyphName);
   if (!bytes) return;
-  const nextGroup = value;
+  const nextGroup = normalizeKerningGroupName(side, value);
   const currentGroups = data.glyphKerningGroups.get(glyphName);
   const currentGroup = side === "left" ? currentGroups?.left : currentGroups?.right;
   if ((currentGroup ?? "") === nextGroup) return;
@@ -4481,7 +4487,7 @@ function updateGlyphKerningGroup(side: "left" | "right", value: string) {
   const nextBytes = glifWithKerningGroup(bytes, side, nextGroup);
   setGlyphBytes(data, glyphName, nextBytes);
   const nextGroups = { ...(currentGroups ?? {}) };
-  if (!nextGroup || nextGroup === "-") {
+  if (!nextGroup) {
     delete nextGroups[side];
   } else {
     nextGroups[side] = nextGroup;
@@ -4809,7 +4815,13 @@ async function loadWorkspaceSlot(slot: string) {
 
   fontLabel.value = slot;
   sourceSaveLabel.value = data.linked_source
-    ? `Editing ${data.origin_source || data.origin_root || "source"}`
+    ? `Editing ${
+        data.display_source ||
+        data.origin_source ||
+        data.display_root ||
+        data.origin_root ||
+        "source"
+      }`
     : "Managed copy (workspace cache)";
   if (data.refreshed_from_source) {
     status.value = "reloaded source changes from disk";
@@ -5884,6 +5896,13 @@ function applyEditorMutation(mutate: () => boolean): boolean {
   return true;
 }
 
+function penDeleteLastPoint(): boolean {
+  if (!editor || !currentGlyph.value) return false;
+  if (!editor.penDeleteLastPoint()) return false;
+  syncEditorMutationAfterWasmChange();
+  return true;
+}
+
 function syncEditorMutationAfterWasmChange(): boolean {
   if (!editor || !currentGlyph.value) return false;
   syncCurrentGlyphBytesFromEditor({ refreshCompatibility: false });
@@ -6521,7 +6540,13 @@ async function onSaveAs() {
       throw new Error(data.error || `${response.status} ${response.statusText}`);
     }
     sourceSaveLabel.value = data.linked_source
-      ? `Editing ${data.origin_source || data.origin_root || "source"}`
+      ? `Editing ${
+          data.display_source ||
+          data.origin_source ||
+          data.display_root ||
+          data.origin_root ||
+          "source"
+        }`
       : `Exported ${data.destination || chosen.destination}`;
     lastSavedDisplay.value = formatLastSavedDisplay();
     status.value = data.linked_source
@@ -7245,12 +7270,11 @@ function onKeyDown(e: KeyboardEvent) {
       e.preventDefault();
     }
   } else if (meta && !e.shiftKey && e.key.toLowerCase() === "v") {
-    if (textModeActive.value) {
-      // Paste a copied text string into the buffer instead of glyph
-      // contours. Clipboard reads are async; preventDefault now so the
-      // browser doesn't also fire its own paste.
-      e.preventDefault();
-      void pasteTextIntoBuffer();
+    if (textPasteTargetActive()) {
+      // Let the paste event carry clipboardData. Reading the clipboard
+      // directly from keydown is permission-sensitive and can fail on
+      // localhost even for normal user paste gestures.
+      return;
     } else if (pasteSelection()) {
       e.preventDefault();
     }
@@ -7304,6 +7328,10 @@ function onKeyDown(e: KeyboardEvent) {
     e.preventDefault();
   } else if ((e.key === "Backspace" || e.key === "Delete") && !textModeActive.value) {
     if (deleteSelectedBackgroundImage()) {
+      e.preventDefault();
+    } else if (activeTool.value === "Pen" && penDeleteLastPoint()) {
+      // While drawing, Backspace walks the contour back one point at a
+      // time instead of deleting the generic selection.
       e.preventDefault();
     } else if (selectionCount.value > 0 && applySelectionEdit("delete")) {
       e.preventDefault();
@@ -7417,6 +7445,15 @@ function onGlobalKeyUpCapture(e: KeyboardEvent) {
   e.stopImmediatePropagation();
 }
 
+function onWindowPaste(e: ClipboardEvent) {
+  if (!editor || eventTargetAcceptsText(e) || !textPasteTargetActive()) return;
+  const text = e.clipboardData?.getData("text/plain") ?? "";
+  if (!text) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  void pasteTextIntoBuffer(text);
+}
+
 onBeforeUnmount(() => {
   if (raf !== null) {
     cancelAnimationFrame(raf);
@@ -7446,6 +7483,7 @@ onBeforeUnmount(() => {
   clearBackgroundImage();
   window.removeEventListener("keydown", onGlobalKeyDownCapture, { capture: true });
   window.removeEventListener("keyup", onGlobalKeyUpCapture, { capture: true });
+  window.removeEventListener("paste", onWindowPaste, { capture: true });
   window.removeEventListener("blur", onWindowBlur);
   window.removeEventListener("pointerdown", onWindowPointerDown);
   window.removeEventListener("dragenter", onWindowDragOver, { capture: true });
@@ -7855,7 +7893,7 @@ onBeforeUnmount(() => {
                 <span>Left Group</span>
                 <input
                   type="text"
-                  :value="activeGlyphKerningGroups?.left ?? ''"
+                  :value="stripKerningGroupPrefix(activeGlyphKerningGroups?.left)"
                   aria-label="Left kerning group"
                   placeholder="None"
                   @change="updateGlyphKerningGroup('left', ($event.target as HTMLInputElement).value)"
@@ -7912,7 +7950,7 @@ onBeforeUnmount(() => {
                 <span>Right Group</span>
                 <input
                   type="text"
-                  :value="activeGlyphKerningGroups?.right ?? ''"
+                  :value="stripKerningGroupPrefix(activeGlyphKerningGroups?.right)"
                   aria-label="Right kerning group"
                   placeholder="None"
                   @change="updateGlyphKerningGroup('right', ($event.target as HTMLInputElement).value)"
@@ -8792,6 +8830,13 @@ onBeforeUnmount(() => {
   color: var(--rb-accent, #18b86f);
   font: 11px ui-monospace, monospace;
   white-space: nowrap;
+}
+
+/* Per-segment length labels sit centered ON the measure line at the
+   midpoint between intersections, not offset to the side like the
+   distance/angle bubble at the cursor end. */
+.measure-segment {
+  transform: translate(-50%, -50%);
 }
 
 .clipboard-notice {

@@ -11,6 +11,8 @@ export type WorkspaceSlotPayload = {
   linked_source?: boolean;
   origin_root?: string;
   origin_source?: string;
+  display_root?: string;
+  display_source?: string;
   refreshed_from_source?: boolean;
 };
 
@@ -25,6 +27,8 @@ export type SaveWorkspaceAsResult = {
   linked_source?: boolean;
   origin_root?: string;
   origin_source?: string;
+  display_root?: string;
+  display_source?: string;
   error?: string;
 };
 

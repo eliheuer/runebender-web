@@ -14,3 +14,6 @@ core/target/
 
 # macOS
 .DS_Store
+
+# run-app.sh: records the img2bez rev the committed wasm was built from
+wasm/.img2bez-rev

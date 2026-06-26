@@ -1664,6 +1664,41 @@ impl EditorState {
         true
     }
 
+    /// Delete the last point of an open pen contour (Backspace while
+    /// drawing): drop the trailing outgoing handle(s), the last on-curve
+    /// point, then the incoming handle(s) it leaves dangling. Returns the
+    /// remaining point count, or None if the path is missing or closed.
+    /// The caller removes the contour when this reaches 0.
+    pub fn delete_last_pen_point(&mut self, path_index: usize) -> Option<usize> {
+        let Some(Path::Cubic(path)) = self.paths.get_mut(path_index) else {
+            return None;
+        };
+        if path.closed {
+            return None;
+        }
+        let points = path.points.make_mut();
+        if points.is_empty() {
+            return Some(0);
+        }
+        while points.last().is_some_and(|p| p.is_off_curve()) {
+            points.pop();
+        }
+        points.pop();
+        // Remove only the deleted point's incoming handle, leaving the
+        // previous point's outgoing handle (the other control of a cubic
+        // segment) intact.
+        if points.last().is_some_and(|p| p.is_off_curve()) {
+            points.pop();
+        }
+        let len = points.len();
+        self.selection = Selection::new();
+        if let Some(last) = points.last() {
+            self.selection.insert(last.id);
+        }
+        self.bump_edit_revision();
+        Some(len)
+    }
+
     pub fn start_hyper_path(&mut self, point: Point) -> usize {
         let path = Path::Hyper(crate::path::HyperPath::new(snap_point_to_grid(point)));
         self.paths.push(path);
@@ -2233,6 +2268,40 @@ impl EditorState {
             return false;
         };
         self.insert_point_on_segment(&segment_info, t)
+    }
+
+    /// Convert the nearest *line* segment to a cubic, dropping two
+    /// off-curve handles at its 1/3 and 2/3 points (alt-click with the
+    /// pen). Returns false when the nearest segment isn't a line.
+    pub fn convert_line_segment_to_curve(&mut self, point: Point, radius: f64) -> bool {
+        let Some((segment_info, _)) = self.nearest_segment_with_t(point, radius) else {
+            return false;
+        };
+        let Segment::Line(line) = segment_info.segment else {
+            return false;
+        };
+        let Some(path) = self.paths.get_mut(segment_info.path_index) else {
+            return false;
+        };
+        let handle1 = off_curve(snap_point_to_grid(line.p0.lerp(line.p1, 1.0 / 3.0)));
+        let handle2 = off_curve(snap_point_to_grid(line.p0.lerp(line.p1, 2.0 / 3.0)));
+        let handle1_id = handle1.id;
+        // `end_index < start_index` for the wrap-around closing segment.
+        let insert_index = if segment_info.end_index > segment_info.start_index {
+            segment_info.end_index
+        } else {
+            segment_info.start_index + 1
+        };
+        let points = path_points_mut(path);
+        points.insert(insert_index, handle2);
+        points.insert(insert_index, handle1);
+        if let Path::Hyper(hyper) = path {
+            hyper.after_change();
+        }
+        self.selection = Selection::new();
+        self.selection.insert(handle1_id);
+        self.bump_edit_revision();
+        true
     }
 
     /// Apply a boolean operation to every contour in the glyph.
@@ -4253,6 +4322,54 @@ mod tests {
         state.append_smooth_pen_point(Some(idx), Point::new(200.0, 0.0), Point::new(210.0, 10.0));
         // C C o o S o → corner2 gains an outgoing handle; gap = two off-curves.
         assert_eq!(point_shape(&state, idx), "CCooSo");
+    }
+
+    #[test]
+    fn pen_convert_line_segment_to_curve_inserts_two_offcurves() {
+        // Alt-clicking a straight segment turns it into a two-off-curve
+        // cubic, with handles at the 1/3 and 2/3 points.
+        let mut state = EditorState::default();
+        let idx = state.start_pen_path(Point::new(0.0, 0.0));
+        state.append_pen_point(idx, Point::new(300.0, 0.0));
+        assert_eq!(point_shape(&state, idx), "CC");
+        assert!(state.convert_line_segment_to_curve(Point::new(150.0, 0.0), 10.0));
+        assert_eq!(point_shape(&state, idx), "CooC");
+        let pts: Vec<_> = state.paths[idx].points().iter().map(|p| p.point).collect();
+        assert_eq!(pts[1], Point::new(100.0, 0.0));
+        assert_eq!(pts[2], Point::new(200.0, 0.0));
+    }
+
+    #[test]
+    fn pen_convert_line_segment_ignores_curves() {
+        // Only line segments convert; a cubic segment is left untouched.
+        let mut state = EditorState::default();
+        let idx = state.append_smooth_pen_point(None, Point::new(0.0, 0.0), Point::new(20.0, 40.0));
+        state.append_smooth_pen_point(Some(idx), Point::new(200.0, 0.0), Point::new(220.0, 40.0));
+        let before = point_shape(&state, idx);
+        assert!(!state.convert_line_segment_to_curve(Point::new(100.0, 30.0), 60.0));
+        assert_eq!(point_shape(&state, idx), before);
+    }
+
+    #[test]
+    fn pen_delete_last_point_walks_back_a_smooth_point() {
+        // Backspace mid-draw drops the last on-curve point together with
+        // its trailing and incoming handles, leaving the prior point intact.
+        let mut state = EditorState::default();
+        let idx = state.append_smooth_pen_point(None, Point::new(0.0, 0.0), Point::new(10.0, 10.0));
+        state.append_smooth_pen_point(Some(idx), Point::new(100.0, 0.0), Point::new(110.0, 10.0));
+        assert_eq!(point_shape(&state, idx), "SooSo");
+        let remaining = state.delete_last_pen_point(idx);
+        assert_eq!(remaining, Some(2));
+        assert_eq!(point_shape(&state, idx), "So");
+    }
+
+    #[test]
+    fn pen_delete_last_point_reports_empty_contour() {
+        // Backspacing the final point reports 0 so the tool can drop the
+        // now-empty contour.
+        let mut state = EditorState::default();
+        let idx = state.start_pen_path(Point::new(0.0, 0.0));
+        assert_eq!(state.delete_last_pen_point(idx), Some(0));
     }
 
     #[test]

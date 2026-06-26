@@ -66,6 +66,7 @@ export const glypheditor_nudgeSelection: (a: number, b: number, c: number, d: nu
 export const glypheditor_nudgeSelectionFastState: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
 export const glypheditor_nudgeSelectionState: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
 export const glypheditor_pasteSelection: (a: number) => number;
+export const glypheditor_penDeleteLastPoint: (a: number) => number;
 export const glypheditor_pointerCancel: (a: number) => number;
 export const glypheditor_pointerDown: (a: number, b: number, c: number, d: number, e: number) => void;
 export const glypheditor_pointerMove: (a: number, b: number, c: number, d: number) => void;

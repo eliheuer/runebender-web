@@ -1650,6 +1650,20 @@ impl GlyphEditor {
         self.tool.set_knife_shift_locked(locked, &mut self.state)
     }
 
+    /// Backspace with the pen tool: delete the last point of the contour
+    /// currently being drawn. Returns true if something was removed.
+    #[wasm_bindgen(js_name = penDeleteLastPoint)]
+    pub fn pen_delete_last_point(&mut self) -> bool {
+        let snapshot = self.discrete_edit_snapshot();
+        if self.tool.pen_delete_last_point(&mut self.state) {
+            self.undo.add_undo_group(snapshot);
+            self.pending_snapshot = None;
+            true
+        } else {
+            false
+        }
+    }
+
     #[wasm_bindgen(js_name = setTextDirection)]
     pub fn set_text_direction(&mut self, direction: &str) {
         let direction = match direction {

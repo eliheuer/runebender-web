@@ -127,6 +127,11 @@ export class GlyphEditor {
      */
     nudgeSelectionState(dx: number, dy: number, shift: boolean, ctrl: boolean, independent: boolean): Float64Array;
     pasteSelection(): boolean;
+    /**
+     * Backspace with the pen tool: delete the last point of the contour
+     * currently being drawn. Returns true if something was removed.
+     */
+    penDeleteLastPoint(): boolean;
     pointerCancel(): boolean;
     pointerDown(x: number, y: number, button: number, mods: number): void;
     pointerMove(x: number, y: number, mods: number): void;
@@ -458,6 +463,7 @@ export interface InitOutput {
     readonly glypheditor_nudgeSelectionFastState: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly glypheditor_nudgeSelectionState: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly glypheditor_pasteSelection: (a: number) => number;
+    readonly glypheditor_penDeleteLastPoint: (a: number) => number;
     readonly glypheditor_pointerCancel: (a: number) => number;
     readonly glypheditor_pointerDown: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly glypheditor_pointerMove: (a: number, b: number, c: number, d: number) => void;

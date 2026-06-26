@@ -31,9 +31,13 @@ serde_json = "1.0"
 # UFO parsing (Linebender) — same library runebender-xilem uses.
 norad = "0.13"
 
-# Browser-safe bitmap glyph tracing. Keep default features off so WASM does
-# not pull in the CLI, UFO writer, rayon, or raster-comparison tooling.
-img2bez = { path = "../../img2bez", default-features = false }
+# Browser-safe bitmap glyph tracing. Sourced from the public GitHub repo
+# (default branch) so anyone can build this crate without a local sibling
+# checkout. Cargo.lock pins the exact resolved commit for reproducible
+# builds; run `cargo update -p img2bez` to pull the latest. Keep default
+# features off so WASM does not pull in the CLI, UFO writer, rayon, or
+# raster-comparison tooling.
+img2bez = { git = "https://github.com/eliheuer/img2bez", default-features = false }
 
 # plist parser — already pulled in transitively by norad, listed
 # directly so we can call plist::from_bytes for fontinfo.plist

@@ -21,7 +21,9 @@ import type {
 export type LocalServerInfo = {
   server: string;
   root: string;
+  rootPath?: string;
   entry: string | null;
+  entryPath?: string | null;
   readOnly: boolean;
 };
 
@@ -39,6 +41,26 @@ const TEXT_EXTENSIONS = [
 
 const isTextPath = (p: string) =>
   TEXT_EXTENSIONS.some((ext) => p.endsWith(ext));
+
+async function mapConcurrent<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    async () => {
+      while (next < items.length) {
+        const index = next++;
+        results[index] = await fn(items[index]);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return results;
+}
 
 const unavailable = () =>
   new Response(
@@ -99,11 +121,13 @@ export function createLocalHost(
         files: { path: string }[];
       };
       const wanted = files.filter((f) => isTextPath(f.path));
-      const entries = await Promise.all(
-        wanted.map(async (f) => {
+      const entries = await mapConcurrent(
+        wanted,
+        32,
+        async (f) => {
           const got = await fetchFile(f.path);
           return got === null ? null : { path: f.path, text: got.text };
-        }),
+        },
       );
       return {
         slot,
@@ -113,6 +137,8 @@ export function createLocalHost(
         linked_source: true,
         origin_root: info.root,
         origin_source: info.entry ?? info.root,
+        display_root: info.rootPath ?? info.root,
+        display_source: info.entryPath ?? info.entry ?? info.rootPath ?? info.root,
       };
     },
 

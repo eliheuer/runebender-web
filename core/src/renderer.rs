@@ -1981,17 +1981,22 @@ impl Renderer {
     }
 
     fn draw_measure_preview(&mut self, preview: &MeasurePreview) {
-        let stroke = Stroke::new(TOOL_PREVIEW_LINE_PX);
+        // Dashed, device-scaled, tool-preview color — consistent with the
+        // pen and knife previews (and the xilem measure tool). Previously
+        // this was a solid, un-`px()`'d (half-weight on HiDPI) blue line.
+        let stroke = Stroke::new(self.px(TOOL_PREVIEW_LINE_PX))
+            .with_dashes(0.0, TOOL_PREVIEW_DASH.map(|dash| self.px(dash)).to_vec());
         self.scene.stroke(
             &stroke,
             Affine::IDENTITY,
-            self.theme.point_smooth_outer,
+            self.theme.tool_preview,
             None,
             &preview.line,
         );
 
+        let dot_r = self.px(TOOL_PREVIEW_DOT_RADIUS_PX);
         for point in [preview.line.p0, preview.line.p1] {
-            let dot = Circle::new(point, TOOL_PREVIEW_DOT_RADIUS_PX);
+            let dot = Circle::new(point, dot_r);
             self.scene.fill(
                 Fill::NonZero,
                 Affine::IDENTITY,
@@ -2001,7 +2006,7 @@ impl Renderer {
             );
         }
         for point in &preview.intersections {
-            let dot = Circle::new(*point, TOOL_PREVIEW_DOT_RADIUS_PX * 1.4);
+            let dot = Circle::new(*point, dot_r * 1.4);
             self.scene.fill(
                 Fill::NonZero,
                 Affine::IDENTITY,
