@@ -564,11 +564,12 @@ dependencies = [
 [[package]]
 name = "img2bez"
 version = "0.1.0"
-source = "git+https://github.com/eliheuer/img2bez#ec095258549ee111274574cf0bb5c2acfa10c46d"
+source = "git+https://github.com/eliheuer/img2bez#93ac49370386cc2c40fa21ae648b37f7c9ccb89c"
 dependencies = [
  "image",
  "imageproc",
  "kurbo 0.13.0",
+ "serde",
  "thiserror 2.0.18",
 ]
 

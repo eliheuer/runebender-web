@@ -5,6 +5,10 @@
 //!
 //! Keep `img2bez` details isolated here so updating the sibling tracer crate
 //! does not require changes throughout the Vue host.
+//!
+//! This wraps the modern img2bez API (`trace_glyph` + `TraceOptions` +
+//! `FontMetrics`), the same path img2bez's own wasm bindings use, so a trace
+//! here is byte-identical to the CLI and the blog demo.
 
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +19,6 @@ struct TraceImageConfig {
     unicode: Option<String>,
     width: Option<f64>,
     target_height: Option<f64>,
-    x_offset: Option<f64>,
     y_offset: Option<f64>,
     grid: Option<i32>,
     accuracy: Option<f64>,
@@ -43,41 +46,57 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
         return Err("glyph name is required".to_string());
     }
 
-    let grid = config.grid.unwrap_or(2).max(0);
-    let snap_grid = grid.max(1) as f64;
-    let x_offset = config.x_offset.unwrap_or(64.0);
+    // Build (TraceOptions, FontMetrics) from the library defaults — the same
+    // source of truth the CLI and img2bez's wasm bindings use — overriding only
+    // the fields the host actually provided. Profile `wild` (the img2bez
+    // default) supplies the looser fit accuracy that keeps unknown rasters from
+    // over-segmenting; the host can still override via `accuracy`.
+    let mut opts = img2bez::TraceOptions::for_profile(img2bez::Profile::Wild);
+    opts.verbose = false;
+    if let Some(accuracy) = config.accuracy {
+        opts.fit_accuracy = accuracy.max(0.1);
+    }
+    if let Some(h) = config.target_height {
+        opts.em_height = h.max(1.0);
+    }
+    if let Some(g) = config.grid {
+        opts.grid = g.max(0);
+    }
+    if let Some(inv) = config.invert {
+        opts.invert = inv;
+    }
+    if let Some(t) = config.threshold {
+        opts.threshold = img2bez::ThresholdMethod::Fixed(t);
+    }
 
-    let mut tracing_config = img2bez::TracingConfig {
-        advance_width: Some(config.width.unwrap_or(600.0).max(1.0)),
-        target_height: config.target_height.unwrap_or(1088.0).max(1.0),
-        y_offset: config.y_offset.unwrap_or(-256.0),
-        lsb: (x_offset / snap_grid).round() * snap_grid,
-        grid,
-        fit_accuracy: config.accuracy.unwrap_or(4.0).max(0.1),
-        invert: config.invert.unwrap_or(false),
-        threshold: config
-            .threshold
-            .map_or(img2bez::ThresholdMethod::Otsu, img2bez::ThresholdMethod::Fixed),
-        ..img2bez::TracingConfig::default()
-    };
-    tracing_config.codepoints = parse_codepoints(config.unicode.as_deref())?;
+    // targetHeight is ascender − descender; yOffset is the descender. Place the
+    // traced outline into that band via the font metrics.
+    let target_height = config.target_height.map(|h| h.max(1.0)).unwrap_or(1088.0);
+    let y_offset = config.y_offset.unwrap_or(-256.0);
+    let mut metrics = img2bez::FontMetrics::from_target_height(target_height, y_offset);
+    metrics.advance_width = Some(config.width.unwrap_or(600.0).max(1.0));
 
-    let result = img2bez::trace_image_bytes(image_bytes, &tracing_config)
+    let codepoints = parse_codepoints(config.unicode.as_deref())?;
+
+    let glyph = img2bez::trace_glyph(image_bytes, config.glyph.as_str(), &codepoints, &opts, &metrics)
         .map_err(|e| format!("img2bez trace failed: {e}"))?;
-    let glif = img2bez::glif::to_glif(&config.glyph, &result, &tracing_config)
-        .map_err(|e| format!("img2bez glif serialize failed: {e}"))?;
-    let (curves, lines, on_curves, off_curves) = count_path_geometry(&result.paths);
+
+    let glif = glyph.to_glif();
+    let paths = glyph.outline.to_bezpaths();
+    let (curves, lines, on_curves, off_curves) = count_path_geometry(&paths);
 
     Ok(TraceImageReport {
         glif,
-        contours: result.paths.len(),
+        contours: paths.len(),
         curves,
         lines,
         on_curves,
         off_curves,
-        advance_width: result.advance_width,
-        reposition_shift_x: result.reposition_shift.0,
-        reposition_shift_y: result.reposition_shift.1,
+        advance_width: glyph.advance.width,
+        // The placement model frames the glyph straight into the em via the
+        // font metrics, so there is no separate reposition shift to report.
+        reposition_shift_x: 0.0,
+        reposition_shift_y: 0.0,
     })
 }
 
