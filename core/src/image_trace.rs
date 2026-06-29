@@ -19,6 +19,7 @@ struct TraceImageConfig {
     unicode: Option<String>,
     width: Option<f64>,
     target_height: Option<f64>,
+    x_offset: Option<f64>,
     y_offset: Option<f64>,
     grid: Option<i32>,
     accuracy: Option<f64>,
@@ -75,6 +76,11 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
     let y_offset = config.y_offset.unwrap_or(-256.0);
     let mut metrics = img2bez::FontMetrics::from_target_height(target_height, y_offset);
     metrics.advance_width = Some(config.width.unwrap_or(600.0).max(1.0));
+    // The host snaps the left ink edge to `xOffset` and re-aligns the
+    // background image to the same x afterwards (alignBackgroundImageToTrace),
+    // so the trace must land its leftmost ink exactly there — otherwise the
+    // outline is offset from the image it was traced from.
+    metrics.lsb = config.x_offset.unwrap_or(64.0);
 
     let codepoints = parse_codepoints(config.unicode.as_deref())?;
 
