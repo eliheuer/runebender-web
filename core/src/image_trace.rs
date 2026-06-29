@@ -25,6 +25,22 @@ struct TraceImageConfig {
     accuracy: Option<f64>,
     invert: Option<bool>,
     threshold: Option<u8>,
+    /// Source-class preset, mirroring the CLI `--profile`: `wild`/`auto`
+    /// (default, auto-detect), `clean` (crisp render), or `photo` (soft scan of
+    /// printed type — forces the de-texture pre-blur). Unknown falls back to
+    /// wild.
+    profile: Option<String>,
+    /// Image pre-blur sigma (px). Omitted = let the profile/auto-detect decide.
+    pre_blur: Option<f64>,
+    /// Pre-fit smoothing multiplier (1.0 = default).
+    smoothing: Option<f64>,
+    /// Corner turn-angle threshold in degrees (default 12).
+    corner_threshold: Option<f64>,
+    /// Output-shape mode: `default`, `smooth` (all-curves), or `line`.
+    mode: Option<String>,
+    /// Drawing style: `basic` (default), `grotesk`, `old-style`, `geometric`,
+    /// `brush`, `nib`, `qalam`. Layers design-specific tuning on the base.
+    style: Option<String>,
 }
 
 pub fn trace_image_to_glif(image_bytes: &[u8], config_json: &str) -> Result<String, String> {
@@ -52,7 +68,12 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
     // the fields the host actually provided. Profile `wild` (the img2bez
     // default) supplies the looser fit accuracy that keeps unknown rasters from
     // over-segmenting; the host can still override via `accuracy`.
-    let mut opts = img2bez::TraceOptions::for_profile(img2bez::Profile::Wild);
+    let profile = config
+        .profile
+        .as_deref()
+        .map(img2bez::Profile::from_name)
+        .unwrap_or(img2bez::Profile::Wild);
+    let mut opts = img2bez::TraceOptions::for_profile(profile);
     opts.verbose = false;
     if let Some(accuracy) = config.accuracy {
         opts.fit_accuracy = accuracy.max(0.1);
@@ -69,6 +90,26 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
     if let Some(t) = config.threshold {
         opts.threshold = img2bez::ThresholdMethod::Fixed(t);
     }
+    // Input-adaptive levers + output mode (mirror the CLI). An explicit pre-blur
+    // wins over the profile/auto-detection; omitted leaves the profile to decide.
+    if let Some(b) = config.pre_blur {
+        opts.pre_blur = b.max(0.0);
+    }
+    if let Some(s) = config.smoothing {
+        opts.smoothing = s.max(0.0);
+    }
+    if let Some(c) = config.corner_threshold {
+        opts.corner_threshold_deg = c;
+    }
+    if let Some(m) = config.mode.as_deref() {
+        opts.mode = match m {
+            "smooth" => img2bez::TraceMode::Smooth,
+            "line" => img2bez::TraceMode::LineOnly,
+            _ => img2bez::TraceMode::Default,
+        };
+    }
+    // Layer the drawing-style tuning on top (mirrors the CLI --style).
+    img2bez::Style::from_name(config.style.as_deref().unwrap_or("basic")).apply(&mut opts);
 
     // targetHeight is ascender − descender; yOffset is the descender. Place the
     // traced outline into that band via the font metrics.
@@ -83,6 +124,22 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
     metrics.lsb = config.x_offset.unwrap_or(64.0);
 
     let codepoints = parse_codepoints(config.unicode.as_deref())?;
+
+    // Effective profile (forced via `profile`, or auto-detected from the image),
+    // so the UI can show what "Auto" resolved to.
+    let effective_profile = match img2bez::measure_image(image_bytes) {
+        Ok(stats) => {
+            let detected = stats.classify();
+            if opts.profile.applies_pre_blur() {
+                opts.profile
+            } else if opts.auto_pre_blur && detected.applies_pre_blur() {
+                detected
+            } else {
+                opts.profile
+            }
+        }
+        Err(_) => opts.profile,
+    };
 
     let glyph = img2bez::trace_glyph(image_bytes, config.glyph.as_str(), &codepoints, &opts, &metrics)
         .map_err(|e| format!("img2bez trace failed: {e}"))?;
@@ -99,11 +156,21 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
         on_curves,
         off_curves,
         advance_width: glyph.advance.width,
+        profile: profile_name(effective_profile).to_string(),
         // The placement model frames the glyph straight into the em via the
         // font metrics, so there is no separate reposition shift to report.
         reposition_shift_x: 0.0,
         reposition_shift_y: 0.0,
     })
+}
+
+/// Lowercase name of a profile for the trace report.
+fn profile_name(p: img2bez::Profile) -> &'static str {
+    match p {
+        img2bez::Profile::Wild => "wild",
+        img2bez::Profile::Clean => "clean",
+        img2bez::Profile::Photo => "photo",
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -116,6 +183,8 @@ struct TraceImageReport {
     on_curves: usize,
     off_curves: usize,
     advance_width: f64,
+    /// Effective trace profile (`wild`/`clean`/`photo`) — forced or auto-detected.
+    profile: String,
     reposition_shift_x: f64,
     reposition_shift_y: f64,
 }

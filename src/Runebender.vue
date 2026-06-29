@@ -208,6 +208,29 @@ const backgroundImageFrame = ref<Record<string, string>>({});
 const backgroundImageDragStart = ref<{ x: number; y: number } | null>(null);
 const backgroundImageResize = ref<BackgroundImageResizeState | null>(null);
 const backgroundImageContextMenu = ref<BackgroundImageContextMenuState | null>(null);
+// Trace mode controls (surfaced in the image context menu). `profile` mirrors
+// img2bez --profile (auto = wild + auto-detect); `output` mirrors --mode.
+const traceProfile = ref<"auto" | "photo" | "clean">("auto");
+const traceOutputMode = ref<"default" | "smooth" | "line">("default");
+// Drawing style of the source (mirrors img2bez --style); declared, not detected.
+const TRACE_STYLES = [
+  "basic",
+  "grotesk",
+  "old-style",
+  "geometric",
+  "brush",
+  "nib",
+  "qalam",
+] as const;
+const traceStyle = ref<(typeof TRACE_STYLES)[number]>("basic");
+function styleLabel(s: string): string {
+  return s
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join("-");
+}
+// Feedback after a trace: what profile resolved + the on-curve point count.
+const traceFeedback = ref<{ profile: string; points: number } | null>(null);
 const glyphImageFiles = ref<Map<string, File>>(new Map());
 const contourContextMenu = ref<ContourContextMenuState | null>(null);
 const compatErrors = ref<CompatError[]>([]);
@@ -321,6 +344,7 @@ type WasmTraceReport = {
   onCurves: number;
   offCurves: number;
   advanceWidth: number;
+  profile: string;
   repositionShiftX: number;
   repositionShiftY: number;
 };
@@ -2654,9 +2678,14 @@ function backgroundTraceArgs() {
     ascender,
     descender,
     grid,
-    accuracy: traceFitAccuracy,
+    // Let the selected profile set the fit accuracy (wild/photo = 4, clean = 2);
+    // only the legacy default forced 4. `traceFitAccuracy` kept as the wild value.
+    accuracy: traceProfile.value === "auto" ? traceFitAccuracy : undefined,
     invert: false,
     threshold: undefined as number | undefined,
+    profile: traceProfile.value,
+    mode: traceOutputMode.value,
+    style: traceStyle.value,
   };
 }
 
@@ -2708,6 +2737,10 @@ function wasmTraceConfig(args: NonNullable<ReturnType<typeof backgroundTraceArgs
     accuracy: args.accuracy,
     invert: args.invert,
     threshold: null,
+    // `auto` maps to img2bez's wild profile + auto-detection; photo/clean force.
+    profile: args.profile === "auto" ? "wild" : args.profile,
+    mode: args.mode,
+    style: args.style,
   };
 }
 
@@ -2781,6 +2814,7 @@ async function traceBackgroundImageToGlyph(refit = false): Promise<boolean> {
       ) as WasmTraceReport;
       const glif = report.glif;
       trace = { success: true, glyph: glyphName, glif };
+      traceFeedback.value = { profile: report.profile, points: report.onCurves };
       runebenderHost.log?.(
         "info",
         `[runebender] trace wasm ok glyph=${glyphName} glif_bytes=${glif.length} contours=${report.contours} curves=${report.curves} lines=${report.lines} on=${report.onCurves} off=${report.offCurves} width=${report.advanceWidth.toFixed(1)} shift=(${report.repositionShiftX.toFixed(1)},${report.repositionShiftY.toFixed(1)})`,
@@ -2850,7 +2884,9 @@ async function traceBackgroundImageToGlyph(refit = false): Promise<boolean> {
     }
     requestRender();
     queueComfyStateSync(true);
-    status.value = `traced ${glyphName} with img2bez`;
+    status.value = traceFeedback.value
+      ? `traced ${glyphName} · ${traceFeedback.value.profile} profile · ${traceFeedback.value.points} points`
+      : `traced ${glyphName} with img2bez`;
     return true;
   } catch (e) {
     console.warn("background trace failed:", e);
@@ -7700,6 +7736,22 @@ onBeforeUnmount(() => {
           @contextmenu="openBackgroundImageContextMenu"
         >
           <img :src="backgroundImage.url" alt="" draggable="false" />
+          <button
+            v-if="backgroundImage.locked"
+            type="button"
+            class="background-image-lock-badge"
+            title="Image locked — click for options (unlock / trace)"
+            @pointerdown.stop
+            @click.stop="openBackgroundImageContextMenu($event)"
+            @contextmenu.prevent.stop="openBackgroundImageContextMenu($event)"
+          >
+            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Z"
+              />
+            </svg>
+          </button>
           <template v-if="!backgroundImage.locked && backgroundImage.selected">
             <span
               v-for="handle in ['tl', 'tr', 'bl', 'br', 'top', 'bottom', 'left', 'right'] as const"
@@ -7741,6 +7793,7 @@ onBeforeUnmount(() => {
               </small>
             </span>
           </button>
+          <div class="trace-section">
           <button
             type="button"
             class="background-image-menu-item primary"
@@ -7754,9 +7807,42 @@ onBeforeUnmount(() => {
             </span>
             <span class="background-image-menu-copy">
               <span>Trace Image</span>
-              <small>Insert outline into this glyph</small>
+              <small v-if="traceFeedback">detected: {{ traceFeedback.profile }} · {{ traceFeedback.points }} pts</small>
+              <small v-else>Insert outline into this glyph</small>
             </span>
           </button>
+          <div class="trace-mode-controls" @pointerdown.stop @click.stop>
+            <div class="trace-mode-row">
+              <span class="trace-mode-label">Input Profile</span>
+              <div class="trace-mode-seg" role="group" aria-label="Trace profile">
+                <button type="button" :class="{ on: traceProfile === 'auto' }" title="Auto-detect the source (default)" @click="traceProfile = 'auto'">Auto</button>
+                <button type="button" :class="{ on: traceProfile === 'photo' }" title="Soft scan of printed type" @click="traceProfile = 'photo'">Photo</button>
+                <button type="button" :class="{ on: traceProfile === 'clean' }" title="Crisp render / vector" @click="traceProfile = 'clean'">Clean</button>
+              </div>
+            </div>
+            <div class="trace-mode-row">
+              <span class="trace-mode-label">Vector Output</span>
+              <div class="trace-mode-seg" role="group" aria-label="Output mode">
+                <button type="button" :class="{ on: traceOutputMode === 'default' }" title="Corners, lines, and curves as detected" @click="traceOutputMode = 'default'">Normal</button>
+                <button type="button" :class="{ on: traceOutputMode === 'smooth' }" title="Every point smooth, all curves" @click="traceOutputMode = 'smooth'">Smooth</button>
+                <button type="button" :class="{ on: traceOutputMode === 'line' }" title="All straight lines, no curves" @click="traceOutputMode = 'line'">Line</button>
+              </div>
+            </div>
+            <div class="trace-mode-row">
+              <span class="trace-mode-label">Glyph Style</span>
+              <select
+                v-model="traceStyle"
+                class="trace-mode-select"
+                aria-label="Drawing style"
+                title="Drawing style of the source — layers design-specific tuning on the base"
+                @pointerdown.stop
+                @click.stop
+              >
+                <option v-for="s in TRACE_STYLES" :key="s" :value="s">{{ styleLabel(s) }}</option>
+              </select>
+            </div>
+          </div>
+          </div>
         </div>
 
         <div
@@ -8411,6 +8497,43 @@ onBeforeUnmount(() => {
   border-color: transparent;
   cursor: default;
 }
+/* Locked images sit further back (you've placed/traced them), so dim them more
+   than the unlocked 0.3 — a Glyphs-like cue that they're fixed in the
+   background. */
+.background-image.locked img {
+  opacity: 0.16;
+}
+/* A small lock badge that stays interactive even though the locked image is
+   click-through (parent pointer-events:none) — the reliable way to unlock or
+   trace once locked, regardless of the traced outline covering the image. */
+.background-image-lock-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  pointer-events: auto;
+  cursor: pointer;
+  color: var(--rb-overlay-text, #f0f0f0);
+  background: rgba(18, 18, 18, 0.72);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  opacity: 0.7;
+  transition:
+    opacity 100ms ease,
+    background-color 100ms ease,
+    color 100ms ease;
+}
+.background-image-lock-badge:hover {
+  opacity: 1;
+  background: var(--rb-accent, #66ee88);
+  color: #0c0c0c;
+}
 .background-image.selected {
   border-color: var(--rb-background-image-selection, #456fff);
   border-style: dashed;
@@ -8541,6 +8664,105 @@ onBeforeUnmount(() => {
 .background-image-menu button:active,
 .context-menu button:active {
   background: color-mix(in srgb, var(--rb-control-background, #303030) 76%, var(--rb-accent, #66ee88));
+}
+
+/* Trace section: groups the mode controls with the Trace Image action into one
+   accent-tinted card, so the settings read as belonging to Trace Image. */
+.trace-section {
+  margin-top: 7px;
+  padding: 5px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--rb-accent, #66ee88) 26%, transparent);
+  background: color-mix(in srgb, var(--rb-accent, #66ee88) 7%, transparent);
+}
+
+/* Trace mode controls: an inline settings strip below the Trace Image action. */
+.trace-mode-controls {
+  padding: 7px 5px 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Inside the section the Trace Image button reads as the action: a subtle
+   persistent fill that strengthens on hover (the existing :hover rule). */
+.trace-section .background-image-menu-item.primary {
+  background: color-mix(in srgb, var(--rb-accent, #66ee88) 13%, transparent);
+}
+
+.trace-mode-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+}
+
+.trace-mode-label {
+  font: 11px ui-sans-serif, system-ui, sans-serif;
+  color: color-mix(in srgb, var(--rb-overlay-text, #f0f0f0) 55%, transparent);
+}
+
+.trace-mode-seg {
+  display: flex;
+  flex: 1;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--rb-control-background, #303030);
+}
+
+/* Override the tall, full-width menu-button defaults for the chips. */
+.background-image-menu .trace-mode-seg button {
+  width: auto;
+  flex: 1;
+  min-height: 0;
+  height: 24px;
+  padding: 0;
+  text-align: center;
+  border-radius: 0;
+  font-size: 11px;
+  /* Unselected: dimmed, so the selected one reads by text + outline. */
+  color: color-mix(in srgb, var(--rb-overlay-text, #f0f0f0) 60%, transparent);
+}
+
+.background-image-menu .trace-mode-seg button:hover {
+  background: color-mix(in srgb, var(--rb-control-background, #303030) 72%, #fff);
+  color: var(--rb-overlay-text, #f0f0f0);
+}
+
+.background-image-menu .trace-mode-seg button.on,
+.background-image-menu .trace-mode-seg button.on:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--rb-overlay-text, #f0f0f0);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+/* Style picker: a dropdown (7 options is too many for chips). */
+.trace-mode-select {
+  flex: 1;
+  height: 24px;
+  padding: 0 22px 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background-color: var(--rb-control-background, #303030);
+  color: var(--rb-overlay-text, #f0f0f0);
+  font: 11px ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+  appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="%23bbbbbb" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+}
+.trace-mode-select:hover {
+  background-color: color-mix(in srgb, var(--rb-control-background, #303030) 68%, #fff);
+}
+.trace-mode-select:focus-visible {
+  outline: var(--rb-stroke-width, 1px) solid var(--rb-accent, #66ee88);
+  outline-offset: 1px;
+}
+.trace-mode-select option {
+  color: var(--rb-overlay-text, #f0f0f0);
+  background: var(--rb-panel-background, #1c1c1c);
 }
 
 .background-image-menu-item {
