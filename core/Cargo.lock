@@ -564,7 +564,7 @@ dependencies = [
 [[package]]
 name = "img2bez"
 version = "0.1.0"
-source = "git+https://github.com/eliheuer/img2bez#5f9b25b9572d8a334bae16b0e3f4a28b9037680f"
+source = "git+https://github.com/eliheuer/img2bez#035d3d0148bdc49cda343014736792e7255c9c55"
 dependencies = [
  "image",
  "imageproc",
