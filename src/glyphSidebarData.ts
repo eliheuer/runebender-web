@@ -30,11 +30,18 @@ export type SidebarLanguageGroup = {
   filters: SidebarCharacterFilter[];
 };
 
+export type SidebarGlyphTarget = {
+  name: string;
+  unicode: number;
+  label?: string;
+};
+
 export type SidebarCharacterFilter = {
   id: string;
   label: string;
-  source: "google-fonts-lang" | "google-fonts-glyphsets" | "unicode-range";
+  source: "google-fonts-lang" | "google-fonts-glyphsets" | "google-fonts-subset" | "unicode-range";
   glyphNames?: readonly string[];
+  targets?: readonly SidebarGlyphTarget[];
   chars?: string;
   ranges?: Array<[number, number]>;
   expectedCount?: number;
@@ -110,10 +117,122 @@ const SCRIPT_META: Record<string, { id: string; label: string; icon: string }> =
   Arabic: { id: "Arab", label: "Arabic", icon: "ض" },
   Cyrillic: { id: "Cyrl", label: "Cyrillic", icon: "Я" },
   Greek: { id: "Grek", label: "Greek", icon: "Ω" },
+  Hebrew: { id: "Hebr", label: "Hebrew", icon: "א" },
   Latin: { id: "Latn", label: "Latin", icon: "G" },
   Phonetics: { id: "Phon", label: "Phonetics", icon: "ə" },
   TransLatin: { id: "Tran", label: "TransLatin", icon: "Ǧ" },
 };
+
+const GF_HEBREW_SUBSET_RANGES: Array<[number, number]> = [
+  [0x0000, 0x0000],
+  [0x000d, 0x000d],
+  [0x0020, 0x0020],
+  [0x002d, 0x002d],
+  [0x00a0, 0x00a0],
+  [0x0307, 0x0308],
+  [0x0591, 0x05c7],
+  [0x05d0, 0x05ea],
+  [0x05ef, 0x05f4],
+  [0x200b, 0x200f],
+  [0x2010, 0x2010],
+  [0x20aa, 0x20aa],
+  [0x25cc, 0x25cc],
+  [0xfb1d, 0xfb36],
+  [0xfb38, 0xfb3c],
+  [0xfb3e, 0xfb3e],
+  [0xfb40, 0xfb41],
+  [0xfb43, 0xfb44],
+  [0xfb46, 0xfb4f],
+];
+
+const GF_HEBREW_PRESENTATION_FORM_RANGES: Array<[number, number]> = [
+  [0xfb1d, 0xfb36],
+  [0xfb38, 0xfb3c],
+  [0xfb3e, 0xfb3e],
+  [0xfb40, 0xfb41],
+  [0xfb43, 0xfb44],
+  [0xfb46, 0xfb4f],
+];
+
+const HEBREW_LETTER_NAMES = [
+  [0x05d0, "alef-hb"],
+  [0x05d1, "bet-hb"],
+  [0x05d2, "gimel-hb"],
+  [0x05d3, "dalet-hb"],
+  [0x05d4, "he-hb"],
+  [0x05d5, "vav-hb"],
+  [0x05d6, "zayin-hb"],
+  [0x05d7, "het-hb"],
+  [0x05d8, "tet-hb"],
+  [0x05d9, "yod-hb"],
+  [0x05da, "finalkaf-hb"],
+  [0x05db, "kaf-hb"],
+  [0x05dc, "lamed-hb"],
+  [0x05dd, "finalmem-hb"],
+  [0x05de, "mem-hb"],
+  [0x05df, "finalnun-hb"],
+  [0x05e0, "nun-hb"],
+  [0x05e1, "samekh-hb"],
+  [0x05e2, "ayin-hb"],
+  [0x05e3, "finalpe-hb"],
+  [0x05e4, "pe-hb"],
+  [0x05e5, "finaltsadi-hb"],
+  [0x05e6, "tsadi-hb"],
+  [0x05e7, "qof-hb"],
+  [0x05e8, "resh-hb"],
+  [0x05e9, "shin-hb"],
+  [0x05ea, "tav-hb"],
+  [0x05ef, "yodtriangle-hb"],
+  [0x05f0, "vavvav-hb"],
+  [0x05f1, "vavyod-hb"],
+  [0x05f2, "yodyod-hb"],
+  [0x05f3, "geresh-hb"],
+  [0x05f4, "gershayim-hb"],
+] as const;
+
+function uniTarget(codepoint: number, name = `uni${codepoint.toString(16).toUpperCase().padStart(4, "0")}`): SidebarGlyphTarget {
+  return { name, unicode: codepoint };
+}
+
+function rangeTargets(start: number, end: number): SidebarGlyphTarget[] {
+  const targets: SidebarGlyphTarget[] = [];
+  for (let codepoint = start; codepoint <= end; codepoint++) {
+    targets.push(uniTarget(codepoint));
+  }
+  return targets;
+}
+
+const HEBREW_LETTER_TARGETS: SidebarGlyphTarget[] = HEBREW_LETTER_NAMES.map(
+  ([unicode, name]) => ({ unicode, name }),
+);
+
+const HEBREW_POINTS_AND_MARKS_TARGETS: SidebarGlyphTarget[] = [
+  ...rangeTargets(0x0591, 0x05c7),
+];
+
+const HEBREW_PRESENTATION_FORM_TARGETS: SidebarGlyphTarget[] = [
+  ...rangeTargets(0xfb1d, 0xfb36),
+  ...rangeTargets(0xfb38, 0xfb3c),
+  uniTarget(0xfb3e),
+  ...rangeTargets(0xfb40, 0xfb41),
+  ...rangeTargets(0xfb43, 0xfb44),
+  ...rangeTargets(0xfb46, 0xfb4f),
+];
+
+const GF_HEBREW_SUBSET_TARGETS: SidebarGlyphTarget[] = [
+  uniTarget(0x0020, "space"),
+  uniTarget(0x002d, "hyphen"),
+  uniTarget(0x00a0, "nbspace"),
+  uniTarget(0x0307, "dotaccentcomb"),
+  uniTarget(0x0308, "dieresiscomb"),
+  ...HEBREW_POINTS_AND_MARKS_TARGETS,
+  ...HEBREW_LETTER_TARGETS,
+  ...rangeTargets(0x200b, 0x200f),
+  uniTarget(0x2010),
+  uniTarget(0x20aa),
+  uniTarget(0x25cc, "dottedCircle"),
+  ...HEBREW_PRESENTATION_FORM_TARGETS,
+];
 
 function glyphsetFiltersForScript(script: string): SidebarCharacterFilter[] {
   return GF_GLYPHSETS.filter((glyphset) => glyphset.script === script).map((glyphset) => ({
@@ -159,6 +278,43 @@ export const SIDEBAR_LANGUAGE_GROUPS: SidebarLanguageGroup[] = [
     filters: glyphsetFiltersForScript("Greek"),
   },
   {
+    ...SCRIPT_META.Hebrew,
+    filters: [
+      {
+        id: "GF_Hebrew_Subset",
+        label: "Google Fonts Hebrew",
+        source: "google-fonts-subset",
+        targets: GF_HEBREW_SUBSET_TARGETS,
+        ranges: GF_HEBREW_SUBSET_RANGES,
+        expectedCount: GF_HEBREW_SUBSET_TARGETS.length,
+      },
+      {
+        id: "Hebrew_Letters",
+        label: "Hebrew letters",
+        source: "unicode-range",
+        targets: HEBREW_LETTER_TARGETS,
+        ranges: [[0x05d0, 0x05ea], [0x05ef, 0x05f4]],
+        expectedCount: HEBREW_LETTER_TARGETS.length,
+      },
+      {
+        id: "Hebrew_Points_Marks",
+        label: "Hebrew points and marks",
+        source: "unicode-range",
+        targets: HEBREW_POINTS_AND_MARKS_TARGETS,
+        ranges: [[0x0591, 0x05c7]],
+        expectedCount: HEBREW_POINTS_AND_MARKS_TARGETS.length,
+      },
+      {
+        id: "Hebrew_Presentation_Forms",
+        label: "Hebrew presentation forms",
+        source: "unicode-range",
+        targets: HEBREW_PRESENTATION_FORM_TARGETS,
+        ranges: GF_HEBREW_PRESENTATION_FORM_RANGES,
+        expectedCount: HEBREW_PRESENTATION_FORM_TARGETS.length,
+      },
+    ],
+  },
+  {
     id: "Jpan",
     label: "Japanese",
     icon: "あ",
@@ -189,7 +345,7 @@ export const SIDEBAR_LANGUAGE_GROUPS: SidebarLanguageGroup[] = [
     ],
   },
   ...Object.values(SCRIPT_META)
-    .filter((meta) => !["Arab", "Cyrl", "Grek", "Latn"].includes(meta.id))
+    .filter((meta) => !["Arab", "Cyrl", "Grek", "Hebr", "Latn"].includes(meta.id))
     .map((meta) => ({
       ...meta,
       filters: glyphsetFiltersForScript(meta.label),

@@ -7,7 +7,7 @@ const glyphsetsRoot =
   process.env.GF_GLYPHSETS_REPO ?? "/Users/eli/GF/repos/glyphsets";
 const definitionsDir = join(glyphsetsRoot, "Lib/glyphsets/definitions");
 const niceNamesDir = join(glyphsetsRoot, "data/results/txt/nice-names");
-const outPath = join(repoRoot, "web/src/gfSidebarData.generated.ts");
+const outPath = join(repoRoot, "src/gfSidebarData.generated.ts");
 
 function readYamlValue(text, key) {
   const match = text.match(new RegExp(`^${key}:\\s*\"?([^\"\\n]+)\"?`, "m"));

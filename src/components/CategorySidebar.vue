@@ -30,6 +30,7 @@ const props = defineProps<{
   languageGroups: SidebarLanguageGroup[];
   filters: SidebarBuiltinFilter[];
   counts?: Record<string, number>;
+  missingCounts?: Record<string, number>;
   totalCount: number;
   selectedTextGlyphCount: number;
 }>();
@@ -37,6 +38,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "select", filter: GlyphSidebarFilter): void;
   (e: "copySelectedText"): void;
+  (e: "generateMissing", filter: GlyphSidebarFilter): void;
   (e: "update:searchQuery", value: string): void;
   (e: "update:searchMode", value: SidebarSearchMode): void;
   (e: "update:searchMatchCase", value: boolean): void;
@@ -103,6 +105,10 @@ function countFor(filter: GlyphSidebarFilter): string {
 function badgeFor(filter: GlyphSidebarFilter, expected?: number): string {
   const count = props.counts?.[filterKey(filter)] ?? 0;
   return expected ? `${count}/${expected}` : count > 0 ? String(count) : "";
+}
+
+function missingCountFor(filter: GlyphSidebarFilter): number {
+  return props.missingCounts?.[filterKey(filter)] ?? 0;
 }
 </script>
 
@@ -269,15 +275,27 @@ function badgeFor(filter: GlyphSidebarFilter, expected?: number): string {
           </div>
           <ul v-if="expandedLanguages.has(group.id)" class="sublist">
             <li v-for="filter in group.filters" :key="filter.id">
-              <button
-                type="button"
-                class="row subrow"
-                :class="{ active: isSelected(selected, { kind: 'language', id: filter.id }) }"
-                @click="$emit('select', { kind: 'language', id: filter.id })"
-              >
-                <span class="row-name">{{ filter.label }}</span>
-                <span class="badge">{{ badgeFor({ kind: "language", id: filter.id }, filter.expectedCount) }}</span>
-              </button>
+              <div class="subrow-wrap">
+                <button
+                  type="button"
+                  class="row subrow"
+                  :class="{ active: isSelected(selected, { kind: 'language', id: filter.id }) }"
+                  @click="$emit('select', { kind: 'language', id: filter.id })"
+                >
+                  <span class="row-name">{{ filter.label }}</span>
+                  <span class="badge">{{ badgeFor({ kind: "language", id: filter.id }, filter.expectedCount) }}</span>
+                </button>
+                <button
+                  v-if="missingCountFor({ kind: 'language', id: filter.id }) > 0"
+                  type="button"
+                  class="missing-action"
+                  :title="`Add ${missingCountFor({ kind: 'language', id: filter.id })} missing glyph${missingCountFor({ kind: 'language', id: filter.id }) === 1 ? '' : 's'}`"
+                  :aria-label="`Add missing glyphs for ${filter.label}`"
+                  @click="$emit('generateMissing', { kind: 'language', id: filter.id })"
+                >
+                  +
+                </button>
+              </div>
             </li>
           </ul>
         </li>
@@ -326,6 +344,39 @@ function badgeFor(filter: GlyphSidebarFilter, expected?: number): string {
   display: flex;
   flex-direction: column;
   overflow: visible;
+}
+
+.subrow-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.subrow-wrap .subrow {
+  flex: 1;
+  min-width: 0;
+}
+
+.missing-action {
+  width: 24px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rb-accent, #00d084);
+  font: inherit;
+  font-size: 20px;
+  line-height: 20px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.missing-action:hover,
+.missing-action:focus-visible {
+  background: var(--rb-button-hover, rgba(255, 255, 255, 0.08));
+  border-color: var(--rb-panel-outline, #606060);
+  outline: none;
 }
 
 .search-wrap {

@@ -34,6 +34,7 @@ import {
   type GlyphSortMode,
   type SidebarBuiltinFilter,
   type SidebarCharacterFilter,
+  type SidebarGlyphTarget,
   type SidebarSearchMode,
 } from "./glyphSidebarData";
 import AnchorPanel, {
@@ -253,6 +254,9 @@ type MasterData = {
   glyphXmlVersion: number;
   glyphPaths: Map<string, string>;
   glyphFileHandles: Map<string, FileSystemFileHandle>;
+  contentsPath: string | null;
+  contentsBytes: Uint8Array | null;
+  contentsFileHandle: FileSystemFileHandle | null;
   groupsPath: string | null;
   groupsFileHandle: FileSystemFileHandle | null;
   kerningPath: string | null;
@@ -288,6 +292,12 @@ type GridGlyphItem = {
 type GlyphKerningGroups = {
   left?: string;
   right?: string;
+};
+
+type MissingGlyphDialogState = {
+  title: string;
+  targets: SidebarGlyphTarget[];
+  selectedKeys: Set<string>;
 };
 
 const KERNING_GROUP_PREFIX = {
@@ -463,6 +473,7 @@ const dirtyGroupsMasters = ref<Set<string>>(new Set());
 const gridGlyphClipboard = ref<Uint8Array | null>(null);
 const markColorApplyAllMasters = ref(false);
 const glyphSortMode = ref<GlyphSortMode>("unicode");
+const missingGlyphDialog = ref<MissingGlyphDialogState | null>(null);
 
 const activeMasterData = computed(() => masterDataMap.value.get(activeMasterName.value));
 const glyphUnicodes = computed(
@@ -695,6 +706,23 @@ const categoryCounts = computed<Record<string, number>>(() => {
   return counts;
 });
 
+const sidebarMissingCounts = computed<Record<string, number>>(() => {
+  const counts: Record<string, number> = {};
+  for (const group of SIDEBAR_LANGUAGE_GROUPS) {
+    const groupTargets = missingTargetsForCharacterFilters(group.filters);
+    if (groupTargets.length > 0) {
+      counts[sidebarFilterKey({ kind: "languageGroup", id: group.id })] = groupTargets.length;
+    }
+    for (const filter of group.filters) {
+      const missing = missingTargetsForCharacterFilter(filter);
+      if (missing.length > 0) {
+        counts[sidebarFilterKey({ kind: "language", id: filter.id })] = missing.length;
+      }
+    }
+  }
+  return counts;
+});
+
 function sidebarFilterKey(filter: GlyphSidebarFilter): string {
   if (filter.kind === "all") return "all";
   if (filter.kind === "category") {
@@ -723,6 +751,10 @@ function glyphMatchesCharacterFilter(
   if (filter.chars) {
     const chars = new Set(Array.from(filter.chars));
     if (codepoints.some((cp) => chars.has(String.fromCodePoint(cp)))) return true;
+  }
+  if (filter.targets) {
+    const targetCodepoints = new Set(filter.targets.map((target) => target.unicode));
+    if (codepoints.some((cp) => targetCodepoints.has(cp))) return true;
   }
   if (filter.ranges) {
     return codepoints.some((cp) =>
@@ -850,6 +882,359 @@ function glyphMatchesSidebarSearch(name: string): boolean {
   return haystacks.some((value) =>
     (sidebarSearchMatchCase.value ? value : value.toLowerCase()).includes(needle),
   );
+}
+
+function glyphCodepointsInMaster(data: MasterData, name: string): number[] {
+  const unicodes = data.glyphMetadata.get(name)?.unicodes ?? [];
+  const values = unicodes.length ? unicodes : [data.glyphUnicodes.get(name) ?? ""];
+  return values
+    .flatMap((value) => value.split(/[\s,]+/))
+    .map((hex) => Number.parseInt(hex.replace(/^U\+/i, ""), 16))
+    .filter((cp) => Number.isFinite(cp));
+}
+
+function glyphNameForTargetInMaster(
+  data: MasterData,
+  target: SidebarGlyphTarget,
+): string | null {
+  if (data.glyphBytes.has(target.name)) return target.name;
+  for (const name of data.glyphBytes.keys()) {
+    if (glyphCodepointsInMaster(data, name).includes(target.unicode)) {
+      return name;
+    }
+  }
+  return null;
+}
+
+function masterHasTarget(data: MasterData, target: SidebarGlyphTarget): boolean {
+  return glyphNameForTargetInMaster(data, target) !== null;
+}
+
+function allMastersHaveTarget(target: SidebarGlyphTarget): boolean {
+  if (masterDataMap.value.size === 0) return false;
+  for (const data of masterDataMap.value.values()) {
+    if (!masterHasTarget(data, target)) return false;
+  }
+  return true;
+}
+
+function missingTargetsForCharacterFilter(filter: SidebarCharacterFilter): SidebarGlyphTarget[] {
+  if (!filter.targets?.length) return [];
+  return filter.targets.filter((target) => !allMastersHaveTarget(target));
+}
+
+function missingTargetsForCharacterFilters(
+  filters: SidebarCharacterFilter[],
+): SidebarGlyphTarget[] {
+  const out: SidebarGlyphTarget[] = [];
+  const seen = new Set<string>();
+  for (const filter of filters) {
+    for (const target of missingTargetsForCharacterFilter(filter)) {
+      const key = missingGlyphTargetKey(target);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(target);
+    }
+  }
+  return out;
+}
+
+function missingTargetsForSidebarFilter(filter: GlyphSidebarFilter): SidebarGlyphTarget[] {
+  if (filter.kind === "language") {
+    const languageFilter = SIDEBAR_LANGUAGE_GROUPS.flatMap((group) => group.filters).find(
+      (item) => item.id === filter.id,
+    );
+    return languageFilter ? missingTargetsForCharacterFilter(languageFilter) : [];
+  }
+  if (filter.kind === "languageGroup") {
+    const languageGroup = SIDEBAR_LANGUAGE_GROUPS.find((group) => group.id === filter.id);
+    return languageGroup ? missingTargetsForCharacterFilters(languageGroup.filters) : [];
+  }
+  return [];
+}
+
+function labelForSidebarFilter(filter: GlyphSidebarFilter): string {
+  if (filter.kind === "language") {
+    const languageFilter = SIDEBAR_LANGUAGE_GROUPS.flatMap((group) => group.filters).find(
+      (item) => item.id === filter.id,
+    );
+    return languageFilter?.label ?? filter.id;
+  }
+  if (filter.kind === "languageGroup") {
+    return SIDEBAR_LANGUAGE_GROUPS.find((group) => group.id === filter.id)?.label ?? filter.id;
+  }
+  return filter.kind === "all" ? "All" : "Glyphs";
+}
+
+function missingGlyphTargetKey(target: SidebarGlyphTarget): string {
+  return `${target.unicode}:${target.name}`;
+}
+
+function unicodeHex(codepoint: number): string {
+  return codepoint.toString(16).toUpperCase().padStart(4, "0");
+}
+
+function glyphTargetCharacter(target: SidebarGlyphTarget): string {
+  return String.fromCodePoint(target.unicode);
+}
+
+function openMissingGlyphsDialog(filter: GlyphSidebarFilter) {
+  const targets = missingTargetsForSidebarFilter(filter);
+  if (targets.length === 0) {
+    status.value = "no missing glyphs in that section";
+    return;
+  }
+  missingGlyphDialog.value = {
+    title: labelForSidebarFilter(filter),
+    targets,
+    selectedKeys: new Set(targets.map(missingGlyphTargetKey)),
+  };
+}
+
+function setMissingGlyphSelection(all: boolean) {
+  const dialog = missingGlyphDialog.value;
+  if (!dialog) return;
+  missingGlyphDialog.value = {
+    ...dialog,
+    selectedKeys: all ? new Set(dialog.targets.map(missingGlyphTargetKey)) : new Set(),
+  };
+}
+
+function toggleMissingGlyphSelection(target: SidebarGlyphTarget) {
+  const dialog = missingGlyphDialog.value;
+  if (!dialog) return;
+  const selectedKeys = new Set(dialog.selectedKeys);
+  const key = missingGlyphTargetKey(target);
+  if (selectedKeys.has(key)) selectedKeys.delete(key);
+  else selectedKeys.add(key);
+  missingGlyphDialog.value = { ...dialog, selectedKeys };
+}
+
+function xmlEscape(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function regexEscape(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function glyphPathDirectory(data: MasterData): string | null {
+  if (data.contentsPath) {
+    return data.contentsPath.replace(/\/contents\.plist$/i, "");
+  }
+  const firstPath = data.glyphPaths.values().next().value as string | undefined;
+  if (!firstPath) return null;
+  return firstPath.replace(/\/[^/]+$/, "");
+}
+
+function fileNameFromPath(path: string): string {
+  return path.split("/").pop() ?? path;
+}
+
+function safeGlyphFileBase(name: string): string {
+  const cleaned = name.replace(/[^A-Za-z0-9_.-]/g, "_").replace(/^_+$/, "");
+  return cleaned || "glyph";
+}
+
+function glyphFilePathForNewGlyph(data: MasterData, name: string): string | null {
+  const directory = glyphPathDirectory(data);
+  if (!directory) return null;
+  const used = new Set(data.glyphPaths.values());
+  const base = safeGlyphFileBase(name);
+  let path = `${directory}/${base}.glif`;
+  let suffix = 2;
+  while (used.has(path)) {
+    path = `${directory}/${base}.${suffix}.glif`;
+    suffix += 1;
+  }
+  return path;
+}
+
+function zeroWidthCodepoint(codepoint: number): boolean {
+  return (
+    (codepoint >= 0x0300 && codepoint <= 0x036f) ||
+    (codepoint >= 0x0591 && codepoint <= 0x05c7) ||
+    (codepoint >= 0x200b && codepoint <= 0x200f)
+  );
+}
+
+function existingAdvanceWidth(data: MasterData, glyphName: string): number | null {
+  const width = data.glyphMetadata.get(glyphName)?.width;
+  return Number.isFinite(width) && width !== undefined ? width : null;
+}
+
+function defaultAdvanceWidthForTarget(data: MasterData, target: SidebarGlyphTarget): number {
+  if (zeroWidthCodepoint(target.unicode)) return 0;
+  if (target.unicode === 0x0020 || target.unicode === 0x00a0) {
+    return existingAdvanceWidth(data, "space") ?? 200;
+  }
+  if (target.unicode === 0x002d || target.unicode === 0x2010) {
+    return existingAdvanceWidth(data, "hyphen") ?? 320;
+  }
+  const hebrewWidths = Array.from(data.glyphMetadata.values())
+    .filter((metadata) =>
+      metadata.unicodes.some((hex) => {
+        const cp = Number.parseInt(hex, 16);
+        return Number.isFinite(cp) && cp >= 0x05d0 && cp <= 0x05ea;
+      }),
+    )
+    .map((metadata) => metadata.width)
+    .filter((width) => Number.isFinite(width) && width > 0);
+  if (hebrewWidths.length > 0) {
+    return Math.round(
+      hebrewWidths.reduce((total, width) => total + width, 0) / hebrewWidths.length,
+    );
+  }
+  return 568;
+}
+
+function placeholderGlifXml(
+  name: string,
+  target: SidebarGlyphTarget,
+  width: number,
+): string {
+  const safeName = xmlEscape(name);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<glyph name="${safeName}" format="2">\n\t<unicode hex="${unicodeHex(target.unicode)}"/>\n\t<advance width="${Math.round(width)}"/>\n</glyph>\n`;
+}
+
+function addContentsPlistEntries(
+  text: string,
+  entries: Array<{ name: string; fileName: string }>,
+): string {
+  const missing = entries.filter(
+    (entry) => !new RegExp(`<key>${regexEscape(xmlEscape(entry.name))}</key>`).test(text),
+  );
+  if (missing.length === 0) return text;
+  const block = missing
+    .map(
+      (entry) =>
+        `\t<key>${xmlEscape(entry.name)}</key>\n\t<string>${xmlEscape(entry.fileName)}</string>`,
+    )
+    .join("\n");
+  if (/<\/dict>\s*<\/plist>\s*$/.test(text)) {
+    return text.replace(/\s*<\/dict>\s*<\/plist>\s*$/, `\n${block}\n</dict>\n</plist>\n`);
+  }
+  return `${text.trimEnd()}\n${block}\n`;
+}
+
+function canonicalGlyphNameForTarget(target: SidebarGlyphTarget): string {
+  for (const data of masterDataMap.value.values()) {
+    const existing = glyphNameForTargetInMaster(data, target);
+    if (existing) return existing;
+  }
+  return target.name;
+}
+
+function updateMasterDataWithGeneratedGlyph(
+  data: MasterData,
+  glyphName: string,
+  path: string,
+  bytes: Uint8Array,
+  target: SidebarGlyphTarget,
+) {
+  const info = parseGlyphInfo(bytes);
+  setGlyphBytes(data, glyphName, bytes);
+  data.glyphPaths.set(glyphName, path);
+  data.glyphMetadata.set(glyphName, {
+    name: glyphName,
+    width: info.width,
+    contours: info.contours,
+    unicode: info.unicode,
+    unicodes: info.unicodes,
+  });
+  if (info.unicode) data.glyphUnicodes.set(glyphName, info.unicode);
+  data.glyphCategories.set(
+    glyphName,
+    glyphCategoryForCodepoint(target.unicode) as Category,
+  );
+  refreshGridGlyphSvg(data, glyphName, bytes);
+}
+
+async function generateSelectedMissingGlyphs() {
+  const dialog = missingGlyphDialog.value;
+  if (!dialog) return;
+  const targets = dialog.targets.filter((target) =>
+    dialog.selectedKeys.has(missingGlyphTargetKey(target)),
+  );
+  if (targets.length === 0) {
+    status.value = "no missing glyphs selected";
+    return;
+  }
+  if (!currentFontPath.value) {
+    status.value = "missing glyph generation requires a runebender workspace server";
+    return;
+  }
+  flushDeferredGlyphSync();
+  if (hasDirtyChanges.value) {
+    status.value = "save or revert current edits before generating missing glyphs";
+    return;
+  }
+
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const generated: string[] = [];
+  let firstGeneratedName = "";
+
+  try {
+    status.value = `generating ${targets.length} missing glyph${targets.length === 1 ? "" : "s"}…`;
+    for (const [masterName, data] of masterDataMap.value) {
+      if (!data.contentsPath || !data.contentsBytes) {
+        throw new Error(`${masterName} has no loaded glyphs/contents.plist`);
+      }
+      let contentsText = decoder.decode(data.contentsBytes);
+      const contentsEntries: Array<{ name: string; fileName: string }> = [];
+      for (const target of targets) {
+        if (masterHasTarget(data, target)) continue;
+        const glyphName = canonicalGlyphNameForTarget(target);
+        if (data.glyphBytes.has(glyphName)) continue;
+        const glyphPath = glyphFilePathForNewGlyph(data, glyphName);
+        if (!glyphPath) throw new Error(`could not choose a glyph path for ${glyphName}`);
+        const width = defaultAdvanceWidthForTarget(data, target);
+        const text = placeholderGlifXml(glyphName, target, width);
+        const res = await runebenderHost.writeWorkspaceFile(glyphPath, text);
+        await recordWorkspaceWriteResult(res);
+        if (!res.ok) {
+          throw new Error(`writing ${glyphPath} failed: ${res.status} ${res.statusText}`);
+        }
+        const bytes = encoder.encode(text);
+        updateMasterDataWithGeneratedGlyph(data, glyphName, glyphPath, bytes, target);
+        contentsEntries.push({ name: glyphName, fileName: fileNameFromPath(glyphPath) });
+        generated.push(`${masterName}/${glyphName}`);
+        if (!firstGeneratedName) firstGeneratedName = glyphName;
+      }
+      if (contentsEntries.length > 0) {
+        contentsText = addContentsPlistEntries(contentsText, contentsEntries);
+        const res = await runebenderHost.writeWorkspaceFile(data.contentsPath, contentsText);
+        await recordWorkspaceWriteResult(res);
+        if (!res.ok) {
+          throw new Error(`writing ${data.contentsPath} failed: ${res.status} ${res.statusText}`);
+        }
+        data.contentsBytes = encoder.encode(contentsText);
+      }
+    }
+
+    missingGlyphDialog.value = null;
+    masterDataMap.value = new Map(masterDataMap.value);
+    if (firstGeneratedName) {
+      selectedGlyph.value = firstGeneratedName;
+      selectedGlyphs.value = new Set([firstGeneratedName]);
+      currentGlyph.value = firstGeneratedName;
+      if (activeMasterData.value?.glyphBytes.has(firstGeneratedName)) {
+        loadGlyphIntoEditor(firstGeneratedName, { preserveHistory: false });
+      }
+    }
+    queueComfyStateSync(true);
+    status.value = generated.length
+      ? `generated ${generated.length} missing glyph${generated.length === 1 ? "" : "s"}`
+      : "selected glyphs already exist";
+  } catch (error) {
+    console.warn("missing glyph generation failed:", error);
+    status.value = `missing glyph generation failed: ${error}`;
+  }
 }
 
 const selectedMetadata = computed(() =>
@@ -5095,6 +5480,15 @@ async function buildMasterData(
 
   const glyphSvgs = await buildGridSvgsForMap(glyphBytes, unitsPerEm);
 
+  const contentsFile = ufoFiles.find((f) =>
+    /\/glyphs\/contents\.plist$/i.test(relPath(f)),
+  );
+  const contentsPath = contentsFile ? relPath(contentsFile) : inferContentsPath(glifs);
+  const contentsBytes = contentsFile
+    ? new Uint8Array(await contentsFile.arrayBuffer())
+    : null;
+  const contentsFileHandle = contentsPath ? (fileHandles.get(contentsPath) ?? null) : null;
+
   const groupsFile = ufoFiles.find((f) =>
     /\/groups\.plist$/i.test(relPath(f)),
   );
@@ -5125,6 +5519,9 @@ async function buildMasterData(
     glyphXmlVersion: 0,
     glyphPaths,
     glyphFileHandles,
+    contentsPath,
+    contentsBytes,
+    contentsFileHandle,
     groupsPath,
     groupsFileHandle,
     kerningPath,
@@ -6997,6 +7394,12 @@ function inferKerningPath(glifs: File[]): string | null {
   return match ? `${match[1]}/kerning.plist` : null;
 }
 
+function inferContentsPath(glifs: File[]): string | null {
+  const sample = glifs[0] ? relPath(glifs[0]) : "";
+  const match = sample.match(/^(.*?\.ufo\/glyphs)\//i);
+  return match ? `${match[1]}/contents.plist` : null;
+}
+
 function inferGroupsPath(glifs: File[]): string | null {
   const sample = glifs[0] ? relPath(glifs[0]) : "";
   const match = sample.match(/^(.*?\.ufo)\//i);
@@ -7584,12 +7987,14 @@ onBeforeUnmount(() => {
             v-model:sort-mode="glyphSortMode"
             :selected="selectedSidebarFilter"
             :counts="categoryCounts"
+            :missing-counts="sidebarMissingCounts"
             :total-count="glyphNames.length"
             :selected-text-glyph-count="selectedGridTextGlyphCount"
             :category-groups="CATEGORY_GROUPS"
             :language-groups="SIDEBAR_LANGUAGE_GROUPS"
             :filters="SIDEBAR_FILTERS"
             @select="onSelectSidebarFilter"
+            @generate-missing="openMissingGlyphsDialog"
             @copy-selected-text="copySelectedGridGlyphText"
           />
       </div>
@@ -8171,6 +8576,59 @@ onBeforeUnmount(() => {
              by restoring this <section>. -->
       </div>
     </div>
+    <div
+      v-if="missingGlyphDialog"
+      class="missing-glyph-backdrop"
+      @click.self="missingGlyphDialog = null"
+    >
+      <section class="missing-glyph-dialog" role="dialog" aria-modal="true">
+        <header class="missing-glyph-header">
+          <h2>Missing Glyphs</h2>
+          <button
+            type="button"
+            class="missing-glyph-close"
+            aria-label="Close missing glyphs"
+            @click="missingGlyphDialog = null"
+          >
+            ×
+          </button>
+        </header>
+        <div class="missing-glyph-subtitle">{{ missingGlyphDialog.title }}</div>
+        <div class="missing-glyph-list">
+          <button
+            v-for="target in missingGlyphDialog.targets"
+            :key="missingGlyphTargetKey(target)"
+            type="button"
+            class="missing-glyph-row"
+            :class="{ selected: missingGlyphDialog.selectedKeys.has(missingGlyphTargetKey(target)) }"
+            @click="toggleMissingGlyphSelection(target)"
+          >
+            <span class="missing-glyph-check">
+              {{ missingGlyphDialog.selectedKeys.has(missingGlyphTargetKey(target)) ? "✓" : "" }}
+            </span>
+            <span class="missing-glyph-name">{{ target.name }}</span>
+            <span class="missing-glyph-unicode">U+{{ unicodeHex(target.unicode) }}</span>
+            <span class="missing-glyph-char">{{ glyphTargetCharacter(target) }}</span>
+          </button>
+        </div>
+        <footer class="missing-glyph-actions">
+          <button type="button" class="secondary-btn" @click="setMissingGlyphSelection(true)">
+            Select All
+          </button>
+          <button type="button" class="secondary-btn" @click="setMissingGlyphSelection(false)">
+            Clear
+          </button>
+          <button
+            type="button"
+            class="primary-btn"
+            :disabled="missingGlyphDialog.selectedKeys.size === 0"
+            @click="generateSelectedMissingGlyphs"
+          >
+            Generate
+          </button>
+        </footer>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -8269,6 +8727,151 @@ onBeforeUnmount(() => {
 .runebender-host.is-editor-mode {
   padding: 0;
   gap: 0;
+}
+
+.missing-glyph-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.missing-glyph-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(680px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  background: var(--rb-panel-background, #1c1c1c);
+  border: 1px solid var(--rb-panel-outline, #606060);
+  border-radius: 10px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+}
+
+.missing-glyph-header,
+.missing-glyph-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rb-panel-outline, #606060);
+}
+
+.missing-glyph-header h2 {
+  margin: 0;
+  flex: 1;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.missing-glyph-close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 22px;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.missing-glyph-close:hover,
+.missing-glyph-close:focus-visible {
+  background: var(--rb-button-background, rgba(255, 255, 255, 0.08));
+  outline: none;
+}
+
+.missing-glyph-subtitle {
+  padding: 0 16px 10px;
+  color: var(--rb-secondary-text, #808080);
+  font-size: 13px;
+}
+
+.missing-glyph-list {
+  overflow: auto;
+  padding: 6px 8px;
+}
+
+.missing-glyph-row {
+  width: 100%;
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 76px 42px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.missing-glyph-row:hover,
+.missing-glyph-row.selected {
+  background: var(--rb-button-background, rgba(255, 255, 255, 0.08));
+}
+
+.missing-glyph-check {
+  color: var(--rb-accent, #18b86f);
+  text-align: center;
+}
+
+.missing-glyph-name,
+.missing-glyph-unicode {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.missing-glyph-unicode {
+  color: var(--rb-secondary-text, #808080);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.missing-glyph-char {
+  justify-self: end;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.missing-glyph-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--rb-panel-outline, #606060);
+  border-bottom: 0;
+}
+
+.secondary-btn,
+.primary-btn {
+  min-height: 32px;
+  border: 1px solid var(--rb-panel-outline, #606060);
+  border-radius: 6px;
+  padding: 0 12px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.secondary-btn {
+  background: var(--rb-button-background, rgba(255, 255, 255, 0.06));
+}
+
+.primary-btn {
+  background: #0a84ff;
+  border-color: #0a84ff;
+  color: #fff;
+}
+
+.primary-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .hidden-file-input {
