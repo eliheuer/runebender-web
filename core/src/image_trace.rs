@@ -71,7 +71,7 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
     let profile = config
         .profile
         .as_deref()
-        .map(img2bez::Profile::from_name)
+        .map(img2bez::Profile::from_name_lossy)
         .unwrap_or(img2bez::Profile::Wild);
     let mut opts = img2bez::TraceOptions::for_profile(profile);
     opts.verbose = false;
@@ -109,7 +109,7 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
         };
     }
     // Layer the drawing-style tuning on top (mirrors the CLI --style).
-    img2bez::Style::from_name(config.style.as_deref().unwrap_or("basic")).apply(&mut opts);
+    img2bez::Style::from_name_lossy(config.style.as_deref().unwrap_or("basic")).apply(&mut opts);
 
     // targetHeight is ascender − descender; yOffset is the descender. Place the
     // traced outline into that band via the font metrics.
@@ -170,6 +170,8 @@ fn profile_name(p: img2bez::Profile) -> &'static str {
         img2bez::Profile::Wild => "wild",
         img2bez::Profile::Clean => "clean",
         img2bez::Profile::Photo => "photo",
+        // Profile is #[non_exhaustive] as of the 0.1.0 API freeze.
+        _ => "unknown",
     }
 }
 
