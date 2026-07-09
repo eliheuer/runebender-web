@@ -240,7 +240,10 @@ const TEXT_METRIC_CROSS_SIZE: f64 = 24.0;
 const TEXT_METRIC_CROSS_MIN_SIZE: f64 = 12.0;
 const DESIGN_GRID_MID_MIN_ZOOM: f64 = 0.8;
 const DESIGN_GRID_MID_FINE: f64 = 8.0;
-const DESIGN_GRID_MID_COARSE_N: u32 = 4;
+// Mid zoom shows the machine lattice plainly: a line every 8 units,
+// uniform — no darker every-32 accent (Eli). The close level keeps its
+// 2-unit fine grid with the 8-unit accent.
+const DESIGN_GRID_MID_COARSE_N: u32 = 0;
 const DESIGN_GRID_CLOSE_MIN_ZOOM: f64 = 8.0;
 const DESIGN_GRID_CLOSE_FINE: f64 = 2.0;
 const DESIGN_GRID_CLOSE_COARSE_N: u32 = 4;
