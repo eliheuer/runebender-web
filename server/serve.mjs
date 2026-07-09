@@ -324,19 +324,48 @@ async function handleApi(req, res, url) {
       }
       const currentTag = current ? sha256(current) : null;
       const wanted = ifMatch.replaceAll('"', "").trim();
+      // "*" means CREATE — it must never overwrite an existing file. A
+      // client that wants to overwrite must present the current ETag,
+      // i.e. prove it has read what it is replacing.
       const matches =
-        wanted === "*" ? true : current !== null && wanted === currentTag;
+        wanted === "*"
+          ? current === null
+          : current !== null && wanted === currentTag;
       if (!matches) {
         return sendJson(
           res,
           409,
-          { error: "file changed on disk", etag: currentTag },
+          {
+            error:
+              wanted === "*"
+                ? "exists; If-Match:* only creates — read the file first"
+                : current === null
+                  ? "file does not exist"
+                  : "file changed on disk",
+            etag: currentTag,
+          },
           currentTag ? { etag: `"${currentTag}"` } : {},
         );
       }
       const chunks = [];
       for await (const c of req) chunks.push(c);
       const body = Buffer.concat(chunks);
+      // Vandalism guard: replacing a glyph's non-empty outline with an
+      // empty one is almost always a client bug (stale or never-loaded
+      // model), not a design decision. Deliberate clears must say so.
+      if (
+        abs.endsWith(".glif") &&
+        current &&
+        current.includes("<outline>") &&
+        !body.includes("<outline>") &&
+        req.headers["x-allow-outline-clear"] !== "1"
+      ) {
+        return sendJson(res, 409, {
+          error:
+            "refusing to clear a non-empty outline (send x-allow-outline-clear: 1 if deliberate)",
+          etag: currentTag,
+        });
+      }
       await fsp.mkdir(path.dirname(abs), { recursive: true });
       await fsp.writeFile(abs, body);
       const st = await fsp.stat(abs);

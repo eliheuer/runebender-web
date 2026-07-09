@@ -160,7 +160,33 @@ export function createLocalHost(
 
     async writeWorkspaceFile(path, text) {
       const rel = stripSlot(path);
-      const known = etags.get(rel);
+      let known = etags.get(rel);
+      if (!known) {
+        // Never read this file, so we have no right to overwrite it.
+        // If it exists on disk, refuse: writing would clobber content
+        // this editor has never seen (this is how unloaded glyphs got
+        // emptied). "*" is reserved for true creation.
+        const head = await fetch(fileUrl(rel));
+        if (head.ok) {
+          const disk = await head.text();
+          if (disk === text) {
+            // No-op write of identical content: adopt the ETag quietly.
+            const tag = head.headers.get("etag")?.replaceAll('"', "");
+            if (tag) etags.set(rel, tag);
+            return new Response(JSON.stringify({ etag: tag }), {
+              status: 200,
+            });
+          }
+          console.error(
+            `refusing to overwrite never-read file: ${rel} (reload the workspace)`,
+          );
+          return new Response(
+            JSON.stringify({ error: "refusing to overwrite never-read file" }),
+            { status: 409 },
+          );
+        }
+        known = undefined;
+      }
       const res = await fetch(fileUrl(rel), {
         method: "PUT",
         headers: { "if-match": known ? `"${known}"` : "*" },
