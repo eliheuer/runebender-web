@@ -208,14 +208,14 @@ impl CanvasTheme {
 
 // --- Sizes (xilem size::*; STROKE_SCALE = 1.5) ---
 const STROKE_SCALE: f64 = 1.5;
-const SMOOTH_POINT_RADIUS_PX: f64 = 2.5;
-const SMOOTH_POINT_SELECTED_RADIUS_PX: f64 = 3.25;
-const CORNER_POINT_HALF_PX: f64 = 2.0;
-const CORNER_POINT_SELECTED_HALF_PX: f64 = 2.75;
+const SMOOTH_POINT_RADIUS_PX: f64 = 4.5;
+const SMOOTH_POINT_SELECTED_RADIUS_PX: f64 = 5.5;
+const CORNER_POINT_HALF_PX: f64 = 3.5;
+const CORNER_POINT_SELECTED_HALF_PX: f64 = 4.5;
 const OFFCURVE_POINT_RADIUS_PX: f64 = SMOOTH_POINT_RADIUS_PX;
 const OFFCURVE_POINT_SELECTED_RADIUS_PX: f64 = SMOOTH_POINT_SELECTED_RADIUS_PX;
-const HYPER_POINT_RADIUS_PX: f64 = 2.25;
-const HYPER_POINT_SELECTED_RADIUS_PX: f64 = 3.0;
+const HYPER_POINT_RADIUS_PX: f64 = 4.0;
+const HYPER_POINT_SELECTED_RADIUS_PX: f64 = 5.0;
 const START_NODE_HALF_PX: f64 = 5.5;
 const START_NODE_SELECTED_HALF_PX: f64 = 6.5;
 const START_NODE_OFFSET_PX: f64 = 8.0;
@@ -248,7 +248,7 @@ const DESIGN_GRID_CLOSE_MIN_ZOOM: f64 = 8.0;
 const DESIGN_GRID_CLOSE_FINE: f64 = 2.0;
 const DESIGN_GRID_CLOSE_COARSE_N: u32 = 4;
 const DESIGN_GRID_FINE_LINE_PX: f64 = 0.5;
-const ONGRID_DOT_RADIUS_PX: f64 = 0.9;
+const ONGRID_DOT_RADIUS_PX: f64 = 1.6;
 const DESIGN_GRID_COARSE_LINE_PX: f64 = 1.0;
 
 // ============================================================================
@@ -1635,18 +1635,11 @@ impl Renderer {
         if path.elements().is_empty() {
             return;
         }
-        // The point is a WINDOW: fill with the true canvas background to
-        // mask the outline and handle lines, then re-stroke the grid
-        // clipped to the point interiors — at high opacity, because the
-        // window is exactly where the grid must be readable (Eli's
-        // design). `inner` still colors points when no grid is visible.
-        if self.grid_overlay.is_some() {
-            self.scene
-                .fill(Fill::NonZero, Affine::IDENTITY, BG, None, path);
-        } else {
-            self.scene
-                .fill(Fill::NonZero, Affine::IDENTITY, inner, None, path);
-        }
+        // The point is a WINDOW: the inner fill masks the outline and
+        // handle lines, then the grid is re-stroked clipped to the point
+        // interiors, so only the grid shows through (Eli's design).
+        self.scene
+            .fill(Fill::NonZero, Affine::IDENTITY, inner, None, path);
         if let Some(overlay) = self.grid_overlay.clone() {
             self.scene
                 .push_layer(Fill::NonZero, Mix::Normal, 1.0, Affine::IDENTITY, path);
@@ -1655,7 +1648,7 @@ impl Renderer {
                 Affine::IDENTITY,
                 self.theme
                     .design_grid_coarse
-                    .with_alpha(0.9 * overlay.accent_alpha),
+                    .multiply_alpha(overlay.accent_alpha),
                 None,
                 overlay.accent.as_ref(),
             );
@@ -1663,7 +1656,7 @@ impl Renderer {
                 self.scene.stroke(
                     &Stroke::new(DESIGN_GRID_FINE_LINE_PX),
                     Affine::IDENTITY,
-                    self.theme.design_grid_fine.with_alpha(0.7 * fine_alpha),
+                    self.theme.design_grid_fine.multiply_alpha(*fine_alpha),
                     None,
                     fine.as_ref(),
                 );
