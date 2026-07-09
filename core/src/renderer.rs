@@ -1724,7 +1724,14 @@ impl Renderer {
         origin_y: f64,
     ) {
         let zoom = state.viewport.zoom;
-        if zoom < DESIGN_GRID_MID_MIN_ZOOM {
+        // Each level fades in over a zoom octave instead of popping, so
+        // the two levels read as one continuous grid: mid (8u) ramps
+        // 0.8x->1.6x, close (2u) ramps 8x->16x.
+        let mid_alpha = smoothstep(
+            ((zoom - DESIGN_GRID_MID_MIN_ZOOM) / DESIGN_GRID_MID_MIN_ZOOM)
+                .clamp(0.0, 1.0),
+        );
+        if mid_alpha <= 0.0 {
             return;
         }
 
@@ -1737,10 +1744,16 @@ impl Renderer {
         let min_y = top_left.y.min(bottom_right.y);
         let max_y = top_left.y.max(bottom_right.y);
 
+        // The 8-unit lines are ONE grid at every zoom: the mid level draws
+        // them in the same style as the close level's 8-unit accent, and
+        // the close level only adds the 2s underneath.
         self.draw_grid_level(
             view,
             DESIGN_GRID_MID_FINE,
             DESIGN_GRID_MID_COARSE_N,
+            mid_alpha,
+            true,
+            true,
             min_x,
             max_x,
             min_y,
@@ -1749,11 +1762,19 @@ impl Renderer {
             origin_y,
         );
 
-        if zoom >= DESIGN_GRID_CLOSE_MIN_ZOOM {
+        let close_alpha = smoothstep(
+            ((zoom - DESIGN_GRID_CLOSE_MIN_ZOOM) / DESIGN_GRID_CLOSE_MIN_ZOOM)
+                .clamp(0.0, 1.0),
+        );
+        if close_alpha > 0.0 {
             self.draw_grid_level(
                 view,
                 DESIGN_GRID_CLOSE_FINE,
                 DESIGN_GRID_CLOSE_COARSE_N,
+                close_alpha,
+                false,
+                // the 8s already come from the mid pass — do not restroke
+                false,
                 min_x,
                 max_x,
                 min_y,
@@ -1764,11 +1785,15 @@ impl Renderer {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_grid_level(
         &mut self,
         view: Affine,
         spacing: f64,
         coarse_n: u32,
+        alpha: f64,
+        fine_as_accent: bool,
+        stroke_coarse: bool,
         min_x: f64,
         max_x: f64,
         min_y: f64,
@@ -1776,7 +1801,16 @@ impl Renderer {
         origin_x: f64,
         origin_y: f64,
     ) {
-        let fine_stroke = Stroke::new(DESIGN_GRID_FINE_LINE_PX);
+        let fine_stroke = if fine_as_accent {
+            Stroke::new(DESIGN_GRID_COARSE_LINE_PX)
+        } else {
+            Stroke::new(DESIGN_GRID_FINE_LINE_PX)
+        };
+        let fine_color = if fine_as_accent {
+            self.theme.design_grid_coarse
+        } else {
+            self.theme.design_grid_fine
+        };
         let coarse_stroke = Stroke::new(DESIGN_GRID_COARSE_LINE_PX);
         let (fine_path, coarse_path) = self.design_grid_paths(
             view, spacing, coarse_n, min_x, max_x, min_y, max_y, origin_x, origin_y,
@@ -1786,16 +1820,16 @@ impl Renderer {
             self.scene.stroke(
                 &fine_stroke,
                 Affine::IDENTITY,
-                self.theme.design_grid_fine,
+                fine_color.multiply_alpha(alpha as f32),
                 None,
                 fine_path.as_ref(),
             );
         }
-        if !coarse_path.elements().is_empty() {
+        if stroke_coarse && !coarse_path.elements().is_empty() {
             self.scene.stroke(
                 &coarse_stroke,
                 Affine::IDENTITY,
-                self.theme.design_grid_coarse,
+                self.theme.design_grid_coarse.multiply_alpha(alpha as f32),
                 None,
                 coarse_path.as_ref(),
             );
