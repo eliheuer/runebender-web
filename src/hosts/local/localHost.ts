@@ -189,7 +189,13 @@ export function createLocalHost(
       }
       const res = await fetch(fileUrl(rel), {
         method: "PUT",
-        headers: { "if-match": known ? `"${known}"` : "*" },
+        headers: {
+          "if-match": known ? `"${known}"` : "*",
+          // A human driving the editor clears outlines on purpose (e.g.
+          // emptying Bold glyphs on camera); the server's outline guard
+          // exists for non-interactive writers.
+          "x-allow-outline-clear": "1",
+        },
         body: text,
       });
       if (res.ok) {
