@@ -12,7 +12,7 @@ use serde::Deserialize;
 use std::collections::{HashMap, HashSet, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use vello::peniko::{Fill, color::AlphaColor};
+use vello::peniko::{Fill, Mix, color::AlphaColor};
 use vello::wgpu;
 use vello::wgpu::util::TextureBlitter;
 use vello::{AaConfig, Renderer as VelloRenderer, RendererOptions, Scene};
@@ -248,6 +248,7 @@ const DESIGN_GRID_CLOSE_MIN_ZOOM: f64 = 8.0;
 const DESIGN_GRID_CLOSE_FINE: f64 = 2.0;
 const DESIGN_GRID_CLOSE_COARSE_N: u32 = 4;
 const DESIGN_GRID_FINE_LINE_PX: f64 = 0.5;
+const ONGRID_DOT_RADIUS_PX: f64 = 1.6;
 const DESIGN_GRID_COARSE_LINE_PX: f64 = 1.0;
 
 // ============================================================================
@@ -274,6 +275,7 @@ pub struct Renderer {
     path_outline_cache: HashMap<EntityId, PathOutlineCacheEntry>,
     edit_controls_cache: HashMap<EntityId, EditControlsCacheEntry>,
     design_grid_cache: Vec<DesignGridCacheEntry>,
+    grid_overlay: Option<GridOverlay>,
     text_outline_cache: HashMap<String, TextOutlineCacheEntry>,
     device_scale: f64,
     width: u32,
@@ -324,6 +326,7 @@ impl EditControlsCacheKey {
 
 #[derive(Clone, Default)]
 struct EditControlsGeometry {
+    ongrid_dots: BezPath,
     outline: BezPath,
     handle_lines: BezPath,
     smooth_circles: BezPath,
@@ -338,6 +341,7 @@ struct EditControlsGeometry {
 impl EditControlsGeometry {
     fn with_capacity(capacity: EditControlsGeometryCapacity) -> Self {
         Self {
+            ongrid_dots: BezPath::with_capacity(capacity.ongrid_dots),
             outline: BezPath::with_capacity(capacity.outline),
             handle_lines: BezPath::with_capacity(capacity.handle_lines),
             smooth_circles: BezPath::with_capacity(capacity.smooth_circles),
@@ -352,6 +356,7 @@ impl EditControlsGeometry {
 
     fn capacity(&self) -> EditControlsGeometryCapacity {
         EditControlsGeometryCapacity {
+            ongrid_dots: self.ongrid_dots.elements().len(),
             outline: self.outline.elements().len(),
             handle_lines: self.handle_lines.elements().len(),
             smooth_circles: self.smooth_circles.elements().len(),
@@ -364,6 +369,7 @@ impl EditControlsGeometry {
     }
 
     fn append(&mut self, other: &Self) {
+        append_bezpath(&mut self.ongrid_dots, &other.ongrid_dots);
         append_bezpath(&mut self.outline, &other.outline);
         append_bezpath(&mut self.handle_lines, &other.handle_lines);
         append_bezpath(&mut self.smooth_circles, &other.smooth_circles);
@@ -377,6 +383,7 @@ impl EditControlsGeometry {
 
 #[derive(Clone, Copy, Default)]
 struct EditControlsGeometryCapacity {
+    ongrid_dots: usize,
     outline: usize,
     handle_lines: usize,
     smooth_circles: usize,
@@ -389,6 +396,7 @@ struct EditControlsGeometryCapacity {
 
 impl EditControlsGeometryCapacity {
     fn add(&mut self, other: Self) {
+        self.ongrid_dots += other.ongrid_dots;
         self.outline += other.outline;
         self.handle_lines += other.handle_lines;
         self.smooth_circles += other.smooth_circles;
@@ -405,6 +413,15 @@ struct StartArrowGeometry {
     center: Point,
     next: Point,
     selected: bool,
+}
+
+/// The grid as drawn this frame, kept so point windows can re-stroke it
+/// clipped to their interiors (points are windows onto the grid).
+#[derive(Clone)]
+struct GridOverlay {
+    accent: Rc<BezPath>,
+    accent_alpha: f32,
+    fine: Option<(Rc<BezPath>, f32)>,
 }
 
 #[derive(Clone)]
@@ -551,6 +568,7 @@ impl Renderer {
             path_outline_cache: HashMap::new(),
             edit_controls_cache: HashMap::new(),
             design_grid_cache: Vec::new(),
+            grid_overlay: None,
             text_outline_cache: HashMap::new(),
             device_scale: 1.0,
             width,
@@ -688,6 +706,7 @@ impl Renderer {
         text_mode_active: bool,
         changed_path_indices: Option<&HashSet<usize>>,
     ) {
+        self.grid_overlay = None;
         let view = state.viewport.affine();
         let has_text_session = state.has_text_session;
         let text_layout =
@@ -1408,6 +1427,15 @@ impl Renderer {
             self.theme.point_selected_outer,
             &outline_stroke,
         );
+        if !controls.ongrid_dots.elements().is_empty() {
+            self.scene.fill(
+                Fill::NonZero,
+                Affine::IDENTITY,
+                self.theme.point_selected_outer,
+                None,
+                &controls.ongrid_dots,
+            );
+        }
         for start_arrow in start_arrows {
             self.draw_start_arrow(
                 start_arrow.center,
@@ -1497,6 +1525,7 @@ impl Renderer {
         let start_index = closed
             .then(|| points.iter().position(PathPoint::is_on_curve))
             .flatten();
+        let mut ongrid_dots = BezPath::new();
         let mut smooth_circles = BezPath::new();
         let mut corner_squares = BezPath::new();
         let mut offcurve_circles = BezPath::new();
@@ -1507,6 +1536,17 @@ impl Renderer {
         for (index, pt) in points.iter().enumerate() {
             let center = view * pt.point;
             let selected = selection.contains(&pt.id);
+
+            // snapped exactly to the 2-unit design grid -> center dot
+            let on_grid = (pt.point.x / 2.0 - (pt.point.x / 2.0).round()).abs() < 1e-6
+                && (pt.point.y / 2.0 - (pt.point.y / 2.0).round()).abs() < 1e-6;
+            if on_grid {
+                append_circle_path(
+                    &mut ongrid_dots,
+                    center,
+                    ONGRID_DOT_RADIUS_PX * point_scale,
+                );
+            }
 
             if matches!(path, Path::Hyper(_)) && pt.is_on_curve() {
                 let radius = (if selected {
@@ -1578,6 +1618,7 @@ impl Renderer {
             }
         }
         EditControlsGeometry {
+            ongrid_dots,
             outline: BezPath::new(),
             handle_lines: BezPath::new(),
             smooth_circles,
@@ -1594,8 +1635,34 @@ impl Renderer {
         if path.elements().is_empty() {
             return;
         }
+        // The point is a WINDOW: the inner fill masks the outline and
+        // handle lines, then the grid is re-stroked clipped to the point
+        // interiors, so only the grid shows through (Eli's design).
         self.scene
             .fill(Fill::NonZero, Affine::IDENTITY, inner, None, path);
+        if let Some(overlay) = self.grid_overlay.clone() {
+            self.scene
+                .push_layer(Fill::NonZero, Mix::Normal, 1.0, Affine::IDENTITY, path);
+            self.scene.stroke(
+                &Stroke::new(DESIGN_GRID_COARSE_LINE_PX),
+                Affine::IDENTITY,
+                self.theme
+                    .design_grid_coarse
+                    .multiply_alpha(overlay.accent_alpha),
+                None,
+                overlay.accent.as_ref(),
+            );
+            if let Some((fine, fine_alpha)) = &overlay.fine {
+                self.scene.stroke(
+                    &Stroke::new(DESIGN_GRID_FINE_LINE_PX),
+                    Affine::IDENTITY,
+                    self.theme.design_grid_fine.multiply_alpha(*fine_alpha),
+                    None,
+                    fine.as_ref(),
+                );
+            }
+            self.scene.pop_layer();
+        }
         self.scene
             .stroke(stroke, Affine::IDENTITY, outer, None, path);
     }
@@ -1747,7 +1814,7 @@ impl Renderer {
         // The 8-unit lines are ONE grid at every zoom: the mid level draws
         // them in the same style as the close level's 8-unit accent, and
         // the close level only adds the 2s underneath.
-        self.draw_grid_level(
+        let accent = self.draw_grid_level(
             view,
             DESIGN_GRID_MID_FINE,
             DESIGN_GRID_MID_COARSE_N,
@@ -1761,13 +1828,18 @@ impl Renderer {
             origin_x,
             origin_y,
         );
+        self.grid_overlay = Some(GridOverlay {
+            accent,
+            accent_alpha: mid_alpha as f32,
+            fine: None,
+        });
 
         let close_alpha = smoothstep(
             ((zoom - DESIGN_GRID_CLOSE_MIN_ZOOM) / DESIGN_GRID_CLOSE_MIN_ZOOM)
                 .clamp(0.0, 1.0),
         );
         if close_alpha > 0.0 {
-            self.draw_grid_level(
+            let fine = self.draw_grid_level(
                 view,
                 DESIGN_GRID_CLOSE_FINE,
                 DESIGN_GRID_CLOSE_COARSE_N,
@@ -1782,9 +1854,13 @@ impl Renderer {
                 origin_x,
                 origin_y,
             );
+            if let Some(overlay) = self.grid_overlay.as_mut() {
+                overlay.fine = Some((fine, close_alpha as f32));
+            }
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[allow(clippy::too_many_arguments)]
     fn draw_grid_level(
         &mut self,
@@ -1800,7 +1876,7 @@ impl Renderer {
         max_y: f64,
         origin_x: f64,
         origin_y: f64,
-    ) {
+    ) -> Rc<BezPath> {
         let fine_stroke = if fine_as_accent {
             Stroke::new(DESIGN_GRID_COARSE_LINE_PX)
         } else {
@@ -1834,6 +1910,7 @@ impl Renderer {
                 coarse_path.as_ref(),
             );
         }
+        fine_path
     }
 
     #[allow(clippy::too_many_arguments)]
