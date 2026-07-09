@@ -208,18 +208,18 @@ impl CanvasTheme {
 
 // --- Sizes (xilem size::*; STROKE_SCALE = 1.5) ---
 const STROKE_SCALE: f64 = 1.5;
-const SMOOTH_POINT_RADIUS_PX: f64 = 2.75;
-const SMOOTH_POINT_SELECTED_RADIUS_PX: f64 = 3.25;
-const CORNER_POINT_HALF_PX: f64 = 2.25;
-const CORNER_POINT_SELECTED_HALF_PX: f64 = 2.75;
+const SMOOTH_POINT_RADIUS_PX: f64 = 4.5;
+const SMOOTH_POINT_SELECTED_RADIUS_PX: f64 = 5.5;
+const CORNER_POINT_HALF_PX: f64 = 3.5;
+const CORNER_POINT_SELECTED_HALF_PX: f64 = 4.5;
 const OFFCURVE_POINT_RADIUS_PX: f64 = SMOOTH_POINT_RADIUS_PX;
 const OFFCURVE_POINT_SELECTED_RADIUS_PX: f64 = SMOOTH_POINT_SELECTED_RADIUS_PX;
-const HYPER_POINT_RADIUS_PX: f64 = 2.5;
-const HYPER_POINT_SELECTED_RADIUS_PX: f64 = 3.0;
+const HYPER_POINT_RADIUS_PX: f64 = 4.0;
+const HYPER_POINT_SELECTED_RADIUS_PX: f64 = 5.0;
 const START_NODE_HALF_PX: f64 = 5.5;
 const START_NODE_SELECTED_HALF_PX: f64 = 6.5;
 const START_NODE_OFFSET_PX: f64 = 8.0;
-const POINT_OUTLINE_PX: f64 = 0.75 * STROKE_SCALE;
+const POINT_OUTLINE_PX: f64 = 1.25 * STROKE_SCALE;
 const PATH_STROKE_PX: f64 = 1.0 * STROKE_SCALE;
 const COMPONENT_SELECTION_STROKE_PX: f64 = 2.0;
 const HANDLE_LINE_PX: f64 = 0.75 * STROKE_SCALE;
@@ -248,7 +248,7 @@ const DESIGN_GRID_CLOSE_MIN_ZOOM: f64 = 8.0;
 const DESIGN_GRID_CLOSE_FINE: f64 = 2.0;
 const DESIGN_GRID_CLOSE_COARSE_N: u32 = 4;
 const DESIGN_GRID_FINE_LINE_PX: f64 = 0.5;
-const ONGRID_DOT_RADIUS_PX: f64 = 1.0;
+const ONGRID_DOT_RADIUS_PX: f64 = 1.6;
 const DESIGN_GRID_COARSE_LINE_PX: f64 = 1.0;
 
 // ============================================================================
@@ -623,8 +623,8 @@ impl Renderer {
         // pixels, so compute the scale curve in CSS/logical pixels.
         const MIN_ZOOM_SCALE: f64 = 0.72;
         const BASE_ZOOM_SCALE: f64 = 1.0;
-        const FINE_GRID_ZOOM_SCALE: f64 = 1.34;
-        const MAX_ZOOM_SCALE: f64 = 1.75;
+        const FINE_GRID_ZOOM_SCALE: f64 = 1.6;
+        const MAX_ZOOM_SCALE: f64 = 2.4;
         let logical_zoom = zoom / self.device_scale.max(1.0);
         let fine_grid_zoom = DESIGN_GRID_CLOSE_MIN_ZOOM / self.device_scale.max(1.0);
         let wide_t = (logical_zoom / DESIGN_GRID_MID_MIN_ZOOM).clamp(0.0, 1.0);
@@ -1643,22 +1643,20 @@ impl Renderer {
         if let Some(overlay) = self.grid_overlay.clone() {
             self.scene
                 .push_layer(Fill::NonZero, Mix::Normal, 1.0, Affine::IDENTITY, path);
+            // inside the window the grid must be READABLE, not ambient:
+            // full-strength, wider strokes than the canvas grid
             self.scene.stroke(
-                &Stroke::new(DESIGN_GRID_COARSE_LINE_PX),
+                &Stroke::new(1.5),
                 Affine::IDENTITY,
-                // boosted alpha: the dark point inner needs stronger lines
-                // than the canvas for the same read (visible unselected)
-                self.theme
-                    .design_grid_coarse
-                    .with_alpha(0.9 * overlay.accent_alpha),
+                self.theme.design_grid_coarse.with_alpha(overlay.accent_alpha),
                 None,
                 overlay.accent.as_ref(),
             );
             if let Some((fine, fine_alpha)) = &overlay.fine {
                 self.scene.stroke(
-                    &Stroke::new(DESIGN_GRID_FINE_LINE_PX),
+                    &Stroke::new(1.0),
                     Affine::IDENTITY,
-                    self.theme.design_grid_fine.with_alpha(0.7 * fine_alpha),
+                    self.theme.design_grid_fine.with_alpha(*fine_alpha),
                     None,
                     fine.as_ref(),
                 );
