@@ -208,18 +208,18 @@ impl CanvasTheme {
 
 // --- Sizes (xilem size::*; STROKE_SCALE = 1.5) ---
 const STROKE_SCALE: f64 = 1.5;
-const SMOOTH_POINT_RADIUS_PX: f64 = 4.5;
-const SMOOTH_POINT_SELECTED_RADIUS_PX: f64 = 5.5;
-const CORNER_POINT_HALF_PX: f64 = 3.5;
-const CORNER_POINT_SELECTED_HALF_PX: f64 = 4.5;
+const SMOOTH_POINT_RADIUS_PX: f64 = 2.75;
+const SMOOTH_POINT_SELECTED_RADIUS_PX: f64 = 3.25;
+const CORNER_POINT_HALF_PX: f64 = 2.25;
+const CORNER_POINT_SELECTED_HALF_PX: f64 = 2.75;
 const OFFCURVE_POINT_RADIUS_PX: f64 = SMOOTH_POINT_RADIUS_PX;
 const OFFCURVE_POINT_SELECTED_RADIUS_PX: f64 = SMOOTH_POINT_SELECTED_RADIUS_PX;
-const HYPER_POINT_RADIUS_PX: f64 = 4.0;
-const HYPER_POINT_SELECTED_RADIUS_PX: f64 = 5.0;
+const HYPER_POINT_RADIUS_PX: f64 = 2.5;
+const HYPER_POINT_SELECTED_RADIUS_PX: f64 = 3.0;
 const START_NODE_HALF_PX: f64 = 5.5;
 const START_NODE_SELECTED_HALF_PX: f64 = 6.5;
 const START_NODE_OFFSET_PX: f64 = 8.0;
-const POINT_OUTLINE_PX: f64 = 1.25 * STROKE_SCALE;
+const POINT_OUTLINE_PX: f64 = 0.75 * STROKE_SCALE;
 const PATH_STROKE_PX: f64 = 1.0 * STROKE_SCALE;
 const COMPONENT_SELECTION_STROKE_PX: f64 = 2.0;
 const HANDLE_LINE_PX: f64 = 0.75 * STROKE_SCALE;
@@ -248,7 +248,7 @@ const DESIGN_GRID_CLOSE_MIN_ZOOM: f64 = 8.0;
 const DESIGN_GRID_CLOSE_FINE: f64 = 2.0;
 const DESIGN_GRID_CLOSE_COARSE_N: u32 = 4;
 const DESIGN_GRID_FINE_LINE_PX: f64 = 0.5;
-const ONGRID_DOT_RADIUS_PX: f64 = 1.6;
+const ONGRID_DOT_RADIUS_PX: f64 = 1.0;
 const DESIGN_GRID_COARSE_LINE_PX: f64 = 1.0;
 
 // ============================================================================
@@ -1646,9 +1646,11 @@ impl Renderer {
             self.scene.stroke(
                 &Stroke::new(DESIGN_GRID_COARSE_LINE_PX),
                 Affine::IDENTITY,
+                // boosted alpha: the dark point inner needs stronger lines
+                // than the canvas for the same read (visible unselected)
                 self.theme
                     .design_grid_coarse
-                    .multiply_alpha(overlay.accent_alpha),
+                    .with_alpha(0.9 * overlay.accent_alpha),
                 None,
                 overlay.accent.as_ref(),
             );
@@ -1656,7 +1658,7 @@ impl Renderer {
                 self.scene.stroke(
                     &Stroke::new(DESIGN_GRID_FINE_LINE_PX),
                     Affine::IDENTITY,
-                    self.theme.design_grid_fine.multiply_alpha(*fine_alpha),
+                    self.theme.design_grid_fine.with_alpha(0.7 * fine_alpha),
                     None,
                     fine.as_ref(),
                 );
