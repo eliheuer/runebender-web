@@ -1739,6 +1739,11 @@ function requestRender(options: RenderRequestOptions = {}) {
     // of input device Hz (mice at 1000Hz, tablets at 200Hz, etc.).
     const pm = pendingPointerMove;
     pendingPointerMove = null;
+    // any dragging pointer can be panning the viewport — keep the
+    // background image frame glued to it
+    if (pm && pm.buttons !== 0 && backgroundImage.value) {
+      rafNeedsBackgroundImageFrame = true;
+    }
     if (pm && editor) {
       const c = canvasCoords(pm);
       if (c) {
@@ -1783,7 +1788,8 @@ function requestRender(options: RenderRequestOptions = {}) {
       recordCompletedNudgePerf(nudgePerf);
       if (pendingNudgePerf === nudgePerf) pendingNudgePerf = null;
     }
-    if (refreshBackground) {
+    if (refreshBackground || rafNeedsBackgroundImageFrame) {
+      rafNeedsBackgroundImageFrame = false;
       refreshBackgroundImageFrame();
     }
     if (refreshSelection) {
@@ -3671,6 +3677,7 @@ function onActiveGlyphNameChange(event: Event) {
 }
 
 function onToolSelect(tool: ToolId) {
+  rafNeedsBackgroundImageFrame = true;
   // TEMP DIAGNOSTIC — remove once ghost bug is understood.
   if (editor) {
     try {
@@ -8138,6 +8145,7 @@ onBeforeUnmount(() => {
           @pointermove="onBackgroundPointerMove"
           @pointerup="onBackgroundPointerUp"
           @pointercancel="onBackgroundPointerUp"
+          @wheel.prevent="onWheel"
           @contextmenu="openBackgroundImageContextMenu"
         >
           <img :src="backgroundImage.url" alt="" draggable="false" />
@@ -8987,6 +8995,9 @@ onBeforeUnmount(() => {
   position: relative;
   flex: 1;
   min-width: 0;
+  /* absolute overlays (background image) must never bleed over the
+     surrounding toolbars/panels */
+  overflow: hidden;
 }
 
 .coordinate-overlay {
