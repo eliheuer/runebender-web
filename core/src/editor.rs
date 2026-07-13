@@ -1941,7 +1941,12 @@ impl EditorState {
         let Some(bbox) = self.glyph_bbox() else {
             return false;
         };
-        let delta = value - bbox.min_x();
+        // The exact bezier bbox can be fractionally wider than the on-curve
+        // extrema (a curve bulging past its extreme point by e.g. 0.02
+        // units). Rounding the delta keeps integer outlines integer instead
+        // of dragging every point off-grid by that fraction; the UI rounds
+        // sidebearings for display anyway.
+        let delta = (value - bbox.min_x()).round();
         if delta.abs() < 1e-9 {
             return false;
         }
@@ -1957,7 +1962,10 @@ impl EditorState {
         let Some(bbox) = self.glyph_bbox() else {
             return false;
         };
-        self.set_advance_width(bbox.max_x() + value)
+        // Round for the same reason as set_left_sidebearing: an exact
+        // fractional bbox edge plus an integer sidebearing must not persist
+        // a float advance width into the UFO.
+        self.set_advance_width((bbox.max_x() + value).round())
     }
 
     pub fn copy_selection(&self) -> Option<Vec<Path>> {
@@ -4427,7 +4435,7 @@ mod tests {
 
     #[test]
     fn set_glyph_from_norad_builds_drawable_contours_for_real_glif() {
-        let bytes = include_bytes!("../../workspace/fonts/demo/VirtuaGrotesk-Regular.ufo/glyphs/two.glif");
+        let bytes = include_bytes!("../../assets/test-fonts/VirtuaGrotesk-Regular.ufo/glyphs/two.glif");
         let glyph = norad::Glyph::parse_raw(bytes).expect("demo two.glif parses");
         let mut state = EditorState::default();
 
@@ -6224,5 +6232,31 @@ mod tests {
         assert_eq!(state.advance_width, 600.0);
         assert!(state.set_right_sidebearing(400.0));
         assert_eq!(state.advance_width, 520.0);
+    }
+
+    #[test]
+    fn sidebearing_edits_round_against_fractional_bbox() {
+        // A curve can bulge fractionally past its on-curve extrema, so the
+        // exact bbox edge lands off-integer. Integer sidebearing input must
+        // still produce an integer advance width and integer translation
+        // deltas (regression: o advance persisted as 616.0242...).
+        let mut state = EditorState::default();
+        state.advance_width = 600.0;
+        state.paths.push(Path::Cubic(CubicPath::new(
+            PathPoints::from_vec(vec![
+                on_curve(Point::new(10.0242, 0.0), false),
+                on_curve(Point::new(110.0242, 0.0), false),
+            ]),
+            false,
+        )));
+
+        assert!(state.set_right_sidebearing(32.0));
+        assert_eq!(state.advance_width, 142.0);
+
+        // LSB: delta rounds to a whole number so points keep their grid
+        // offsets instead of shifting by the fractional bbox error.
+        assert!(state.set_left_sidebearing(20.0));
+        let point = state.paths[0].points().iter().next().expect("point exists");
+        assert_eq!(point.point.x, 20.0242);
     }
 }
