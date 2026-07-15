@@ -31,8 +31,7 @@ const MODES = [
 <template>
   <section class="sketch-panel">
     <div class="label title">sketch</div>
-    <template>
-      <div class="label">brush</div>
+    <div class="label">brush</div>
       <div class="brush-grid">
         <button
           v-for="b in BRUSHES"
@@ -78,7 +77,6 @@ const MODES = [
       >
         {{ props.tracing ? "tracing…" : "Trace → draft" }}
       </button>
-    </template>
   </section>
 </template>
 
