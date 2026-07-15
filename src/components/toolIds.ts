@@ -10,6 +10,7 @@ export type ToolId =
   | "Knife"
   | "Measure"
   | "Shapes"
+  | "Sketch"
   | "Text";
 
 export const TOOL_IDS: ToolId[] = [
@@ -19,6 +20,7 @@ export const TOOL_IDS: ToolId[] = [
   "Knife",
   "Measure",
   "Shapes",
+  "Sketch",
   "Preview",
   "Text",
 ];
@@ -31,5 +33,6 @@ export const TOOL_LABELS: Record<ToolId, string> = {
   Knife: "Knife (K)",
   Measure: "Measure",
   Shapes: "Shapes",
+  Sketch: "Sketch",
   Text: "Text (T)",
 };

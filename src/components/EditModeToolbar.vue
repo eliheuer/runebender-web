@@ -33,13 +33,23 @@ const TOOL_ICON_GLYPH: Record<ToolId, string> = {
   Measure: "measure",
   Shapes: "shapes",
   Preview: "preview",
+  Sketch: "sketch",
   Text: "text",
+};
+
+// Hand-drawn stand-in until the icon font gains a sketch glyph: a brush
+// dot with a tapering tail.
+const SKETCH_ICON: ToolbarIcon = {
+  viewBox: "0 0 100 100",
+  d: "M38 74a20 20 0 1 1 24-24c8-10 20-24 26-30 4-4 10 2 6 6-6 6-20 18-30 26a20 20 0 0 1-26 22Z",
 };
 
 const FALLBACK_ICON: ToolbarIcon = { viewBox: "0 0 1 1", d: "" };
 
 function iconFor(id: ToolId): ToolbarIcon {
-  return TOOLBAR_ICONS[TOOL_ICON_GLYPH[id]] ?? FALLBACK_ICON;
+  const icon = TOOLBAR_ICONS[TOOL_ICON_GLYPH[id]];
+  if (!icon && id === "Sketch") return SKETCH_ICON;
+  return icon ?? FALLBACK_ICON;
 }
 </script>
 

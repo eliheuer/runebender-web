@@ -173,7 +173,7 @@ const selectedSidebarFilter = ref<GlyphSidebarFilter>({ kind: "all" });
 // Fixed design-space rect at 1 unit = 1 px; traced via the in-wasm
 // img2bez with EXACT placement (the raster is born font-aligned).
 const SKETCH_RECT = { x: -256, y: -512, w: 1536, h: 1536 } as const;
-const sketchActive = ref(false);
+const sketchActive = computed(() => activeTool.value === "Sketch");
 const sketchBrush = ref(96);
 const sketchErase = ref(false);
 const sketchTraceMode = ref("default");
@@ -2421,6 +2421,12 @@ function repaintSketchOverlay() {
   if (!ctx) return;
   ctx.clearRect(0, 0, overlay.width, overlay.height);
   ctx.drawImage(sketchStore, 0, 0);
+  // display tint: mid-gray so ink reads on the dark stage; the offscreen
+  // store keeps pure black for the tracer
+  ctx.globalCompositeOperation = "source-in";
+  ctx.fillStyle = "#9a9a9a";
+  ctx.fillRect(0, 0, overlay.width, overlay.height);
+  ctx.globalCompositeOperation = "source-over";
 }
 
 function sketchDesignPoint(e: PointerEvent): [number, number] | null {
@@ -2491,16 +2497,18 @@ function clearSketch() {
   repaintSketchOverlay();
 }
 
-function toggleSketch() {
-  sketchActive.value = !sketchActive.value;
-  if (sketchActive.value) {
+watch(sketchActive, (on) => {
+  if (on) {
     sketchCtx();
     nextTick(() => {
       refreshSketchFrame();
       repaintSketchOverlay();
     });
+  } else {
+    sketchStroking = false;
+    sketchLast = null;
   }
-}
+});
 
 async function traceSketchToGlyph() {
   const glyphName = currentGlyph.value;
@@ -8742,15 +8750,13 @@ onBeforeUnmount(() => {
         />
 
         <SketchPanel
-          v-if="viewMode === 'editor' && editorPanelsVisible"
+          v-if="viewMode === 'editor' && editorPanelsVisible && sketchActive"
           class="helper-overlay"
-          :active="sketchActive"
           :brush="sketchBrush"
           :erase="sketchErase"
           :trace-mode="sketchTraceMode"
           :has-ink="sketchHasInk"
           :tracing="sketchTracing"
-          @toggle="toggleSketch"
           @update:brush="(v: number) => (sketchBrush = v)"
           @update:erase="(v: boolean) => (sketchErase = v)"
           @update:trace-mode="(v: string) => (sketchTraceMode = v)"

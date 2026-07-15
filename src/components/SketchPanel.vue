@@ -4,7 +4,6 @@
 // born with correct stroke weights — the tracer then only has to find
 // the skeleton, not guess the weight.
 const props = defineProps<{
-  active: boolean;
   brush: number;
   erase: boolean;
   traceMode: string;
@@ -13,7 +12,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "toggle"): void;
   (e: "update:brush", v: number): void;
   (e: "update:erase", v: boolean): void;
   (e: "update:traceMode", v: string): void;
@@ -32,15 +30,8 @@ const MODES = [
 
 <template>
   <section class="sketch-panel">
-    <button
-      class="row-btn"
-      :class="{ on: props.active }"
-      @click="emit('toggle')"
-    >
-      {{ props.active ? "Sketching" : "Sketch" }}
-    </button>
-
-    <template v-if="props.active">
+    <div class="label title">sketch</div>
+    <template>
       <div class="label">brush</div>
       <div class="brush-grid">
         <button
@@ -131,8 +122,12 @@ const MODES = [
 }
 .row-btn.on,
 .brush-btn.on {
-  background: rgba(255, 78, 0, 0.25);
-  border-color: rgba(255, 78, 0, 0.6);
+  background: color-mix(in srgb, var(--rb-accent, #18b86f) 22%, transparent);
+  border-color: color-mix(in srgb, var(--rb-accent, #18b86f) 65%, transparent);
+}
+.label.title {
+  margin-top: 0;
+  opacity: 0.7;
 }
 .row-btn:disabled {
   opacity: 0.4;
