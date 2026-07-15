@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { nextTick, computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 // wasm-pack output lives in ../wasm/ (a normal source directory, not
 // /public/). Vite resolves this as a regular ES module; the shim's
 // internal `new URL('..._bg.wasm', import.meta.url)` then resolves
@@ -53,7 +53,7 @@ import type { TextDirection } from "./components/TextDirectionToolbar.vue";
 import GlyphAnatomyPanel from "./components/GlyphAnatomyPanel.vue";
 import GlyphCell from "./components/GlyphCell.vue";
 import GlyphInfoSidebar from "./components/GlyphInfoSidebar.vue";
-import HelperPanel from "./components/HelperPanel.vue";
+import SketchPanel from "./components/SketchPanel.vue";
 import MarkColorPanel from "./components/MarkColorPanel.vue";
 import MasterToolbar from "./components/MasterToolbar.vue";
 import TopBar from "./components/TopBar.vue";
@@ -169,6 +169,22 @@ const viewMode = ref<"grid" | "editor">("grid");
 const initialFontLoading = ref<boolean>(Boolean(props.initialFiles));
 const selectedCategory = ref<Category>("All");
 const selectedSidebarFilter = ref<GlyphSidebarFilter>({ kind: "all" });
+// --- Sketch layer: raster brush over the glyph, in design units --------
+// Fixed design-space rect at 1 unit = 1 px; traced via the in-wasm
+// img2bez with EXACT placement (the raster is born font-aligned).
+const SKETCH_RECT = { x: -256, y: -512, w: 1536, h: 1536 } as const;
+const sketchActive = ref(false);
+const sketchBrush = ref(96);
+const sketchErase = ref(false);
+const sketchTraceMode = ref("default");
+const sketchHasInk = ref(false);
+const sketchTracing = ref(false);
+const sketchFrame = ref<Record<string, string>>({});
+const sketchOverlay = ref<HTMLCanvasElement | null>(null);
+let sketchStore: HTMLCanvasElement | null = null; // offscreen, font-unit px
+let sketchStroking = false;
+let sketchLast: [number, number] | null = null;
+
 const sidebarSearchQuery = ref("");
 const sidebarSearchMode = ref<SidebarSearchMode>("all");
 const sidebarSearchMatchCase = ref(false);
@@ -1791,6 +1807,7 @@ function requestRender(options: RenderRequestOptions = {}) {
     if (refreshBackground || rafNeedsBackgroundImageFrame) {
       rafNeedsBackgroundImageFrame = false;
       refreshBackgroundImageFrame();
+      refreshSketchFrame();
     }
     if (refreshSelection) {
       refreshSelectionState();
@@ -2369,6 +2386,218 @@ function measureLabelsFromInfo(info: Float64Array): MeasureInfo["labels"] {
 
 function formatMeasure(value: number): string {
   return Number.isFinite(value) ? value.toFixed(1) : "";
+}
+
+function sketchCtx(): CanvasRenderingContext2D | null {
+  if (!sketchStore) {
+    sketchStore = document.createElement("canvas");
+    sketchStore.width = SKETCH_RECT.w;
+    sketchStore.height = SKETCH_RECT.h;
+  }
+  return sketchStore.getContext("2d", { willReadFrequently: true });
+}
+
+function designToSketchPx(x: number, y: number): [number, number] {
+  return [x - SKETCH_RECT.x, SKETCH_RECT.y + SKETCH_RECT.h - y];
+}
+
+function refreshSketchFrame() {
+  if (!editor || !sketchActive.value) return;
+  const dpr = window.devicePixelRatio || 1;
+  const tl = editor.designToScreen(SKETCH_RECT.x, SKETCH_RECT.y + SKETCH_RECT.h);
+  const zoom = editor.zoom();
+  sketchFrame.value = {
+    left: `${tl[0] / dpr}px`,
+    top: `${tl[1] / dpr}px`,
+    width: `${(SKETCH_RECT.w * zoom) / dpr}px`,
+    height: `${(SKETCH_RECT.h * zoom) / dpr}px`,
+  };
+}
+
+function repaintSketchOverlay() {
+  const overlay = sketchOverlay.value;
+  if (!overlay || !sketchStore) return;
+  const ctx = overlay.getContext("2d");
+  if (!ctx) return;
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  ctx.drawImage(sketchStore, 0, 0);
+}
+
+function sketchDesignPoint(e: PointerEvent): [number, number] | null {
+  if (!editor || !canvas.value) return null;
+  const rect = canvas.value.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const p = editor.screenToDesign(
+    (e.clientX - rect.left) * dpr,
+    (e.clientY - rect.top) * dpr,
+  );
+  return [p[0], p[1]];
+}
+
+function sketchStrokeTo(pt: [number, number], first: boolean) {
+  const ctx = sketchCtx();
+  if (!ctx) return;
+  const [x, y] = designToSketchPx(pt[0], pt[1]);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = sketchBrush.value;
+  ctx.globalCompositeOperation = sketchErase.value
+    ? "destination-out"
+    : "source-over";
+  ctx.strokeStyle = "#000";
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  if (first || !sketchLast) {
+    ctx.arc(x, y, sketchBrush.value / 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    const [lx, ly] = designToSketchPx(sketchLast[0], sketchLast[1]);
+    ctx.moveTo(lx, ly);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+  sketchLast = pt;
+  sketchHasInk.value = true;
+  repaintSketchOverlay();
+}
+
+function onSketchPointerDown(e: PointerEvent) {
+  if (e.button !== 0) return;
+  const pt = sketchDesignPoint(e);
+  if (!pt) return;
+  (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  sketchStroking = true;
+  sketchLast = null;
+  sketchStrokeTo(pt, true);
+}
+
+function onSketchPointerMove(e: PointerEvent) {
+  if (!sketchStroking) return;
+  const pt = sketchDesignPoint(e);
+  if (pt) sketchStrokeTo(pt, false);
+}
+
+function onSketchPointerUp() {
+  sketchStroking = false;
+  sketchLast = null;
+}
+
+function clearSketch() {
+  const ctx = sketchCtx();
+  if (!ctx || !sketchStore) return;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.clearRect(0, 0, sketchStore.width, sketchStore.height);
+  sketchHasInk.value = false;
+  repaintSketchOverlay();
+}
+
+function toggleSketch() {
+  sketchActive.value = !sketchActive.value;
+  if (sketchActive.value) {
+    sketchCtx();
+    nextTick(() => {
+      refreshSketchFrame();
+      repaintSketchOverlay();
+    });
+  }
+}
+
+async function traceSketchToGlyph() {
+  const glyphName = currentGlyph.value;
+  const data = activeMasterData.value;
+  if (!editor || !glyphName || !data || !sketchStore) return;
+  const ctx = sketchCtx();
+  if (!ctx) return;
+  sketchTracing.value = true;
+  try {
+    const { width: w, height: h } = sketchStore;
+    const img = ctx.getImageData(0, 0, w, h);
+    let minx = w, miny = h, maxx = -1, maxy = -1;
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        if (img.data[(row + x) * 4 + 3] > 16) {
+          if (x < minx) minx = x;
+          if (x > maxx) maxx = x;
+          if (y < miny) miny = y;
+          if (y > maxy) maxy = y;
+        }
+      }
+    }
+    if (maxx < 0) {
+      status.value = "sketch is empty";
+      return;
+    }
+    const pad = 8;
+    minx = Math.max(0, minx - pad);
+    miny = Math.max(0, miny - pad);
+    maxx = Math.min(w - 1, maxx + pad);
+    maxy = Math.min(h - 1, maxy + pad);
+    const cw = maxx - minx + 1;
+    const ch = maxy - miny + 1;
+    const crop = document.createElement("canvas");
+    crop.width = cw;
+    crop.height = ch;
+    const cctx = crop.getContext("2d")!;
+    cctx.fillStyle = "#fff";
+    cctx.fillRect(0, 0, cw, ch);
+    cctx.drawImage(sketchStore, minx, miny, cw, ch, 0, 0, cw, ch);
+    const blob: Blob = await new Promise((resolve, reject) =>
+      crop.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png"),
+    );
+    const imageBytes = new Uint8Array(await blob.arrayBuffer());
+    const designLeft = SKETCH_RECT.x + minx;
+    const designBottom = SKETCH_RECT.y + SKETCH_RECT.h - (maxy + 1);
+    const config = {
+      glyph: glyphName,
+      unicode: data.glyphUnicodes.get(glyphName) ?? null,
+      width: editor.advanceWidth(),
+      targetHeight: ch,
+      xOffset: designLeft,
+      yOffset: designBottom,
+      grid: 2,
+      accuracy: null,
+      invert: false,
+      threshold: 128,
+      profile: "clean",
+      mode: sketchTraceMode.value,
+      style: "grotesk",
+    };
+    const report = JSON.parse(
+      traceImageToGlifReport(imageBytes, JSON.stringify(config)),
+    ) as WasmTraceReport;
+    runebenderHost.log?.(
+      "info",
+      `[runebender] sketch trace ok glyph=${glyphName} contours=${report.contours} on=${report.onCurves}`,
+    );
+    const bytes = new TextEncoder().encode(report.glif);
+    const info = parseGlyphInfo(bytes);
+    setGlyphBytes(data, glyphName, bytes);
+    data.glyphMetadata.set(glyphName, {
+      name: glyphName,
+      width: info.width,
+      contours: info.contours,
+      unicode: info.unicode,
+      unicodes: info.unicodes,
+    });
+    refreshGridGlyphSvg(data, glyphName, bytes);
+    ensureEditorComponentGlyphs(data);
+    editor.setGlyphGlifWithCachedComponentsPreserveHistory(bytes);
+    editorGlyphNeedsSync = false;
+    applyEditorPanelState(editor.editorPanelState());
+    updateCompatibilityErrors();
+    refreshSidebearingsFromEditor();
+    markGlyphDirty(glyphName);
+    masterDataMap.value = new Map(masterDataMap.value);
+    requestRender();
+    queueComfyStateSync(true);
+    status.value = `sketch traced into ${glyphName} — grade it (draft)`;
+  } catch (err) {
+    status.value = `sketch trace failed: ${err}`;
+    runebenderHost.log?.("error", `[runebender] sketch trace failed: ${err}`);
+  } finally {
+    sketchTracing.value = false;
+  }
 }
 
 function refreshBackgroundImageFrame() {
@@ -8033,6 +8262,20 @@ onBeforeUnmount(() => {
           @drop="onDrop"
         />
 
+        <canvas
+          v-if="sketchActive && viewMode === 'editor'"
+          ref="sketchOverlay"
+          class="sketch-overlay"
+          :width="SKETCH_RECT.w"
+          :height="SKETCH_RECT.h"
+          :style="sketchFrame"
+          @pointerdown="onSketchPointerDown"
+          @pointermove="onSketchPointerMove"
+          @pointerup="onSketchPointerUp"
+          @pointercancel="onSketchPointerUp"
+          @wheel.prevent="onWheel"
+        />
+
         <div
           ref="gridView"
           v-if="viewMode === 'grid' && glyphNames.length > 0"
@@ -8498,9 +8741,21 @@ onBeforeUnmount(() => {
           @transform="onTransform"
         />
 
-        <HelperPanel
+        <SketchPanel
           v-if="viewMode === 'editor' && editorPanelsVisible"
           class="helper-overlay"
+          :active="sketchActive"
+          :brush="sketchBrush"
+          :erase="sketchErase"
+          :trace-mode="sketchTraceMode"
+          :has-ink="sketchHasInk"
+          :tracing="sketchTracing"
+          @toggle="toggleSketch"
+          @update:brush="(v: number) => (sketchBrush = v)"
+          @update:erase="(v: boolean) => (sketchErase = v)"
+          @update:trace-mode="(v: string) => (sketchTraceMode = v)"
+          @clear="clearSketch"
+          @trace="traceSketchToGlyph"
         />
 
         <div
@@ -9036,6 +9291,15 @@ onBeforeUnmount(() => {
 
 .stage.editor-bottom-preview-visible .transform-overlay {
   bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset, 8px) + 92px);
+}
+
+.sketch-overlay {
+  position: absolute;
+  z-index: 2;
+  touch-action: none;
+  cursor: crosshair;
+  opacity: 0.55;
+  pointer-events: auto;
 }
 
 .helper-overlay {
