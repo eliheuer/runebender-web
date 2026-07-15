@@ -37,11 +37,13 @@ const TOOL_ICON_GLYPH: Record<ToolId, string> = {
   Text: "text",
 };
 
-// Hand-drawn stand-in until the icon font gains a sketch glyph: a brush
-// dot with a tapering tail.
+// Hand-drawn stand-in until the icon UFO gains a `sketch` glyph: a
+// diagonal paintbrush in the family's coordinate convention (solid
+// fill, Y-negative UFO space) — pointed bristles, ferrule step,
+// chamfered handle end; same diagonal composition as the knife.
 const SKETCH_ICON: ToolbarIcon = {
-  viewBox: "0 0 100 100",
-  d: "M38 74a20 20 0 1 1 24-24c8-10 20-24 26-30 4-4 10 2 6 6-6 6-20 18-30 26a20 20 0 0 1-26 22Z",
+  viewBox: "72 -592 520 520",
+  d: "M72 -72L109 -233L177 -278L247 -349L270 -327L536 -592L570 -592L592 -570L592 -536L327 -270L349 -247L278 -177L233 -109Z",
 };
 
 const FALLBACK_ICON: ToolbarIcon = { viewBox: "0 0 1 1", d: "" };
