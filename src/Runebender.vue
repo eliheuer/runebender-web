@@ -9344,7 +9344,10 @@ onBeforeUnmount(() => {
   align-items: stretch;
   gap: 6px;
   flex: 0 0 auto;
-  width: 440px;
+  /* size to the toolbar (was a fixed 440px sized for exactly 8 tool
+     buttons — a 9th overflowed under the status TopBar) */
+  width: fit-content;
+  min-width: 440px;
   max-width: calc(100vw - 16px);
 }
 
