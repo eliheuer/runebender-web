@@ -11,6 +11,8 @@ const props = defineProps<{
   tracing: boolean;
   drafting: boolean;
   banking: boolean;
+  bankCount: number | null;
+  bankFlash: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -90,11 +92,20 @@ const MODES = [
       </button>
       <button
         class="row-btn small"
+        :class="{ flash: props.bankFlash }"
         :disabled="!props.hasInk || props.banking"
         title="save (this sketch -> this glyph's outline) as a training pair"
         @click="emit('bank')"
       >
-        {{ props.banking ? "banking…" : "bank pair" }}
+        {{
+          props.banking
+            ? "banking…"
+            : props.bankFlash
+              ? `banked ✓ ${props.bankCount ?? ""}`
+              : props.bankCount != null
+                ? `bank pair (${props.bankCount})`
+                : "bank pair"
+        }}
       </button>
   </section>
 </template>
@@ -155,5 +166,10 @@ const MODES = [
 }
 .row-btn.virtua {
   border-color: color-mix(in srgb, var(--rb-accent, #18b86f) 45%, transparent);
+}
+.row-btn.flash {
+  background: color-mix(in srgb, var(--rb-accent, #18b86f) 45%, transparent);
+  border-color: var(--rb-accent, #18b86f);
+  transition: background 0.15s;
 }
 </style>

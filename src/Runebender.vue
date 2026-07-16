@@ -2585,6 +2585,9 @@ function installSketchResultGlif(data: MasterData, glyphName: string, glifText: 
 }
 
 const sketchBanking = ref(false);
+const sketchBankCount = ref<number | null>(null);
+const sketchBankFlash = ref(false);
+let sketchBankFlashTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function bankSketchPair() {
   const glyphName = currentGlyph.value;
@@ -2623,7 +2626,14 @@ async function bankSketchPair() {
     });
     const out = (await res.json()) as { banked?: string; count?: number; error?: string };
     if (!res.ok || !out.banked) throw new Error(out.error ?? `HTTP ${res.status}`);
+    sketchBankCount.value = out.count ?? (sketchBankCount.value ?? 0) + 1;
     status.value = `banked training pair for ${glyphName} (${out.count} total)`;
+    // unmissable confirmation: flash the button, wipe the canvas —
+    // the empty canvas IS the receipt, and it kills double-banks
+    sketchBankFlash.value = true;
+    if (sketchBankFlashTimer) clearTimeout(sketchBankFlashTimer);
+    sketchBankFlashTimer = setTimeout(() => (sketchBankFlash.value = false), 1400);
+    clearSketch();
   } catch (err) {
     status.value = `bank pair failed: ${err}`;
   } finally {
@@ -8874,6 +8884,8 @@ onBeforeUnmount(() => {
           @update:erase="(v: boolean) => (sketchErase = v)"
           @update:trace-mode="(v: string) => (sketchTraceMode = v)"
           :banking="sketchBanking"
+          :bank-count="sketchBankCount"
+          :bank-flash="sketchBankFlash"
           @clear="clearSketch"
           @trace="traceSketchToGlyph"
           @draft="draftSketchWithVirtua"
