@@ -288,6 +288,68 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (url.pathname === "/runebender/api/sketch2glyph" && req.method === "POST") {
+    // Model-backed sketch translation: PNG + placement in, glif out.
+    // Shells out to the glyphlab CLI; the model run dir is overridable
+    // via RUNEBENDER_SKETCH_RUN (relative to the lab repo).
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    let body;
+    try {
+      body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    } catch {
+      return sendJson(res, 400, { error: "invalid JSON body" });
+    }
+    const { pngBase64, glyph, master, width, targetHeight, xOffset, yOffset, unicode } = body;
+    if (!pngBase64 || !glyph || !width || !targetHeight) {
+      return sendJson(res, 400, { error: "pngBase64, glyph, width, targetHeight required" });
+    }
+    const lab = path.join(process.env.HOME, "GH/repos/font-garden-lab");
+    const py = path.join(lab, ".venv/bin/python");
+    const run = process.env.RUNEBENDER_SKETCH_RUN || "runs/sketch1";
+    const tmp = path.join(
+      fs.mkdtempSync(path.join(process.env.TMPDIR || "/tmp", "s2g-")),
+      "sketch.png",
+    );
+    await fsp.writeFile(tmp, Buffer.from(pngBase64, "base64"));
+    const args = [
+      "-m", "glyphlab.sketch2glyph",
+      "--png", tmp,
+      "--glyph", String(glyph),
+      "--master", master === "bold" ? "bold" : "regular",
+      "--width", String(width),
+      "--target-height", String(targetHeight),
+      "--y-offset", String(yOffset ?? 0),
+      "--lsb", String(xOffset ?? 0),
+      "--run", run,
+    ];
+    if (unicode) args.push("--unicode", String(unicode));
+    const result = await new Promise((resolve) => {
+      const child = spawn(py, args, { cwd: lab });
+      let out = "", err = "";
+      child.stdout.on("data", (d) => (out += d));
+      child.stderr.on("data", (d) => (err += d));
+      child.on("close", (code) => resolve({ code, out, err }));
+      child.on("error", (e) => resolve({ code: -1, out: "", err: String(e) }));
+    });
+    fsp.rm(path.dirname(tmp), { recursive: true, force: true }).catch(() => {});
+    if (result.code !== 0) {
+      let msg = `sketch2glyph exited ${result.code}`;
+      try {
+        msg = JSON.parse(result.out.trim().split("\n").pop()).error ?? msg;
+      } catch {
+        if (result.err) msg = result.err.trim().split("\n").pop();
+      }
+      return sendJson(res, 500, { error: msg });
+    }
+    try {
+      const parsed = JSON.parse(result.out.trim().split("\n").pop());
+      return sendJson(res, 200, parsed);
+    } catch {
+      return sendJson(res, 500, { error: "unparseable CLI output" });
+    }
+  }
+
   const filePrefix = "/runebender/api/file/";
   if (url.pathname.startsWith(filePrefix)) {
     const rel = decodeURIComponent(url.pathname.slice(filePrefix.length));

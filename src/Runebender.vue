@@ -179,6 +179,7 @@ const sketchErase = ref(false);
 const sketchTraceMode = ref("default");
 const sketchHasInk = ref(false);
 const sketchTracing = ref(false);
+const sketchDrafting = ref(false);
 const sketchFrame = ref<Record<string, string>>({});
 const sketchOverlay = ref<HTMLCanvasElement | null>(null);
 let sketchStore: HTMLCanvasElement | null = null; // offscreen, font-unit px
@@ -2510,52 +2511,92 @@ watch(sketchActive, (on) => {
   }
 });
 
+async function cropSketchInk(): Promise<{
+  blob: Blob;
+  ch: number;
+  designLeft: number;
+  designBottom: number;
+} | null> {
+  if (!sketchStore) return null;
+  const ctx = sketchCtx();
+  if (!ctx) return null;
+  const { width: w, height: h } = sketchStore;
+  const img = ctx.getImageData(0, 0, w, h);
+  let minx = w, miny = h, maxx = -1, maxy = -1;
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      if (img.data[(row + x) * 4 + 3] > 16) {
+        if (x < minx) minx = x;
+        if (x > maxx) maxx = x;
+        if (y < miny) miny = y;
+        if (y > maxy) maxy = y;
+      }
+    }
+  }
+  if (maxx < 0) return null;
+  const pad = 8;
+  minx = Math.max(0, minx - pad);
+  miny = Math.max(0, miny - pad);
+  maxx = Math.min(w - 1, maxx + pad);
+  maxy = Math.min(h - 1, maxy + pad);
+  const cw = maxx - minx + 1;
+  const ch = maxy - miny + 1;
+  const crop = document.createElement("canvas");
+  crop.width = cw;
+  crop.height = ch;
+  const cctx = crop.getContext("2d")!;
+  cctx.fillStyle = "#fff";
+  cctx.fillRect(0, 0, cw, ch);
+  cctx.drawImage(sketchStore, minx, miny, cw, ch, 0, 0, cw, ch);
+  const blob: Blob = await new Promise((resolve, reject) =>
+    crop.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png"),
+  );
+  return {
+    blob,
+    ch,
+    designLeft: SKETCH_RECT.x + minx,
+    designBottom: SKETCH_RECT.y + SKETCH_RECT.h - (maxy + 1),
+  };
+}
+
+function installSketchResultGlif(data: MasterData, glyphName: string, glifText: string) {
+  const bytes = new TextEncoder().encode(glifText);
+  const info = parseGlyphInfo(bytes);
+  setGlyphBytes(data, glyphName, bytes);
+  data.glyphMetadata.set(glyphName, {
+    name: glyphName,
+    width: info.width,
+    contours: info.contours,
+    unicode: info.unicode,
+    unicodes: info.unicodes,
+  });
+  refreshGridGlyphSvg(data, glyphName, bytes);
+  ensureEditorComponentGlyphs(data);
+  editor!.setGlyphGlifWithCachedComponentsPreserveHistory(bytes);
+  editorGlyphNeedsSync = false;
+  applyEditorPanelState(editor!.editorPanelState());
+  updateCompatibilityErrors();
+  refreshSidebearingsFromEditor();
+  markGlyphDirty(glyphName);
+  masterDataMap.value = new Map(masterDataMap.value);
+  requestRender();
+  queueComfyStateSync(true);
+}
+
 async function traceSketchToGlyph() {
   const glyphName = currentGlyph.value;
   const data = activeMasterData.value;
   if (!editor || !glyphName || !data || !sketchStore) return;
-  const ctx = sketchCtx();
-  if (!ctx) return;
   sketchTracing.value = true;
   try {
-    const { width: w, height: h } = sketchStore;
-    const img = ctx.getImageData(0, 0, w, h);
-    let minx = w, miny = h, maxx = -1, maxy = -1;
-    for (let y = 0; y < h; y++) {
-      const row = y * w;
-      for (let x = 0; x < w; x++) {
-        if (img.data[(row + x) * 4 + 3] > 16) {
-          if (x < minx) minx = x;
-          if (x > maxx) maxx = x;
-          if (y < miny) miny = y;
-          if (y > maxy) maxy = y;
-        }
-      }
-    }
-    if (maxx < 0) {
+    const ink = await cropSketchInk();
+    if (!ink) {
       status.value = "sketch is empty";
       return;
     }
-    const pad = 8;
-    minx = Math.max(0, minx - pad);
-    miny = Math.max(0, miny - pad);
-    maxx = Math.min(w - 1, maxx + pad);
-    maxy = Math.min(h - 1, maxy + pad);
-    const cw = maxx - minx + 1;
-    const ch = maxy - miny + 1;
-    const crop = document.createElement("canvas");
-    crop.width = cw;
-    crop.height = ch;
-    const cctx = crop.getContext("2d")!;
-    cctx.fillStyle = "#fff";
-    cctx.fillRect(0, 0, cw, ch);
-    cctx.drawImage(sketchStore, minx, miny, cw, ch, 0, 0, cw, ch);
-    const blob: Blob = await new Promise((resolve, reject) =>
-      crop.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png"),
-    );
+    const { blob, ch, designLeft, designBottom } = ink;
     const imageBytes = new Uint8Array(await blob.arrayBuffer());
-    const designLeft = SKETCH_RECT.x + minx;
-    const designBottom = SKETCH_RECT.y + SKETCH_RECT.h - (maxy + 1);
     const config = {
       glyph: glyphName,
       unicode: data.glyphUnicodes.get(glyphName) ?? null,
@@ -2578,33 +2619,57 @@ async function traceSketchToGlyph() {
       "info",
       `[runebender] sketch trace ok glyph=${glyphName} contours=${report.contours} on=${report.onCurves}`,
     );
-    const bytes = new TextEncoder().encode(report.glif);
-    const info = parseGlyphInfo(bytes);
-    setGlyphBytes(data, glyphName, bytes);
-    data.glyphMetadata.set(glyphName, {
-      name: glyphName,
-      width: info.width,
-      contours: info.contours,
-      unicode: info.unicode,
-      unicodes: info.unicodes,
-    });
-    refreshGridGlyphSvg(data, glyphName, bytes);
-    ensureEditorComponentGlyphs(data);
-    editor.setGlyphGlifWithCachedComponentsPreserveHistory(bytes);
-    editorGlyphNeedsSync = false;
-    applyEditorPanelState(editor.editorPanelState());
-    updateCompatibilityErrors();
-    refreshSidebearingsFromEditor();
-    markGlyphDirty(glyphName);
-    masterDataMap.value = new Map(masterDataMap.value);
-    requestRender();
-    queueComfyStateSync(true);
+    installSketchResultGlif(data, glyphName, report.glif);
     status.value = `sketch traced into ${glyphName} — grade it (draft)`;
   } catch (err) {
     status.value = `sketch trace failed: ${err}`;
     runebenderHost.log?.("error", `[runebender] sketch trace failed: ${err}`);
   } finally {
     sketchTracing.value = false;
+  }
+}
+
+async function draftSketchWithVirtua() {
+  const glyphName = currentGlyph.value;
+  const data = activeMasterData.value;
+  if (!editor || !glyphName || !data || !sketchStore) return;
+  sketchDrafting.value = true;
+  status.value = "Virtua is drafting…";
+  try {
+    const ink = await cropSketchInk();
+    if (!ink) {
+      status.value = "sketch is empty";
+      return;
+    }
+    const { blob, ch, designLeft, designBottom } = ink;
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < buf.length; i += 0x8000)
+      bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+    const codepoint = data.glyphUnicodes.get(glyphName);
+    const res = await fetch("/runebender/api/sketch2glyph", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pngBase64: btoa(bin),
+        glyph: glyphName,
+        master: /bold/i.test(activeMasterName.value ?? "") ? "bold" : "regular",
+        width: editor.advanceWidth(),
+        targetHeight: ch,
+        xOffset: designLeft,
+        yOffset: designBottom,
+        unicode: codepoint ?? null,
+      }),
+    });
+    const out = (await res.json()) as { glif?: string; score?: number; error?: string };
+    if (!res.ok || !out.glif) throw new Error(out.error ?? `HTTP ${res.status}`);
+    installSketchResultGlif(data, glyphName, out.glif);
+    status.value = `Virtua drafted ${glyphName} (score ${out.score?.toFixed(0)}) — grade it`;
+  } catch (err) {
+    status.value = `Virtua draft failed: ${err}`;
+    runebenderHost.log?.("error", `[runebender] sketch2glyph failed: ${err}`);
+  } finally {
+    sketchDrafting.value = false;
   }
 }
 
@@ -8757,11 +8822,13 @@ onBeforeUnmount(() => {
           :trace-mode="sketchTraceMode"
           :has-ink="sketchHasInk"
           :tracing="sketchTracing"
+          :drafting="sketchDrafting"
           @update:brush="(v: number) => (sketchBrush = v)"
           @update:erase="(v: boolean) => (sketchErase = v)"
           @update:trace-mode="(v: string) => (sketchTraceMode = v)"
           @clear="clearSketch"
           @trace="traceSketchToGlyph"
+          @draft="draftSketchWithVirtua"
         />
 
         <div

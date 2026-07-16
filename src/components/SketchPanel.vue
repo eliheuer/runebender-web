@@ -9,6 +9,7 @@ const props = defineProps<{
   traceMode: string;
   hasInk: boolean;
   tracing: boolean;
+  drafting: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -17,6 +18,7 @@ const emit = defineEmits<{
   (e: "update:traceMode", v: string): void;
   (e: "clear"): void;
   (e: "trace"): void;
+  (e: "draft"): void;
 }>();
 
 // Stroke-ladder brush presets (design units): lc/cap stems + bars, both
@@ -72,10 +74,17 @@ const MODES = [
       </div>
       <button
         class="row-btn trace"
-        :disabled="!props.hasInk || props.tracing"
+        :disabled="!props.hasInk || props.tracing || props.drafting"
         @click="emit('trace')"
       >
         {{ props.tracing ? "tracing…" : "Trace → draft" }}
+      </button>
+      <button
+        class="row-btn trace virtua"
+        :disabled="!props.hasInk || props.tracing || props.drafting"
+        @click="emit('draft')"
+      >
+        {{ props.drafting ? "drafting…" : "Draft with Virtua" }}
       </button>
   </section>
 </template>
@@ -133,5 +142,8 @@ const MODES = [
 }
 .row-btn.trace {
   margin-top: 2px;
+}
+.row-btn.virtua {
+  border-color: color-mix(in srgb, var(--rb-accent, #18b86f) 45%, transparent);
 }
 </style>
