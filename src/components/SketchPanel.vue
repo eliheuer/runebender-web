@@ -10,6 +10,7 @@ const props = defineProps<{
   hasInk: boolean;
   tracing: boolean;
   drafting: boolean;
+  banking: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   (e: "clear"): void;
   (e: "trace"): void;
   (e: "draft"): void;
+  (e: "bank"): void;
 }>();
 
 // Stroke-ladder brush presets (design units): lc/cap stems + bars, both
@@ -85,6 +87,14 @@ const MODES = [
         @click="emit('draft')"
       >
         {{ props.drafting ? "drafting…" : "Draft with Virtua" }}
+      </button>
+      <button
+        class="row-btn small"
+        :disabled="!props.hasInk || props.banking"
+        title="save (this sketch -> this glyph's outline) as a training pair"
+        @click="emit('bank')"
+      >
+        {{ props.banking ? "banking…" : "bank pair" }}
       </button>
   </section>
 </template>

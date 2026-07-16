@@ -2584,6 +2584,53 @@ function installSketchResultGlif(data: MasterData, glyphName: string, glifText: 
   queueComfyStateSync(true);
 }
 
+const sketchBanking = ref(false);
+
+async function bankSketchPair() {
+  const glyphName = currentGlyph.value;
+  const data = activeMasterData.value;
+  if (!editor || !glyphName || !data || !sketchStore) return;
+  const glifBytes = data.glyphBytes.get(glyphName);
+  if (!glifBytes) {
+    status.value = "no outline to pair the sketch with";
+    return;
+  }
+  sketchBanking.value = true;
+  try {
+    const ink = await cropSketchInk();
+    if (!ink) {
+      status.value = "sketch is empty";
+      return;
+    }
+    const { blob, ch, designLeft, designBottom } = ink;
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < buf.length; i += 0x8000)
+      bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+    const res = await fetch("/runebender/api/sketch-pair", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pngBase64: btoa(bin),
+        glyph: glyphName,
+        master: /bold/i.test(activeMasterName.value ?? "") ? "bold" : "regular",
+        width: editor.advanceWidth(),
+        targetHeight: ch,
+        xOffset: designLeft,
+        yOffset: designBottom,
+        glifText: new TextDecoder().decode(glifBytes),
+      }),
+    });
+    const out = (await res.json()) as { banked?: string; count?: number; error?: string };
+    if (!res.ok || !out.banked) throw new Error(out.error ?? `HTTP ${res.status}`);
+    status.value = `banked training pair for ${glyphName} (${out.count} total)`;
+  } catch (err) {
+    status.value = `bank pair failed: ${err}`;
+  } finally {
+    sketchBanking.value = false;
+  }
+}
+
 async function traceSketchToGlyph() {
   const glyphName = currentGlyph.value;
   const data = activeMasterData.value;
@@ -8826,9 +8873,11 @@ onBeforeUnmount(() => {
           @update:brush="(v: number) => (sketchBrush = v)"
           @update:erase="(v: boolean) => (sketchErase = v)"
           @update:trace-mode="(v: string) => (sketchTraceMode = v)"
+          :banking="sketchBanking"
           @clear="clearSketch"
           @trace="traceSketchToGlyph"
           @draft="draftSketchWithVirtua"
+          @bank="bankSketchPair"
         />
 
         <div

@@ -350,6 +350,53 @@ async function handleApi(req, res, url) {
     }
   }
 
+  if (url.pathname === "/runebender/api/sketch-pair" && req.method === "POST") {
+    // Bank a real (hand sketch -> approved outline) training pair.
+    // Stores the sketch PNG + placement + the glyph's CURRENT glif
+    // (the approved answer) in the lab's real-pairs corpus. Explicit
+    // user action only — the editor sends this from the "bank pair"
+    // button, never automatically.
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    let body;
+    try {
+      body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    } catch {
+      return sendJson(res, 400, { error: "invalid JSON body" });
+    }
+    const { pngBase64, glyph, master, width, targetHeight, xOffset, yOffset, glifText } = body;
+    if (!pngBase64 || !glyph || !glifText) {
+      return sendJson(res, 400, { error: "pngBase64, glyph, glifText required" });
+    }
+    const dir = path.join(
+      process.env.HOME, "GH/repos/font-garden-lab/data/real-sketch-pairs",
+    );
+    await fsp.mkdir(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const base = `${stamp}-${master === "bold" ? "bold" : "regular"}-${glyph}`;
+    await fsp.writeFile(path.join(dir, `${base}.png`), Buffer.from(pngBase64, "base64"));
+    await fsp.appendFile(
+      path.join(dir, "pairs-meta.jsonl"),
+      JSON.stringify({
+        png: `${base}.png`,
+        glyph,
+        master: master === "bold" ? "bold" : "regular",
+        weight: master === "bold" ? 700 : 400,
+        width,
+        targetHeight,
+        xOffset,
+        yOffset,
+        glif: glifText,
+      }) + "\n",
+    );
+    let count = 0;
+    try {
+      const meta = await fsp.readFile(path.join(dir, "pairs-meta.jsonl"), "utf8");
+      count = meta.split("\n").filter(Boolean).length;
+    } catch {}
+    return sendJson(res, 200, { banked: base, count });
+  }
+
   const filePrefix = "/runebender/api/file/";
   if (url.pathname.startsWith(filePrefix)) {
     const rel = decodeURIComponent(url.pathname.slice(filePrefix.length));
