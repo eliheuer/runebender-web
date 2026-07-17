@@ -52,6 +52,39 @@ Chrome/Edge, Safari 18+). `pnpm build` produces a static `dist/`;
 - `src/gfSidebarData.generated.ts` — generated (see `pnpm gf-sidebar`),
   don't edit by hand.
 
+## The sketch tool + Virtua model integration
+
+The left-panel **Sketch** edit-mode tool lets a designer draw a rough
+glyph with a ladder-width raster brush and turn it into an editable
+outline. Two buttons on `SketchPanel.vue`:
+
+- **Trace → draft** — in-wasm autotrace (`traceImageToGlifReport`),
+  no model. Deterministic image→outline.
+- **Draft with Virtua** — the AI path. Crops the sketch ink, POSTs the
+  PNG + placement to the workspace server, installs the returned glif
+  as a blue draft. This is what makes it "translate, not trace":
+  sketch of a glyph → the finished, on-grid, house-style drawing.
+- **bank pair** — saves (this sketch → this GREEN glyph's outline) as a
+  training pair. Explicit only; green-only. This is the data flywheel.
+
+Server endpoints (`server/serve.mjs`), both shelling to the
+font-garden-lab Python model at `~/GH/repos/font-garden-lab`:
+
+- `POST /runebender/api/sketch2glyph` — body `{pngBase64, glyph, master,
+  width, targetHeight, xOffset, yOffset, unicode}` → runs
+  `python -m glyphlab.sketch2glyph` → `{glif, score}`. The model run
+  dir is env `RUNEBENDER_SKETCH_RUN` (default `runs/sketch1`, a symlink
+  to the live model). Set it when launching the server to serve a
+  specific model, e.g. the multi-script generalist `runs/sketchpre`.
+- `POST /runebender/api/sketch-pair` — body includes the glyph's current
+  `glifText`; appends the PNG + metadata to
+  `~/GH/repos/font-garden-lab/data/real-sketch-pairs/`.
+
+The client side (`Runebender.vue`): `draftSketchWithVirtua()`,
+`bankSketchPair()`, and `traceSketchToGlyph()` share `cropSketchInk()`
+and `installSketchResultGlif()`. The full model/training story lives in
+`font-garden-lab/notes/sketch2glyph-system.md`.
+
 ## Change loops
 
 - **UI/TS change**: edit under `src/`, the dev server hot-reloads.
