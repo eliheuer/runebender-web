@@ -300,7 +300,7 @@ async function handleApi(req, res, url) {
     } catch {
       return sendJson(res, 400, { error: "invalid JSON body" });
     }
-    const { pngBase64, glyph, master, width, targetHeight, xOffset, yOffset, unicode } = body;
+    const { pngBase64, glyph, master, width, targetHeight, xOffset, yOffset, unicode, identity } = body;
     if (!pngBase64 || !glyph || !width || !targetHeight) {
       return sendJson(res, 400, { error: "pngBase64, glyph, width, targetHeight required" });
     }
@@ -324,6 +324,7 @@ async function handleApi(req, res, url) {
       "--run", run,
     ];
     if (unicode) args.push("--unicode", String(unicode));
+    if (identity != null) args.push("--identity", String(identity));
     const result = await new Promise((resolve) => {
       const child = spawn(py, args, { cwd: lab });
       let out = "", err = "";

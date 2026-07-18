@@ -180,6 +180,9 @@ const sketchTraceMode = ref("default");
 const sketchHasInk = ref(false);
 const sketchTracing = ref(false);
 const sketchDrafting = ref(false);
+// identity slider: 0 = follow my sketch (freeform cleanup), 1 = full
+// letter identity, >1 = idealized. Classifier-free-guidance scale.
+const sketchIdentity = ref(1);
 const sketchFrame = ref<Record<string, string>>({});
 const sketchOverlay = ref<HTMLCanvasElement | null>(null);
 let sketchStore: HTMLCanvasElement | null = null; // offscreen, font-unit px
@@ -2716,6 +2719,7 @@ async function draftSketchWithVirtua() {
         xOffset: designLeft,
         yOffset: designBottom,
         unicode: codepoint ?? null,
+        identity: sketchIdentity.value,
       }),
     });
     const out = (await res.json()) as { glif?: string; score?: number; error?: string };
@@ -8886,6 +8890,8 @@ onBeforeUnmount(() => {
           :banking="sketchBanking"
           :bank-count="sketchBankCount"
           :bank-flash="sketchBankFlash"
+          :identity="sketchIdentity"
+          @update:identity="(v: number) => (sketchIdentity = v)"
           @clear="clearSketch"
           @trace="traceSketchToGlyph"
           @draft="draftSketchWithVirtua"

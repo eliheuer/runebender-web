@@ -13,6 +13,7 @@ const props = defineProps<{
   banking: boolean;
   bankCount: number | null;
   bankFlash: boolean;
+  identity: number;
 }>();
 
 const emit = defineEmits<{
@@ -23,6 +24,7 @@ const emit = defineEmits<{
   (e: "trace"): void;
   (e: "draft"): void;
   (e: "bank"): void;
+  (e: "update:identity", v: number): void;
 }>();
 
 // Stroke-ladder brush presets (design units): lc/cap stems + bars, both
@@ -83,6 +85,19 @@ const MODES = [
       >
         {{ props.tracing ? "tracing…" : "Trace → draft" }}
       </button>
+      <div class="label">identity</div>
+      <input
+        class="identity-slider"
+        type="range"
+        min="0"
+        max="1.5"
+        step="0.1"
+        :value="props.identity"
+        @input="emit('update:identity', Number(($event.target as HTMLInputElement).value))"
+      />
+      <div class="identity-scale">
+        <span>freeform</span><span>{{ props.identity.toFixed(1) }}</span><span>letter</span>
+      </div>
       <button
         class="row-btn trace virtua"
         :disabled="!props.hasInk || props.tracing || props.drafting"
@@ -166,6 +181,17 @@ const MODES = [
 }
 .row-btn.virtua {
   border-color: color-mix(in srgb, var(--rb-accent, #18b86f) 45%, transparent);
+}
+.identity-slider {
+  width: 100%;
+  margin: 2px 0 0;
+  accent-color: var(--rb-accent, #18b86f);
+}
+.identity-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  opacity: 0.5;
 }
 .row-btn.flash {
   background: color-mix(in srgb, var(--rb-accent, #18b86f) 45%, transparent);
