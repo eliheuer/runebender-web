@@ -66,7 +66,7 @@ const MODES = [
         clear
       </button>
 
-      <div class="label">trace</div>
+      <div class="label">autotrace · no model</div>
       <div class="brush-grid two">
         <button
           v-for="[m, label] in MODES"
@@ -80,12 +80,13 @@ const MODES = [
       </div>
       <button
         class="row-btn trace"
+        title="Deterministic autotrace (img2bez) — no AI model. Vectorizes your ink as-is."
         :disabled="!props.hasInk || props.tracing || props.drafting"
         @click="emit('trace')"
       >
         {{ props.tracing ? "tracing…" : "Trace → draft" }}
       </button>
-      <div class="label">identity</div>
+      <div class="label">Virtua-12M · model</div>
       <input
         class="identity-slider"
         type="range"
@@ -93,17 +94,19 @@ const MODES = [
         max="1.5"
         step="0.1"
         :value="props.identity"
+        title="How much the model draws the LETTER vs. just cleaning up your sketch. Both ends are the model — 0 reads only your sketch, 1 draws the ideal letter."
         @input="emit('update:identity', Number(($event.target as HTMLInputElement).value))"
       />
       <div class="identity-scale">
-        <span>freeform</span><span>{{ props.identity.toFixed(1) }}</span><span>letter</span>
+        <span>clean up</span><span>{{ props.identity.toFixed(1) }}</span><span>letter</span>
       </div>
       <button
         class="row-btn trace virtua"
+        title="Virtua-12M model. Traces your sketch as input, then the model draws the finished glyph on the grid. Slider sets letter-identity."
         :disabled="!props.hasInk || props.tracing || props.drafting"
         @click="emit('draft')"
       >
-        {{ props.drafting ? "drafting…" : "Draft with Virtua" }}
+        {{ props.drafting ? "drafting…" : "Draft with Virtua-12M" }}
       </button>
       <button
         class="row-btn small"
