@@ -535,9 +535,9 @@ export interface InitOutput {
     readonly traceImageToGlif: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly traceImageToGlifReport: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly init: () => void;
-    readonly wasm_bindgen__convert__closures_____invoke__h5aec8594ecc89ac6: (a: number, b: number, c: any) => [number, number];
-    readonly wasm_bindgen__convert__closures_____invoke__h34113d0ef8e9a838: (a: number, b: number, c: any, d: any) => void;
-    readonly wasm_bindgen__convert__closures_____invoke__h42b8381306a6a6c3: (a: number, b: number, c: any) => void;
+    readonly wasm_bindgen__convert__closures_____invoke__h61b71dc7eda4b46f: (a: number, b: number, c: any) => [number, number];
+    readonly wasm_bindgen__convert__closures_____invoke__h71496dd931fb9e82: (a: number, b: number, c: any, d: any) => void;
+    readonly wasm_bindgen__convert__closures_____invoke__h172fd41fa38df2df: (a: number, b: number, c: any) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;

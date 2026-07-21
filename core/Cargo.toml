@@ -53,6 +53,13 @@ console_error_panic_hook = "0.1"
 vello = "0.8"
 linesweeper = "0.2"
 
+# On-canvas shaped text (HUD measurement labels, future proofing).
+# parley 0.8 aligns with vello 0.8's font stack (skrifa 0.40, peniko 0.6,
+# read-fonts 0.37 via fontique 0.8) so no duplicate font crates are built.
+# `system` (default) pulls OS font-enumeration backends that don't build on
+# wasm — we disable it and register embedded font bytes into the FontContext.
+parley = { version = "0.8", default-features = false, features = ["std"] }
+
 # Enable WebGPU canvas surface support for wasm32 targets. Vello pulls
 # in wgpu but with default-features off and no `webgpu`, so the
 # `HtmlCanvasElement → SurfaceTarget` impl isn't available unless we

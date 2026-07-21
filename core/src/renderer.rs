@@ -22,6 +22,7 @@ use web_sys::HtmlCanvasElement;
 use crate::editor::{
     EditorState, KnifePreview, MeasurePreview, PenPreview, SegmentHoverPreview, ShapePreview,
 };
+use crate::measure::{self, MeasureKind};
 use crate::model::EntityId;
 use crate::path::{Path, PathPoint, PointType};
 use crate::text::TextLayout;
@@ -277,6 +278,7 @@ pub struct Renderer {
     design_grid_cache: Vec<DesignGridCacheEntry>,
     grid_overlay: Option<GridOverlay>,
     text_outline_cache: HashMap<String, TextOutlineCacheEntry>,
+    hud_text: crate::hud_text::HudText,
     device_scale: f64,
     width: u32,
     height: u32,
@@ -570,6 +572,7 @@ impl Renderer {
             design_grid_cache: Vec::new(),
             grid_overlay: None,
             text_outline_cache: HashMap::new(),
+            hud_text: crate::hud_text::HudText::new(),
             device_scale: 1.0,
             width,
             height,
@@ -647,6 +650,19 @@ impl Renderer {
         let logical_zoom = zoom / self.device_scale.max(1.0);
         let fine_grid_zoom = DESIGN_GRID_CLOSE_MIN_ZOOM / self.device_scale.max(1.0);
         (logical_zoom / (fine_grid_zoom * 1.5).max(1e-6)).clamp(0.0, 1.0)
+    }
+
+    /// Fade for the live measurement HUD: 0 until roughly the zoom where the
+    /// fine 2-unit grid appears ("zoomed in close enough"), ramping to 1 as
+    /// you push in further.
+    fn measure_overlay_t(&self, zoom: f64) -> f64 {
+        let logical_zoom = zoom / self.device_scale.max(1.0);
+        // Visible across most working zooms, not just extreme close-ups: fade
+        // in while the glyph still only fills part of the view, and reach full
+        // opacity well before the fine grid appears.
+        const START: f64 = 0.30;
+        const FULL: f64 = 0.70;
+        ((logical_zoom - START) / (FULL - START)).clamp(0.0, 1.0)
     }
 
     fn text_cursor_line_px(&self, zoom: f64) -> f64 {
@@ -869,6 +885,77 @@ impl Renderer {
         }
         if let Some(preview) = state.knife_preview.as_ref() {
             self.draw_knife_preview(preview, state.viewport.zoom);
+        }
+
+        self.draw_measurements(state, glyph_view);
+    }
+
+    /// The live grid-measurement HUD: handle lengths and auto-detected
+    /// stem/counter spans, each drawn as a thin dimension line with a
+    /// popcount-tiered `value = sum` label set in Virtua itself. Gated on
+    /// close zoom so it only appears when you're drawing detail.
+    fn draw_measurements(&mut self, state: &EditorState, glyph_view: Affine) {
+        let t = self.measure_overlay_t(state.viewport.zoom);
+        if t <= 0.0 {
+            return;
+        }
+        let measurements = measure::glyph_measurements(&state.paths);
+        if measurements.is_empty() {
+            return;
+        }
+
+        // Popcount tiers on Runebender's glyph-grid mark colors: 1 power is
+        // structural (green), 2 an elegant sum (yellow), 3 acceptable
+        // (orange), 4+ a flagged correction (red). Values match
+        // themeTokens.ts THEME_MARK_COLORS byte for byte.
+        let green: Srgb = AlphaColor::new([0.09, 0.72, 0.44, 1.0]);
+        let yellow: Srgb = AlphaColor::new([1.0, 0.86, 0.2, 1.0]);
+        let orange: Srgb = AlphaColor::new([1.0, 0.6, 0.06, 1.0]);
+        let red: Srgb = AlphaColor::new([1.0, 0.29, 0.24, 1.0]);
+        let stroke = Stroke::new(self.px(1.0));
+        let label_px = self.px(15.0) as f32;
+        // How far off the measured line the label floats, in screen px.
+        let gap = self.px(12.0) + (label_px as f64) * 0.5;
+
+        for m in &measurements {
+            let a = glyph_view * m.a;
+            let b = glyph_view * m.b;
+            let pc = measure::popcount(m.length);
+            let base = match pc {
+                0 | 1 => green,
+                2 => yellow,
+                3 => orange,
+                _ => red,
+            };
+            let color = base.multiply_alpha(t as f32);
+
+            // Draw a dimension line only for spans (stems/counters/heights).
+            // Handles and straight segments already exist as outline/handle
+            // strokes, so a second line there just doubles up under the label.
+            if matches!(m.kind, MeasureKind::Horizontal | MeasureKind::Vertical) {
+                let mut line = BezPath::new();
+                line.move_to(a);
+                line.line_to(b);
+                self.scene
+                    .stroke(&stroke, Affine::IDENTITY, color, None, &line);
+            }
+
+            // Float the label off the line along its perpendicular, biased
+            // toward screen-up so it never sits on the stroke or the points.
+            let (dx, dy) = (b.x - a.x, b.y - a.y);
+            let len = dx.hypot(dy).max(1e-6);
+            let (mut nx, mut ny) = (-dy / len, dx / len);
+            if ny > 0.0 {
+                nx = -nx;
+                ny = -ny;
+            }
+            let mid = a.midpoint(b);
+            let center = Point::new(mid.x + nx * gap, mid.y + ny * gap);
+            let text = measure::label(m.length);
+            let width_est = text.chars().count() as f64 * label_px as f64 * 0.5;
+            let pos = Point::new(center.x - width_est / 2.0, center.y - (label_px as f64) * 0.5);
+            self.hud_text
+                .draw_line(&mut self.scene, &text, pos, label_px, color);
         }
     }
 

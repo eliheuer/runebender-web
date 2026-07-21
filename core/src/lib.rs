@@ -48,10 +48,14 @@
 pub mod editing;
 pub mod editor;
 pub mod image_trace;
+pub mod measure;
 pub mod model;
 pub mod path;
 pub mod text;
 pub mod tool;
+
+#[cfg(target_arch = "wasm32")]
+mod hud_text;
 
 #[cfg(target_arch = "wasm32")]
 pub mod renderer;
