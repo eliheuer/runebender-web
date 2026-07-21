@@ -1601,6 +1601,20 @@ impl GlyphEditor {
         self.renderer.set_theme_json(theme_json)
     }
 
+    /// Toggle the grid-measurement HUD layers. All false = plain editor.
+    #[wasm_bindgen(js_name = setMeasureOptions)]
+    pub fn set_measure_options(
+        &mut self,
+        colorize: bool,
+        handles: bool,
+        segments: bool,
+        spans: bool,
+        sidebearings: bool,
+    ) {
+        self.renderer
+            .set_measure_options(colorize, handles, segments, spans, sidebearings);
+    }
+
     pub fn render(&mut self) -> Result<(), JsValue> {
         let text_mode_active = self.tool.is_text() && self.state.has_text_session;
         let preview_mode = self.tool.is_preview();

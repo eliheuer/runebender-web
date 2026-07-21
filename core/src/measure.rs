@@ -10,7 +10,7 @@
 // off the length. Kept ungated and free of render deps so it unit-tests on
 // native `cargo test`.
 
-use kurbo::Point;
+use kurbo::{BezPath, Line, ParamCurve, Point, Shape};
 
 use crate::path::Path;
 
@@ -39,32 +39,17 @@ pub struct Measurement {
     pub kind: MeasureKind,
 }
 
-/// A straight edge (a line segment between two consecutive on-curve points),
-/// captured for the span pass.
-#[derive(Clone, Copy)]
-struct Edge {
-    /// Position on the measured axis (x for vertical edges, y for horizontal).
-    pos: f64,
-    /// Extent on the other axis.
-    lo: f64,
-    hi: f64,
-}
-
-/// A segment is treated as "vertical" / "horizontal" when its off-axis drift
-/// is within this many units. Virtua's stems are dead-straight, so this stays
-/// tight to avoid pulling in slightly-angled strokes.
-const AXIS_TOL: f64 = 3.0;
-/// Ignore spans and handles shorter than this (noise / coincident points).
+/// Ignore spans, segments, and handles shorter than this (noise / coincident
+/// points / near-tangent scan crossings).
 const MIN_LEN: f64 = 8.0;
-/// Two edges "face" each other only where their perpendicular extents overlap
-/// by at least this much, so we don't measure between edges that never meet.
-const MIN_OVERLAP: f64 = 16.0;
 
-/// Compute every live measurement for a glyph's contours.
+/// Compute every live measurement for a glyph's contours: handle lengths,
+/// straight segment lengths, and — via a horizontal and vertical scan line
+/// through the glyph center — the stroke thicknesses and counter/bowl spans
+/// between facing outline crossings. The scan-line pass works on curves and
+/// straights alike, so an all-curve `o` measures the same as a straight `n`.
 pub fn glyph_measurements(paths: &[Path]) -> Vec<Measurement> {
     let mut out = Vec::new();
-    let mut verticals: Vec<Edge> = Vec::new();
-    let mut horizontals: Vec<Edge> = Vec::new();
 
     for path in paths {
         let pts = path.points().as_slice();
@@ -100,12 +85,9 @@ pub fn glyph_measurements(paths: &[Path]) -> Vec<Measurement> {
                 }
             }
 
-            // Straight edges: two consecutive on-curve points with no
-            // off-curve between them form a line segment.
+            // Straight segment: two consecutive on-curve points, its own length.
             if cur.is_on_curve() && nxt.is_on_curve() {
                 let (a, b) = (cur.point, nxt.point);
-
-                // Label the segment's own drawn length (any orientation).
                 let seg_len = (b - a).hypot();
                 if seg_len >= MIN_LEN {
                     out.push(Measurement {
@@ -115,50 +97,75 @@ pub fn glyph_measurements(paths: &[Path]) -> Vec<Measurement> {
                         kind: MeasureKind::Segment,
                     });
                 }
-
-                let dx = (a.x - b.x).abs();
-                let dy = (a.y - b.y).abs();
-                if dx <= AXIS_TOL && dy > MIN_LEN {
-                    verticals.push(Edge {
-                        pos: (a.x + b.x) / 2.0,
-                        lo: a.y.min(b.y),
-                        hi: a.y.max(b.y),
-                    });
-                } else if dy <= AXIS_TOL && dx > MIN_LEN {
-                    horizontals.push(Edge {
-                        pos: (a.y + b.y) / 2.0,
-                        lo: a.x.min(b.x),
-                        hi: a.x.max(b.x),
-                    });
-                }
             }
         }
     }
 
-    collect_gaps(&mut verticals, MeasureKind::Horizontal, &mut out);
-    collect_gaps(&mut horizontals, MeasureKind::Vertical, &mut out);
+    scan_spans(paths, &mut out);
     out
 }
 
-/// From a set of parallel edges, emit a measurement for each adjacent
-/// (by position) facing pair that overlaps on the perpendicular axis.
-fn collect_gaps(edges: &mut [Edge], kind: MeasureKind, out: &mut Vec<Measurement>) {
-    edges.sort_by(|a, b| a.pos.total_cmp(&b.pos));
-    for w in edges.windows(2) {
-        let (e0, e1) = (w[0], w[1]);
-        let gap = e1.pos - e0.pos;
+/// Cast a horizontal and a vertical line through the glyph's center and emit a
+/// span for each gap between consecutive outline crossings — the stroke
+/// thicknesses and the counter/bowl, for curved and straight glyphs alike.
+fn scan_spans(paths: &[Path], out: &mut Vec<Measurement>) {
+    let mut bez = BezPath::new();
+    for p in paths {
+        p.append_to_bezpath(&mut bez);
+    }
+    if bez.elements().is_empty() {
+        return;
+    }
+    let bbox = bez.bounding_box();
+    if bbox.width() < MIN_LEN || bbox.height() < MIN_LEN {
+        return;
+    }
+    let cx = (bbox.x0 + bbox.x1) / 2.0;
+    let cy = (bbox.y0 + bbox.y1) / 2.0;
+
+    let hline = Line::new((bbox.x0 - 1.0, cy), (bbox.x1 + 1.0, cy));
+    let mut xs: Vec<f64> = bez
+        .segments()
+        .flat_map(|seg| {
+            seg.intersect_line(hline)
+                .into_iter()
+                .map(move |hit| hline.eval(hit.line_t).x)
+        })
+        .collect();
+    emit_scan(&mut xs, cy, MeasureKind::Horizontal, out);
+
+    let vline = Line::new((cx, bbox.y0 - 1.0), (cx, bbox.y1 + 1.0));
+    let mut ys: Vec<f64> = bez
+        .segments()
+        .flat_map(|seg| {
+            seg.intersect_line(vline)
+                .into_iter()
+                .map(move |hit| vline.eval(hit.line_t).y)
+        })
+        .collect();
+    emit_scan(&mut ys, cx, MeasureKind::Vertical, out);
+}
+
+/// Sort crossings along a scan line, drop near-duplicates, and emit a span for
+/// each consecutive gap. `fixed` is the scan line's constant coordinate.
+fn emit_scan(coords: &mut [f64], fixed: f64, kind: MeasureKind, out: &mut Vec<Measurement>) {
+    coords.sort_by(|a, b| a.total_cmp(b));
+    let mut prev = f64::NEG_INFINITY;
+    let mut kept: Vec<f64> = Vec::with_capacity(coords.len());
+    for &c in coords.iter() {
+        if c - prev >= 2.0 {
+            kept.push(c);
+            prev = c;
+        }
+    }
+    for w in kept.windows(2) {
+        let gap = w[1] - w[0];
         if gap < MIN_LEN {
             continue;
         }
-        let ov_lo = e0.lo.max(e1.lo);
-        let ov_hi = e0.hi.min(e1.hi);
-        if ov_hi - ov_lo < MIN_OVERLAP {
-            continue;
-        }
-        let mid = (ov_lo + ov_hi) / 2.0;
         let (a, b) = match kind {
-            MeasureKind::Horizontal => (Point::new(e0.pos, mid), Point::new(e1.pos, mid)),
-            MeasureKind::Vertical => (Point::new(mid, e0.pos), Point::new(mid, e1.pos)),
+            MeasureKind::Horizontal => (Point::new(w[0], fixed), Point::new(w[1], fixed)),
+            MeasureKind::Vertical => (Point::new(fixed, w[0]), Point::new(fixed, w[1])),
             _ => unreachable!(),
         };
         out.push(Measurement {
@@ -168,6 +175,164 @@ fn collect_gaps(edges: &mut [Edge], kind: MeasureKind, out: &mut Vec<Measurement
             kind,
         });
     }
+}
+
+/// A drawn outline piece (straight segment, curve, or handle line) tagged
+/// with the popcount that colors it, so the outline itself can echo the
+/// label colors and link each number to its geometry.
+#[derive(Clone)]
+pub struct ColoredStroke {
+    /// The piece in design space.
+    pub path: BezPath,
+    /// Popcount driving the tier color.
+    pub popcount: u32,
+    /// True for outline pieces (segments/curves, drawn at the path width),
+    /// false for handle lines (drawn thinner).
+    pub wide: bool,
+}
+
+/// Break each contour into colorable pieces: straight segments and curves at
+/// the outline width, plus their handle lines thinner. A segment is colored by
+/// its own length; a curve by the worse popcount of its two handles.
+pub fn colored_strokes(paths: &[Path]) -> Vec<ColoredStroke> {
+    let mut out = Vec::new();
+    for path in paths {
+        let pts = path.points().as_slice();
+        let n = pts.len();
+        if n < 2 {
+            continue;
+        }
+        let on: Vec<usize> = (0..n).filter(|&i| pts[i].is_on_curve()).collect();
+        if on.len() < 2 {
+            continue;
+        }
+        for k in 0..on.len() {
+            let a = on[k];
+            let b = on[(k + 1) % on.len()];
+            // Off-curve points strictly between the two on-curve anchors.
+            let mut offs = Vec::new();
+            let mut i = (a + 1) % n;
+            while i != b {
+                offs.push(i);
+                i = (i + 1) % n;
+            }
+            let (pa, pb) = (pts[a].point, pts[b].point);
+
+            match offs.as_slice() {
+                [] => push_line(&mut out, pa, pb, true),
+                [c] => {
+                    let cp = pts[*c].point;
+                    let mut bp = BezPath::new();
+                    bp.move_to(pa);
+                    bp.quad_to(cp, pb);
+                    let pc = popcount((cp - pa).hypot().round() as i64)
+                        .max(popcount((cp - pb).hypot().round() as i64));
+                    out.push(ColoredStroke {
+                        path: bp,
+                        popcount: pc,
+                        wide: true,
+                    });
+                    push_line(&mut out, pa, cp, false);
+                    push_line(&mut out, pb, cp, false);
+                }
+                [c1, c2] => {
+                    let (cp1, cp2) = (pts[*c1].point, pts[*c2].point);
+                    let mut bp = BezPath::new();
+                    bp.move_to(pa);
+                    bp.curve_to(cp1, cp2, pb);
+                    let pc = popcount((cp1 - pa).hypot().round() as i64)
+                        .max(popcount((cp2 - pb).hypot().round() as i64));
+                    out.push(ColoredStroke {
+                        path: bp,
+                        popcount: pc,
+                        wide: true,
+                    });
+                    push_line(&mut out, pa, cp1, false);
+                    push_line(&mut out, pb, cp2, false);
+                }
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
+/// Side-bearing geometry: the horizontal gaps between the advance margins
+/// (x=0 and x=advance) and the glyph's leftmost/rightmost points, plus where
+/// those extreme points and the glyph's vertical extent are, for drawing.
+#[derive(Clone, Copy)]
+pub struct SideBearings {
+    pub advance: f64,
+    pub lsb: i64,
+    pub rsb: i64,
+    /// Extreme x positions of the outline (furthest-left / furthest-right).
+    pub min_x: f64,
+    pub max_x: f64,
+    /// y of the leftmost / rightmost point (so the SB line points at it).
+    pub y_left: f64,
+    pub y_right: f64,
+}
+
+/// Left/right side bearings and the extreme-point positions. `None` for an
+/// empty glyph. LSB = leftmost x (from origin); RSB = advance − rightmost x.
+pub fn side_bearings(paths: &[Path], advance: f64) -> Option<SideBearings> {
+    let mut bez = BezPath::new();
+    for p in paths {
+        p.append_to_bezpath(&mut bez);
+    }
+    if bez.elements().is_empty() {
+        return None;
+    }
+    let bbox = bez.bounding_box();
+    let (min_x, max_x) = (bbox.x0, bbox.x1);
+
+    // y of the extreme on-curve points, so each SB line ends at the point.
+    let mid_y = (bbox.y0 + bbox.y1) / 2.0;
+    let (mut y_left, mut y_right) = (mid_y, mid_y);
+    let (mut best_l, mut best_r) = (f64::MAX, f64::MAX);
+    for p in paths {
+        for pt in p.points().as_slice() {
+            if !pt.is_on_curve() {
+                continue;
+            }
+            let dl = (pt.point.x - min_x).abs();
+            if dl < best_l {
+                best_l = dl;
+                y_left = pt.point.y;
+            }
+            let dr = (pt.point.x - max_x).abs();
+            if dr < best_r {
+                best_r = dr;
+                y_right = pt.point.y;
+            }
+        }
+    }
+
+    Some(SideBearings {
+        advance,
+        lsb: min_x.round() as i64,
+        rsb: (advance - max_x).round() as i64,
+        min_x,
+        max_x,
+        y_left,
+        y_right,
+    })
+}
+
+/// Append a colored line piece if it is long enough to be meaningful.
+fn push_line(out: &mut Vec<ColoredStroke>, p0: Point, p1: Point, wide: bool) {
+    let len = (p1 - p0).hypot();
+    if len < MIN_LEN {
+        return;
+    }
+    let mut bp = BezPath::new();
+    bp.move_to(p0);
+    bp.line_to(p1);
+    out.push(ColoredStroke {
+        path: bp,
+        popcount: popcount(len.round() as i64),
+        wide,
+    });
 }
 
 /// Popcount (Hamming weight) of a length: the number of powers of two it is

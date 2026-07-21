@@ -238,6 +238,10 @@ export class GlyphEditor {
     setGlyphSvg(svg: string): void;
     setKnifeShiftLocked(locked: boolean): boolean;
     setLeftSidebearing(value: number): boolean;
+    /**
+     * Toggle the grid-measurement HUD layers. All false = plain editor.
+     */
+    setMeasureOptions(colorize: boolean, handles: boolean, segments: boolean, spans: boolean, sidebearings: boolean): void;
     setOffset(x: number, y: number): void;
     setRightSidebearing(value: number): boolean;
     setShapeShiftLocked(locked: boolean): boolean;
@@ -505,6 +509,7 @@ export interface InitOutput {
     readonly glypheditor_setGlyphSvg: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_setKnifeShiftLocked: (a: number, b: number) => number;
     readonly glypheditor_setLeftSidebearing: (a: number, b: number) => number;
+    readonly glypheditor_setMeasureOptions: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly glypheditor_setOffset: (a: number, b: number, c: number) => void;
     readonly glypheditor_setRightSidebearing: (a: number, b: number) => number;
     readonly glypheditor_setShapeShiftLocked: (a: number, b: number) => number;

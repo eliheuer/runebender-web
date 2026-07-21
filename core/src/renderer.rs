@@ -256,6 +256,28 @@ const DESIGN_GRID_COARSE_LINE_PX: f64 = 1.0;
 // RENDERER
 // ============================================================================
 
+/// Which layers of the grid-measurement HUD are on. All-false is the plain
+/// editor: nothing extra drawn. Driven from the select-mode side panel.
+#[derive(Clone, Copy, Default)]
+pub struct MeasureOptions {
+    /// Tint the outline segments, curves, and handle lines by popcount.
+    pub colorize: bool,
+    /// Label Bézier handle lengths.
+    pub handles: bool,
+    /// Label straight outline segment lengths.
+    pub segments: bool,
+    /// Draw + label stem/counter/height spans (dimension lines).
+    pub spans: bool,
+    /// Draw + label left/right side bearings and mark the extreme columns.
+    pub sidebearings: bool,
+}
+
+impl MeasureOptions {
+    fn any(&self) -> bool {
+        self.colorize || self.handles || self.segments || self.spans || self.sidebearings
+    }
+}
+
 pub struct Renderer {
     // Hand-rolled wgpu setup (instead of vello::util::RenderContext) so
     // we can request the adapter's full max_texture_dimension_2d. Vello
@@ -279,6 +301,7 @@ pub struct Renderer {
     grid_overlay: Option<GridOverlay>,
     text_outline_cache: HashMap<String, TextOutlineCacheEntry>,
     hud_text: crate::hud_text::HudText,
+    measure_options: MeasureOptions,
     device_scale: f64,
     width: u32,
     height: u32,
@@ -573,6 +596,7 @@ impl Renderer {
             grid_overlay: None,
             text_outline_cache: HashMap::new(),
             hud_text: crate::hud_text::HudText::new(),
+            measure_options: MeasureOptions::default(),
             device_scale: 1.0,
             width,
             height,
@@ -614,6 +638,23 @@ impl Renderer {
             self.device_scale = next;
             self.design_grid_cache.clear();
         }
+    }
+
+    pub fn set_measure_options(
+        &mut self,
+        colorize: bool,
+        handles: bool,
+        segments: bool,
+        spans: bool,
+        sidebearings: bool,
+    ) {
+        self.measure_options = MeasureOptions {
+            colorize,
+            handles,
+            segments,
+            spans,
+            sidebearings,
+        };
     }
 
     fn px(&self, value: f64) -> f64 {
@@ -890,19 +931,21 @@ impl Renderer {
         self.draw_measurements(state, glyph_view);
     }
 
-    /// The live grid-measurement HUD: handle lengths and auto-detected
-    /// stem/counter spans, each drawn as a thin dimension line with a
-    /// popcount-tiered `value = sum` label set in Virtua itself. Gated on
-    /// close zoom so it only appears when you're drawing detail.
+    /// The live grid-measurement HUD. Layers are toggled by MeasureOptions:
+    /// colorized outline/curves/handles, and popcount-tiered `value = sum`
+    /// labels for handle lengths, straight segment lengths, and scan-line
+    /// stem/counter/thickness spans (the spans get gapped arrow dimension
+    /// lines). Set in Virtua itself; fades in with zoom.
     fn draw_measurements(&mut self, state: &EditorState, glyph_view: Affine) {
+        let opts = self.measure_options;
+        if !opts.any() {
+            return;
+        }
         let t = self.measure_overlay_t(state.viewport.zoom);
         if t <= 0.0 {
             return;
         }
-        let measurements = measure::glyph_measurements(&state.paths);
-        if measurements.is_empty() {
-            return;
-        }
+        let t32 = t as f32;
 
         // Popcount tiers on Runebender's glyph-grid mark colors: 1 power is
         // structural (green), 2 an elegant sum (yellow), 3 acceptable
@@ -912,32 +955,86 @@ impl Renderer {
         let yellow: Srgb = AlphaColor::new([1.0, 0.86, 0.2, 1.0]);
         let orange: Srgb = AlphaColor::new([1.0, 0.6, 0.06, 1.0]);
         let red: Srgb = AlphaColor::new([1.0, 0.29, 0.24, 1.0]);
-        let stroke = Stroke::new(self.px(1.0));
+        let tier = |pc: u32| match pc {
+            0 | 1 => green,
+            2 => yellow,
+            3 => orange,
+            _ => red,
+        };
+
+        // Colorize the outline: redraw each segment/curve/handle in its tier
+        // color (the plain gray versions were skipped in draw_edit_controls).
+        if opts.colorize {
+            for cs in measure::colored_strokes(&state.paths) {
+                let mut screen = cs.path;
+                screen.apply_affine(glyph_view);
+                let width = if cs.wide { PATH_STROKE_PX } else { HANDLE_LINE_PX };
+                self.scene.stroke(
+                    &Stroke::new(self.px(width)),
+                    Affine::IDENTITY,
+                    tier(cs.popcount).multiply_alpha(t32),
+                    None,
+                    &screen,
+                );
+            }
+        }
+
+        let dim_stroke = Stroke::new(self.px(1.25));
         let label_px = self.px(15.0) as f32;
         // How far off the measured line the label floats, in screen px.
         let gap = self.px(12.0) + (label_px as f64) * 0.5;
 
+        // Side bearings: an arrow line from each advance margin to the glyph's
+        // extreme point, plus a faint full-height guide marking that column.
+        if opts.sidebearings && state.advance_width > 0.0 {
+            if let Some(sb) = measure::side_bearings(&state.paths, state.advance_width) {
+                for (is_left, x, y, val) in [
+                    (true, sb.min_x, sb.y_left, sb.lsb),
+                    (false, sb.max_x, sb.y_right, sb.rsb),
+                ] {
+                    let color = tier(measure::popcount(val)).multiply_alpha(t32 * 0.9);
+                    // Measurement line from the margin to the extreme point.
+                    let margin_x = if is_left { 0.0 } else { sb.advance };
+                    let a = glyph_view * Point::new(margin_x, y);
+                    let b = glyph_view * Point::new(x, y);
+                    self.draw_dimension_line(a, b, color, &dim_stroke);
+                    let text = measure::label(val);
+                    let mid = a.midpoint(b);
+                    let width_est = text.chars().count() as f64 * label_px as f64 * 0.5;
+                    let pos = Point::new(
+                        mid.x - width_est / 2.0,
+                        mid.y - (label_px as f64) * 1.4,
+                    );
+                    self.hud_text
+                        .draw_line(&mut self.scene, &text, pos, label_px, color);
+                }
+            }
+        }
+
+        if !(opts.handles || opts.segments || opts.spans) {
+            return;
+        }
+
+        let measurements = measure::glyph_measurements(&state.paths);
+
         for m in &measurements {
+            let show = match m.kind {
+                MeasureKind::Handle => opts.handles,
+                MeasureKind::Segment => opts.segments,
+                MeasureKind::Horizontal | MeasureKind::Vertical => opts.spans,
+            };
+            if !show {
+                continue;
+            }
+
             let a = glyph_view * m.a;
             let b = glyph_view * m.b;
-            let pc = measure::popcount(m.length);
-            let base = match pc {
-                0 | 1 => green,
-                2 => yellow,
-                3 => orange,
-                _ => red,
-            };
-            let color = base.multiply_alpha(t as f32);
+            let color = tier(measure::popcount(m.length)).multiply_alpha(t32);
 
-            // Draw a dimension line only for spans (stems/counters/heights).
-            // Handles and straight segments already exist as outline/handle
-            // strokes, so a second line there just doubles up under the label.
+            // Spans get a gapped dimension line with outward arrowheads;
+            // handles/segments annotate existing outline/handle strokes.
             if matches!(m.kind, MeasureKind::Horizontal | MeasureKind::Vertical) {
-                let mut line = BezPath::new();
-                line.move_to(a);
-                line.line_to(b);
-                self.scene
-                    .stroke(&stroke, Affine::IDENTITY, color, None, &line);
+                self.draw_dimension_line(a, b, color, &dim_stroke);
             }
 
             // Float the label off the line along its perpendicular, biased
@@ -957,6 +1054,40 @@ impl Renderer {
             self.hud_text
                 .draw_line(&mut self.scene, &text, pos, label_px, color);
         }
+    }
+
+    /// A dimension line for a span: a shaft that stops short of both endpoints
+    /// (so it doesn't touch the contour) with an outward-pointing arrowhead at
+    /// each end coming close to the edge.
+    fn draw_dimension_line(&mut self, a: Point, b: Point, color: Srgb, stroke: &Stroke) {
+        let (dx, dy) = (b.x - a.x, b.y - a.y);
+        let len = dx.hypot(dy);
+        if len < 1e-3 {
+            return;
+        }
+        let (ux, uy) = (dx / len, dy / len); // unit a -> b
+        let (px, py) = (-uy, ux); // perpendicular
+        let end_gap = self.px(3.0);
+        let head = self.px(7.0);
+        let wing = self.px(4.0);
+        let a2 = Point::new(a.x + ux * end_gap, a.y + uy * end_gap);
+        let b2 = Point::new(b.x - ux * end_gap, b.y - uy * end_gap);
+
+        let mut path = BezPath::new();
+        path.move_to(a2);
+        path.line_to(b2);
+        // Arrowhead at a2, tip pointing outward (toward a); wings open inward.
+        path.move_to(a2);
+        path.line_to(Point::new(a2.x + ux * head + px * wing, a2.y + uy * head + py * wing));
+        path.move_to(a2);
+        path.line_to(Point::new(a2.x + ux * head - px * wing, a2.y + uy * head - py * wing));
+        // Arrowhead at b2, tip pointing outward (toward b).
+        path.move_to(b2);
+        path.line_to(Point::new(b2.x - ux * head + px * wing, b2.y - uy * head + py * wing));
+        path.move_to(b2);
+        path.line_to(Point::new(b2.x - ux * head - px * wing, b2.y - uy * head - py * wing));
+        self.scene
+            .stroke(stroke, Affine::IDENTITY, color, None, &path);
     }
 
     fn draw_anchors(&mut self, state: &EditorState, view: Affine) {
@@ -1459,23 +1590,27 @@ impl Renderer {
         start_arrows: &[StartArrowGeometry],
         point_scale: f64,
     ) {
-        if !controls.handle_lines.elements().is_empty() {
-            self.scene.stroke(
-                &Stroke::new(self.px(HANDLE_LINE_PX)),
-                Affine::IDENTITY,
-                self.theme.handle_line,
-                None,
-                &controls.handle_lines,
-            );
-        }
-        if !controls.outline.elements().is_empty() {
-            self.scene.stroke(
-                &Stroke::new(self.px(PATH_STROKE_PX)),
-                Affine::IDENTITY,
-                self.theme.path_stroke,
-                None,
-                &controls.outline,
-            );
+        // When colorize is on, the measurement pass redraws the outline and
+        // handle lines tinted by popcount, so skip the plain gray ones here.
+        if !self.measure_options.colorize {
+            if !controls.handle_lines.elements().is_empty() {
+                self.scene.stroke(
+                    &Stroke::new(self.px(HANDLE_LINE_PX)),
+                    Affine::IDENTITY,
+                    self.theme.handle_line,
+                    None,
+                    &controls.handle_lines,
+                );
+            }
+            if !controls.outline.elements().is_empty() {
+                self.scene.stroke(
+                    &Stroke::new(self.px(PATH_STROKE_PX)),
+                    Affine::IDENTITY,
+                    self.theme.path_stroke,
+                    None,
+                    &controls.outline,
+                );
+            }
         }
         let outline_stroke = Stroke::new(POINT_OUTLINE_PX * point_scale);
         self.draw_point_batch(

@@ -54,6 +54,7 @@ import GlyphAnatomyPanel from "./components/GlyphAnatomyPanel.vue";
 import GlyphCell from "./components/GlyphCell.vue";
 import GlyphInfoSidebar from "./components/GlyphInfoSidebar.vue";
 import SketchPanel from "./components/SketchPanel.vue";
+import SelectPanel from "./components/SelectPanel.vue";
 import MarkColorPanel from "./components/MarkColorPanel.vue";
 import MasterToolbar from "./components/MasterToolbar.vue";
 import TopBar from "./components/TopBar.vue";
@@ -211,6 +212,14 @@ const currentRightSidebearing = ref<number>(0);
 // Active tool in the editor view. Tool implementations land
 // incrementally in Rust while Vue owns the selected toolbar state.
 const activeTool = ref<ToolId>("Select");
+const selectActive = computed(() => activeTool.value === "Select");
+// Grid-measurement HUD layer toggles (Select-mode panel). All off = plain
+// editor; state lives in the wasm renderer via setMeasureOptions.
+const measureColorize = ref(false);
+const measureHandles = ref(false);
+const measureSegments = ref(false);
+const measureSpans = ref(false);
+const measureSidebearings = ref(false);
 const activeShape = ref<ShapeKind>("rectangle");
 const textDirection = ref<TextDirection>("ltr");
 const hasTextBufferSession = ref<boolean>(false);
@@ -1420,6 +1429,13 @@ type Editor = {
   resize(w: number, h: number): void;
   setDeviceScale(scale: number): void;
   setTheme(themeJson: string): void;
+  setMeasureOptions(
+    colorize: boolean,
+    handles: boolean,
+    segments: boolean,
+    spans: boolean,
+    sidebearings: boolean,
+  ): void;
   setGlyphSvg(svg: string): void;
   setGlyphGlif(bytes: Uint8Array): void;
   setComponentGlyphs(glyphXmlByName: string): void;
@@ -1733,6 +1749,27 @@ function logNudgeSyncPerf(sample: NudgePerfSample | undefined) {
       `total ${(sample.syncEnd - sample.start).toFixed(1)}ms`,
   );
 }
+
+function applyMeasureOptions() {
+  editor?.setMeasureOptions(
+    measureColorize.value,
+    measureHandles.value,
+    measureSegments.value,
+    measureSpans.value,
+    measureSidebearings.value,
+  );
+  requestRender({ refreshDerivedState: false });
+}
+watch(
+  [
+    measureColorize,
+    measureHandles,
+    measureSegments,
+    measureSpans,
+    measureSidebearings,
+  ],
+  applyMeasureOptions,
+);
 
 function requestRender(options: RenderRequestOptions = {}) {
   if (!editor || (viewMode.value !== "editor" && glyphNames.value.length > 0)) return;
@@ -8896,6 +8933,21 @@ onBeforeUnmount(() => {
           @trace="traceSketchToGlyph"
           @draft="draftSketchWithVirtua"
           @bank="bankSketchPair"
+        />
+
+        <SelectPanel
+          v-if="viewMode === 'editor' && editorPanelsVisible && selectActive"
+          class="helper-overlay"
+          :colorize="measureColorize"
+          :handles="measureHandles"
+          :segments="measureSegments"
+          :spans="measureSpans"
+          :sidebearings="measureSidebearings"
+          @update:colorize="(v: boolean) => (measureColorize = v)"
+          @update:handles="(v: boolean) => (measureHandles = v)"
+          @update:segments="(v: boolean) => (measureSegments = v)"
+          @update:spans="(v: boolean) => (measureSpans = v)"
+          @update:sidebearings="(v: boolean) => (measureSidebearings = v)"
         />
 
         <div

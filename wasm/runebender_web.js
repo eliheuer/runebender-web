@@ -943,6 +943,17 @@ export class GlyphEditor {
         return ret !== 0;
     }
     /**
+     * Toggle the grid-measurement HUD layers. All false = plain editor.
+     * @param {boolean} colorize
+     * @param {boolean} handles
+     * @param {boolean} segments
+     * @param {boolean} spans
+     * @param {boolean} sidebearings
+     */
+    setMeasureOptions(colorize, handles, segments, spans, sidebearings) {
+        wasm.glypheditor_setMeasureOptions(this.__wbg_ptr, colorize, handles, segments, spans, sidebearings);
+    }
+    /**
      * @param {number} x
      * @param {number} y
      */
