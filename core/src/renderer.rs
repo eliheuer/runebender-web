@@ -981,11 +981,12 @@ impl Renderer {
 
         let dim_stroke = Stroke::new(self.px(1.25));
         let label_px = self.px(15.0) as f32;
-        // How far off the measured line the label floats, in screen px.
-        let gap = self.px(12.0) + (label_px as f64) * 0.5;
+        // Screen-space rects of labels already placed this frame, so new
+        // labels can dodge them.
+        let mut placed: Vec<Rect> = Vec::new();
 
         // Side bearings: an arrow line from each advance margin to the glyph's
-        // extreme point, plus a faint full-height guide marking that column.
+        // extreme point, labeled + popcount-colored.
         if opts.sidebearings && state.advance_width > 0.0 {
             if let Some(sb) = measure::side_bearings(&state.paths, state.advance_width) {
                 for (is_left, x, y, val) in [
@@ -993,20 +994,11 @@ impl Renderer {
                     (false, sb.max_x, sb.y_right, sb.rsb),
                 ] {
                     let color = tier(measure::popcount(val)).multiply_alpha(t32 * 0.9);
-                    // Measurement line from the margin to the extreme point.
                     let margin_x = if is_left { 0.0 } else { sb.advance };
                     let a = glyph_view * Point::new(margin_x, y);
                     let b = glyph_view * Point::new(x, y);
                     self.draw_dimension_line(a, b, color, &dim_stroke);
-                    let text = measure::label(val);
-                    let mid = a.midpoint(b);
-                    let width_est = text.chars().count() as f64 * label_px as f64 * 0.5;
-                    let pos = Point::new(
-                        mid.x - width_est / 2.0,
-                        mid.y - (label_px as f64) * 1.4,
-                    );
-                    self.hud_text
-                        .draw_line(&mut self.scene, &text, pos, label_px, color);
+                    self.place_label(a, b, &measure::label(val), color, label_px, &mut placed);
                 }
             }
         }
@@ -1037,23 +1029,87 @@ impl Renderer {
                 self.draw_dimension_line(a, b, color, &dim_stroke);
             }
 
-            // Float the label off the line along its perpendicular, biased
-            // toward screen-up so it never sits on the stroke or the points.
-            let (dx, dy) = (b.x - a.x, b.y - a.y);
-            let len = dx.hypot(dy).max(1e-6);
-            let (mut nx, mut ny) = (-dy / len, dx / len);
-            if ny > 0.0 {
-                nx = -nx;
-                ny = -ny;
-            }
-            let mid = a.midpoint(b);
-            let center = Point::new(mid.x + nx * gap, mid.y + ny * gap);
-            let text = measure::label(m.length);
-            let width_est = text.chars().count() as f64 * label_px as f64 * 0.5;
-            let pos = Point::new(center.x - width_est / 2.0, center.y - (label_px as f64) * 0.5);
-            self.hud_text
-                .draw_line(&mut self.scene, &text, pos, label_px, color);
+            self.place_label(a, b, &measure::label(m.length), color, label_px, &mut placed);
         }
+    }
+
+    /// Place a measurement label with basic spatial awareness: anchor it just
+    /// off the line by orientation (beside a vertical line, above a horizontal
+    /// one, rather than centered on top of it), then step it further out — and
+    /// to the other side if needed — until it clears every label already
+    /// placed this frame.
+    fn place_label(
+        &mut self,
+        a: Point,
+        b: Point,
+        text: &str,
+        color: Srgb,
+        label_px: f32,
+        placed: &mut Vec<Rect>,
+    ) {
+        let (dx, dy) = (b.x - a.x, b.y - a.y);
+        let len = dx.hypot(dy).max(1e-6);
+        // Perpendicular to the line, pointed to the preferred side: up for a
+        // horizontalish line, right for a verticalish one.
+        let (mut nx, mut ny) = (-dy / len, dx / len);
+        let horizontalish = dx.abs() >= dy.abs();
+        if (horizontalish && ny > 0.0) || (!horizontalish && nx < 0.0) {
+            nx = -nx;
+            ny = -ny;
+        }
+
+        let w = text.chars().count() as f64 * label_px as f64 * 0.55;
+        let h = label_px as f64;
+        let mid = a.midpoint(b);
+        let base = self.px(6.0);
+        let step = h + self.px(4.0);
+        let pad = self.px(2.0);
+
+        let top_left = |dirx: f64, diry: f64, dist: f64| {
+            let cx = mid.x + dirx * dist;
+            let cy = mid.y + diry * dist;
+            // Anchor the label edge nearest the line, so it never crosses it.
+            let x = if dirx > 0.3 {
+                cx
+            } else if dirx < -0.3 {
+                cx - w
+            } else {
+                cx - w / 2.0
+            };
+            let y = if diry > 0.3 {
+                cy
+            } else if diry < -0.3 {
+                cy - h
+            } else {
+                cy - h / 2.0
+            };
+            Point::new(x, y)
+        };
+
+        let mut chosen = top_left(nx, ny, base);
+        'search: for &sign in &[1.0_f64, -1.0] {
+            let (dirx, diry) = (nx * sign, ny * sign);
+            for k in 0..6 {
+                let cand = top_left(dirx, diry, base + k as f64 * step);
+                let rect = Rect::new(
+                    cand.x - pad,
+                    cand.y - pad,
+                    cand.x + w + pad,
+                    cand.y + h + pad,
+                );
+                let clear = !placed.iter().any(|r| {
+                    r.x0 < rect.x1 && rect.x0 < r.x1 && r.y0 < rect.y1 && rect.y0 < r.y1
+                });
+                if clear {
+                    chosen = cand;
+                    break 'search;
+                }
+            }
+        }
+
+        placed.push(Rect::new(chosen.x, chosen.y, chosen.x + w, chosen.y + h));
+        self.hud_text
+            .draw_line(&mut self.scene, text, chosen, label_px, color);
     }
 
     /// A dimension line for a span: a shaft that stops short of both endpoints

@@ -10,7 +10,7 @@
 // off the length. Kept ungated and free of render deps so it unit-tests on
 // native `cargo test`.
 
-use kurbo::{BezPath, Line, ParamCurve, Point, Shape};
+use kurbo::{BezPath, Line, ParamCurve, PathSeg, Point, Shape};
 
 use crate::path::Path;
 
@@ -42,14 +42,32 @@ pub struct Measurement {
 /// Ignore spans, segments, and handles shorter than this (noise / coincident
 /// points / near-tangent scan crossings).
 const MIN_LEN: f64 = 8.0;
+/// A straight segment counts as axis-aligned when its off-axis drift is within
+/// this many units (Virtua's stems and bars are dead straight).
+const AXIS_TOL: f64 = 3.0;
+/// Two facing edges must overlap on the perpendicular axis by at least this to
+/// be measuring the same span (a real stem/counter, not a glancing pair).
+const MIN_OVERLAP: f64 = 24.0;
+
+/// A straight axis-aligned outline edge, captured for facing-span detection.
+#[derive(Clone, Copy)]
+struct Edge {
+    /// Position on the measured axis: x for vertical edges, y for horizontal.
+    pos: f64,
+    /// Extent on the perpendicular axis.
+    lo: f64,
+    hi: f64,
+}
 
 /// Compute every live measurement for a glyph's contours: handle lengths,
-/// straight segment lengths, and — via a horizontal and vertical scan line
-/// through the glyph center — the stroke thicknesses and counter/bowl spans
-/// between facing outline crossings. The scan-line pass works on curves and
-/// straights alike, so an all-curve `o` measures the same as a straight `n`.
+/// straight segment lengths, and stem/counter/thickness spans. Spans come from
+/// two general passes — facing straight edges (each edge to its nearest facing
+/// edge that overlaps it: stems, counters, bars, including split walls like the
+/// H's), and a center scan line kept only for curve-bounded gaps (the `o`).
 pub fn glyph_measurements(paths: &[Path]) -> Vec<Measurement> {
     let mut out = Vec::new();
+    let mut verticals: Vec<Edge> = Vec::new();
+    let mut horizontals: Vec<Edge> = Vec::new();
 
     for path in paths {
         let pts = path.points().as_slice();
@@ -85,7 +103,8 @@ pub fn glyph_measurements(paths: &[Path]) -> Vec<Measurement> {
                 }
             }
 
-            // Straight segment: two consecutive on-curve points, its own length.
+            // Straight segment: its own length, plus an axis-aligned edge for
+            // the facing-span pass.
             if cur.is_on_curve() && nxt.is_on_curve() {
                 let (a, b) = (cur.point, nxt.point);
                 let seg_len = (b - a).hypot();
@@ -97,17 +116,66 @@ pub fn glyph_measurements(paths: &[Path]) -> Vec<Measurement> {
                         kind: MeasureKind::Segment,
                     });
                 }
+                let (dx, dy) = ((a.x - b.x).abs(), (a.y - b.y).abs());
+                if dx <= AXIS_TOL && dy > MIN_LEN {
+                    verticals.push(Edge {
+                        pos: (a.x + b.x) / 2.0,
+                        lo: a.y.min(b.y),
+                        hi: a.y.max(b.y),
+                    });
+                } else if dy <= AXIS_TOL && dx > MIN_LEN {
+                    horizontals.push(Edge {
+                        pos: (a.y + b.y) / 2.0,
+                        lo: a.x.min(b.x),
+                        hi: a.x.max(b.x),
+                    });
+                }
             }
         }
     }
 
+    facing_gaps(&verticals, MeasureKind::Horizontal, &mut out);
+    facing_gaps(&horizontals, MeasureKind::Vertical, &mut out);
     scan_spans(paths, &mut out);
     out
 }
 
+/// For each edge, measure the gap to the nearest facing edge (larger position)
+/// whose perpendicular extent overlaps it. Measuring per-edge (rather than only
+/// x-adjacent pairs) means split walls — like the H's inner stems, cut by the
+/// crossbar — still pair up into their upper and lower counters.
+fn facing_gaps(edges: &[Edge], kind: MeasureKind, out: &mut Vec<Measurement>) {
+    for (i, e) in edges.iter().enumerate() {
+        let mut best: Option<&Edge> = None;
+        for (j, f) in edges.iter().enumerate() {
+            if i == j || f.pos <= e.pos + MIN_LEN {
+                continue;
+            }
+            let overlap = e.hi.min(f.hi) - e.lo.max(f.lo);
+            if overlap < MIN_OVERLAP {
+                continue;
+            }
+            if best.map_or(true, |b| f.pos < b.pos) {
+                best = Some(f);
+            }
+        }
+        if let Some(f) = best {
+            let mid = (e.lo.max(f.lo) + e.hi.min(f.hi)) / 2.0;
+            let gap = f.pos - e.pos;
+            let (a, b) = match kind {
+                MeasureKind::Horizontal => (Point::new(e.pos, mid), Point::new(f.pos, mid)),
+                MeasureKind::Vertical => (Point::new(mid, e.pos), Point::new(mid, f.pos)),
+                _ => unreachable!(),
+            };
+            push_span_dedup(out, a, b, gap.round() as i64, kind);
+        }
+    }
+}
+
 /// Cast a horizontal and a vertical line through the glyph's center and emit a
-/// span for each gap between consecutive outline crossings — the stroke
-/// thicknesses and the counter/bowl, for curved and straight glyphs alike.
+/// span for each gap between crossings — but only where a crossing is on a
+/// curve. Straight-bounded gaps are already covered by `facing_gaps`, so this
+/// pass exists to measure all-curve outlines like the `o`.
 fn scan_spans(paths: &[Path], out: &mut Vec<Measurement>) {
     let mut bez = BezPath::new();
     for p in paths {
@@ -124,56 +192,63 @@ fn scan_spans(paths: &[Path], out: &mut Vec<Measurement>) {
     let cy = (bbox.y0 + bbox.y1) / 2.0;
 
     let hline = Line::new((bbox.x0 - 1.0, cy), (bbox.x1 + 1.0, cy));
-    let mut xs: Vec<f64> = bez
+    let mut xs: Vec<(f64, bool)> = bez
         .segments()
         .flat_map(|seg| {
+            let curved = !matches!(seg, PathSeg::Line(_));
             seg.intersect_line(hline)
                 .into_iter()
-                .map(move |hit| hline.eval(hit.line_t).x)
+                .map(move |hit| (hline.eval(hit.line_t).x, curved))
         })
         .collect();
     emit_scan(&mut xs, cy, MeasureKind::Horizontal, out);
 
     let vline = Line::new((cx, bbox.y0 - 1.0), (cx, bbox.y1 + 1.0));
-    let mut ys: Vec<f64> = bez
+    let mut ys: Vec<(f64, bool)> = bez
         .segments()
         .flat_map(|seg| {
+            let curved = !matches!(seg, PathSeg::Line(_));
             seg.intersect_line(vline)
                 .into_iter()
-                .map(move |hit| vline.eval(hit.line_t).y)
+                .map(move |hit| (vline.eval(hit.line_t).y, curved))
         })
         .collect();
     emit_scan(&mut ys, cx, MeasureKind::Vertical, out);
 }
 
-/// Sort crossings along a scan line, drop near-duplicates, and emit a span for
-/// each consecutive gap. `fixed` is the scan line's constant coordinate.
-fn emit_scan(coords: &mut [f64], fixed: f64, kind: MeasureKind, out: &mut Vec<Measurement>) {
-    coords.sort_by(|a, b| a.total_cmp(b));
-    let mut prev = f64::NEG_INFINITY;
-    let mut kept: Vec<f64> = Vec::with_capacity(coords.len());
-    for &c in coords.iter() {
-        if c - prev >= 2.0 {
-            kept.push(c);
-            prev = c;
+/// Sort crossings, merge near-duplicates (OR-ing their curved flag), and emit a
+/// span for each consecutive gap that touches at least one curve.
+fn emit_scan(coords: &mut [(f64, bool)], fixed: f64, kind: MeasureKind, out: &mut Vec<Measurement>) {
+    coords.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut kept: Vec<(f64, bool)> = Vec::with_capacity(coords.len());
+    for &(c, curved) in coords.iter() {
+        match kept.last_mut() {
+            Some(last) if c - last.0 < 2.0 => last.1 = last.1 || curved,
+            _ => kept.push((c, curved)),
         }
     }
     for w in kept.windows(2) {
-        let gap = w[1] - w[0];
-        if gap < MIN_LEN {
+        let gap = w[1].0 - w[0].0;
+        if gap < MIN_LEN || !(w[0].1 || w[1].1) {
             continue;
         }
         let (a, b) = match kind {
-            MeasureKind::Horizontal => (Point::new(w[0], fixed), Point::new(w[1], fixed)),
-            MeasureKind::Vertical => (Point::new(fixed, w[0]), Point::new(fixed, w[1])),
+            MeasureKind::Horizontal => (Point::new(w[0].0, fixed), Point::new(w[1].0, fixed)),
+            MeasureKind::Vertical => (Point::new(fixed, w[0].0), Point::new(fixed, w[1].0)),
             _ => unreachable!(),
         };
-        out.push(Measurement {
-            a,
-            b,
-            length: gap.round() as i64,
-            kind,
-        });
+        push_span_dedup(out, a, b, gap.round() as i64, kind);
+    }
+}
+
+/// Push a span unless a near-identical one (same kind, endpoints within a few
+/// units) is already present.
+fn push_span_dedup(out: &mut Vec<Measurement>, a: Point, b: Point, length: i64, kind: MeasureKind) {
+    let dup = out
+        .iter()
+        .any(|m| m.kind == kind && (m.a - a).hypot() < 4.0 && (m.b - b).hypot() < 4.0);
+    if !dup {
+        out.push(Measurement { a, b, length, kind });
     }
 }
 
