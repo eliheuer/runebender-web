@@ -984,13 +984,14 @@ impl Renderer {
                 // Shorter than Speedpunk's default so ribs don't collide
                 // across tight counters; scales with the em.
                 let scale = 74.0 / maxk;
-                let strips = crate::curve::curvature_comb(&state.paths, 1.0, scale, false, 32);
-                let env_stroke = Stroke::new(self.px(0.9));
+                // Fewer samples => distinct, readable ribs.
+                let strips = crate::curve::curvature_comb(&state.paths, 1.0, scale, false, 16);
+                // Every rib edge (outer, base, and the fins between ribs) is
+                // stroked in the background colour at the contour's weight, so
+                // the ribbon reads as separated fins that blend into the page.
+                let fin = Stroke::new(self.px(PATH_STROKE_PX));
+                let bg = self.theme.bg;
                 for strip in &strips {
-                    if strip.len() < 2 {
-                        continue;
-                    }
-                    // Filled ribbon: one gradient-colored quad per sample pair.
                     for w in strip.windows(2) {
                         let (s0, s1) = (w[0], w[1]);
                         let mut quad = BezPath::new();
@@ -1000,32 +1001,11 @@ impl Renderer {
                         quad.line_to(glyph_view * s0.outer);
                         quad.close_path();
                         let k = (s0.kappa.abs() + s1.kappa.abs()) * 0.5 / maxk;
-                        self.scene.fill(
-                            Fill::NonZero,
-                            Affine::IDENTITY,
-                            curve_gradient(k),
-                            None,
-                            &quad,
-                        );
+                        self.scene
+                            .fill(Fill::NonZero, Affine::IDENTITY, curve_gradient(k), None, &quad);
+                        self.scene
+                            .stroke(&fin, Affine::IDENTITY, bg, None, &quad);
                     }
-                    // Crisp outer envelope line on top for a clean edge.
-                    let mut env = BezPath::new();
-                    for (i, s) in strip.iter().enumerate() {
-                        let p = glyph_view * s.outer;
-                        if i == 0 {
-                            env.move_to(p);
-                        } else {
-                            env.line_to(p);
-                        }
-                    }
-                    let midk = strip[strip.len() / 2].kappa.abs() / maxk;
-                    self.scene.stroke(
-                        &env_stroke,
-                        Affine::IDENTITY,
-                        curve_gradient(midk),
-                        None,
-                        &env,
-                    );
                 }
             }
         }

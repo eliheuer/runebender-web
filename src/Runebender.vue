@@ -1422,6 +1422,8 @@ type Editor = {
   penDeleteLastPoint(): boolean;
   togglePointType(): boolean;
   roundSelectedCorners(): boolean;
+  harmonizeSelection(): boolean;
+  balanceSelection(): boolean;
   togglePointTypeAt(x: number, y: number): boolean;
   selectContourAt(x: number, y: number): boolean;
   unionSelection(): boolean;
@@ -1780,6 +1782,13 @@ function applyCurveOptions() {
   requestRender({ refreshDerivedState: false });
 }
 watch([curveComb, curveContinuity], applyCurveOptions);
+
+function harmonizeCurves() {
+  if (editor) applyEditorMutation(() => editor.harmonizeSelection());
+}
+function balanceCurves() {
+  if (editor) applyEditorMutation(() => editor.balanceSelection());
+}
 
 function requestRender(options: RenderRequestOptions = {}) {
   if (!editor || (viewMode.value !== "editor" && glyphNames.value.length > 0)) return;
@@ -8966,6 +8975,8 @@ onBeforeUnmount(() => {
             :continuity="curveContinuity"
             @update:comb="(v: boolean) => (curveComb = v)"
             @update:continuity="(v: boolean) => (curveContinuity = v)"
+            @harmonize="harmonizeCurves"
+            @balance="balanceCurves"
           />
         </div>
 

@@ -2252,6 +2252,127 @@ impl EditorState {
         true
     }
 
+    /// Harmonize smooth on-curve nodes (selected, or all when the selection is
+    /// empty) so their curve joins become curvature-continuous (G2). Keeps the
+    /// on-curve point fixed and moves its two adjacent handles; results are
+    /// rounded to the integer grid for the human to refine.
+    pub fn harmonize_selection(&mut self) -> bool {
+        let sel = self.selection.clone();
+        let all = sel.is_empty();
+        let mut changed = false;
+        for path in &mut self.paths {
+            let Path::Cubic(cubic) = path else {
+                continue;
+            };
+            if !cubic.closed {
+                continue;
+            }
+            let mut pts = cubic.points.to_vec();
+            let n = pts.len();
+            if n < 4 {
+                continue;
+            }
+            let mut updates: Vec<(usize, kurbo::Point)> = Vec::new();
+            for i in 0..n {
+                if !pts[i].is_on_curve()
+                    || !matches!(pts[i].typ, crate::path::PointType::OnCurve { smooth: true })
+                {
+                    continue;
+                }
+                if !all && !sel.contains(&pts[i].id) {
+                    continue;
+                }
+                let (a1i, a2i, b1i, b2i) =
+                    ((i + n - 2) % n, (i + n - 1) % n, (i + 1) % n, (i + 2) % n);
+                if pts[a1i].is_on_curve()
+                    || pts[a2i].is_on_curve()
+                    || pts[b1i].is_on_curve()
+                    || pts[b2i].is_on_curve()
+                {
+                    continue; // need cubic segments on both sides
+                }
+                if let Some((na2, nb1)) = crate::curve::harmonize(
+                    pts[a1i].point,
+                    pts[a2i].point,
+                    pts[i].point,
+                    pts[b1i].point,
+                    pts[b2i].point,
+                ) {
+                    updates.push((a2i, na2.round()));
+                    updates.push((b1i, nb1.round()));
+                }
+            }
+            if !updates.is_empty() {
+                for (idx, p) in updates {
+                    pts[idx].point = p;
+                }
+                cubic.points = PathPoints::from_vec(pts);
+                changed = true;
+            }
+        }
+        if changed {
+            self.bump_edit_revision();
+        }
+        changed
+    }
+
+    /// Balance the handles of cubic segments (selected, or all when the
+    /// selection is empty) via Tunni: move both handles to the same fractional
+    /// distance toward the Tunni point, keeping their directions. Rounded to
+    /// the integer grid.
+    pub fn balance_selection(&mut self) -> bool {
+        let sel = self.selection.clone();
+        let all = sel.is_empty();
+        let mut changed = false;
+        for path in &mut self.paths {
+            let Path::Cubic(cubic) = path else {
+                continue;
+            };
+            let mut pts = cubic.points.to_vec();
+            let n = pts.len();
+            if n < 4 {
+                continue;
+            }
+            let last = if cubic.closed { n } else { n.saturating_sub(3) };
+            let mut updates: Vec<(usize, kurbo::Point)> = Vec::new();
+            for i in 0..last {
+                let (b, c, d) = ((i + 1) % n, (i + 2) % n, (i + 3) % n);
+                if !pts[i].is_on_curve()
+                    || pts[b].is_on_curve()
+                    || pts[c].is_on_curve()
+                    || !pts[d].is_on_curve()
+                {
+                    continue; // not a cubic segment
+                }
+                let selected = all
+                    || sel.contains(&pts[i].id)
+                    || sel.contains(&pts[b].id)
+                    || sel.contains(&pts[c].id)
+                    || sel.contains(&pts[d].id);
+                if !selected {
+                    continue;
+                }
+                if let Some((np1, np2)) =
+                    crate::curve::balance(pts[i].point, pts[b].point, pts[c].point, pts[d].point)
+                {
+                    updates.push((b, np1.round()));
+                    updates.push((c, np2.round()));
+                }
+            }
+            if !updates.is_empty() {
+                for (idx, p) in updates {
+                    pts[idx].point = p;
+                }
+                cubic.points = PathPoints::from_vec(pts);
+                changed = true;
+            }
+        }
+        if changed {
+            self.bump_edit_revision();
+        }
+        changed
+    }
+
     pub fn insert_point_on_segment(&mut self, segment_info: &SegmentInfo, t: f64) -> bool {
         let Some(path) = self.paths.get_mut(segment_info.path_index) else {
             return false;

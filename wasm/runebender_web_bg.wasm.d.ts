@@ -23,6 +23,7 @@ export const glypheditor_activateTextSortAtState: (a: number, b: number, c: numb
 export const glypheditor_addAnchorAt: (a: number, b: number, c: number, d: number, e: number) => number;
 export const glypheditor_advanceWidth: (a: number) => number;
 export const glypheditor_anchorContextAt: (a: number, b: number, c: number) => [number, number];
+export const glypheditor_balanceSelection: (a: number) => number;
 export const glypheditor_clearComponentSelection: (a: number) => void;
 export const glypheditor_clearSegmentHover: (a: number) => number;
 export const glypheditor_clearTextBuffer: (a: number) => void;
@@ -48,6 +49,7 @@ export const glypheditor_fitToCanvas: (a: number, b: number, c: number) => void;
 export const glypheditor_flipSelectionHorizontal: (a: number) => number;
 export const glypheditor_flipSelectionVertical: (a: number) => number;
 export const glypheditor_glyphBounds: (a: number) => [number, number];
+export const glypheditor_harmonizeSelection: (a: number) => number;
 export const glypheditor_insertInactiveTextGlyph: (a: number, b: number, c: number, d: number, e: number) => void;
 export const glypheditor_insertTextCharacter: (a: number, b: number) => number;
 export const glypheditor_insertTextGlyph: (a: number, b: number, c: number, d: number, e: number) => void;

@@ -1621,6 +1621,32 @@ impl GlyphEditor {
         self.renderer.set_curve_options(comb, continuity);
     }
 
+    /// Harmonize selected smooth nodes (or all if none selected) → G2.
+    #[wasm_bindgen(js_name = harmonizeSelection)]
+    pub fn harmonize_selection(&mut self) -> bool {
+        let snapshot = self.discrete_edit_snapshot();
+        if self.state.harmonize_selection() {
+            self.undo.add_undo_group(snapshot);
+            self.pending_snapshot = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Balance selected cubic segments' handles (or all if none selected).
+    #[wasm_bindgen(js_name = balanceSelection)]
+    pub fn balance_selection(&mut self) -> bool {
+        let snapshot = self.discrete_edit_snapshot();
+        if self.state.balance_selection() {
+            self.undo.add_undo_group(snapshot);
+            self.pending_snapshot = None;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn render(&mut self) -> Result<(), JsValue> {
         let text_mode_active = self.tool.is_text() && self.state.has_text_session;
         let preview_mode = self.tool.is_preview();

@@ -95,6 +95,14 @@ export class GlyphEditor {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
     }
+    /**
+     * Balance selected cubic segments' handles (or all if none selected).
+     * @returns {boolean}
+     */
+    balanceSelection() {
+        const ret = wasm.glypheditor_balanceSelection(this.__wbg_ptr);
+        return ret !== 0;
+    }
     clearComponentSelection() {
         wasm.glypheditor_clearComponentSelection(this.__wbg_ptr);
     }
@@ -315,6 +323,14 @@ export class GlyphEditor {
         var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
         return v1;
+    }
+    /**
+     * Harmonize selected smooth nodes (or all if none selected) → G2.
+     * @returns {boolean}
+     */
+    harmonizeSelection() {
+        const ret = wasm.glypheditor_harmonizeSelection(this.__wbg_ptr);
+        return ret !== 0;
     }
     /**
      * @param {string} name

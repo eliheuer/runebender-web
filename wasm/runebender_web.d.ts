@@ -21,6 +21,10 @@ export class GlyphEditor {
      */
     advanceWidth(): number;
     anchorContextAt(x: number, y: number): string;
+    /**
+     * Balance selected cubic segments' handles (or all if none selected).
+     */
+    balanceSelection(): boolean;
     clearComponentSelection(): void;
     clearSegmentHover(): boolean;
     clearTextBuffer(): void;
@@ -81,6 +85,10 @@ export class GlyphEditor {
      * height]`, or `[]` when the open glyph has no drawable bounds.
      */
     glyphBounds(): Float64Array;
+    /**
+     * Harmonize selected smooth nodes (or all if none selected) → G2.
+     */
+    harmonizeSelection(): boolean;
     insertInactiveTextGlyph(name: string, codepoint: number, advance_width: number): void;
     insertTextCharacter(codepoint: number): boolean;
     insertTextGlyph(name: string, codepoint: number, advance_width: number): void;
@@ -428,6 +436,7 @@ export interface InitOutput {
     readonly glypheditor_addAnchorAt: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly glypheditor_advanceWidth: (a: number) => number;
     readonly glypheditor_anchorContextAt: (a: number, b: number, c: number) => [number, number];
+    readonly glypheditor_balanceSelection: (a: number) => number;
     readonly glypheditor_clearComponentSelection: (a: number) => void;
     readonly glypheditor_clearSegmentHover: (a: number) => number;
     readonly glypheditor_clearTextBuffer: (a: number) => void;
@@ -453,6 +462,7 @@ export interface InitOutput {
     readonly glypheditor_flipSelectionHorizontal: (a: number) => number;
     readonly glypheditor_flipSelectionVertical: (a: number) => number;
     readonly glypheditor_glyphBounds: (a: number) => [number, number];
+    readonly glypheditor_harmonizeSelection: (a: number) => number;
     readonly glypheditor_insertInactiveTextGlyph: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly glypheditor_insertTextCharacter: (a: number, b: number) => number;
     readonly glypheditor_insertTextGlyph: (a: number, b: number, c: number, d: number, e: number) => void;

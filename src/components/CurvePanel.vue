@@ -10,6 +10,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "update:comb", v: boolean): void;
   (e: "update:continuity", v: boolean): void;
+  (e: "harmonize"): void;
+  (e: "balance"): void;
 }>();
 
 function allOff() {
@@ -38,6 +40,21 @@ function allOff() {
       continuity G0–G3
     </button>
     <button class="row-btn small" @click="allOff">all off</button>
+    <div class="label">tools</div>
+    <button
+      class="row-btn"
+      title="Harmonize selected smooth nodes (or all) to G2 curvature continuity"
+      @click="emit('harmonize')"
+    >
+      harmonize → G2
+    </button>
+    <button
+      class="row-btn"
+      title="Balance selected segment handles (Tunni)"
+      @click="emit('balance')"
+    >
+      balance handles
+    </button>
   </section>
 </template>
 
