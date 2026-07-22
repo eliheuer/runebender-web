@@ -800,6 +800,14 @@ export class GlyphEditor {
         wasm.glypheditor_setCoordinateQuadrant(this.__wbg_ptr, ptr0, len0);
     }
     /**
+     * Toggle the curve-smoothness HUD layers (comb, continuity markers).
+     * @param {boolean} comb
+     * @param {boolean} continuity
+     */
+    setCurveOptions(comb, continuity) {
+        wasm.glypheditor_setCurveOptions(this.__wbg_ptr, comb, continuity);
+    }
+    /**
      * @param {number} scale
      */
     setDeviceScale(scale) {

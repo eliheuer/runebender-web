@@ -96,6 +96,7 @@ export const glypheditor_setAdvanceWidth: (a: number, b: number) => number;
 export const glypheditor_setComponentGlyph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
 export const glypheditor_setComponentGlyphs: (a: number, b: number, c: number) => [number, number];
 export const glypheditor_setCoordinateQuadrant: (a: number, b: number, c: number) => void;
+export const glypheditor_setCurveOptions: (a: number, b: number, c: number) => void;
 export const glypheditor_setDeviceScale: (a: number, b: number) => void;
 export const glypheditor_setFontInfo: (a: number, b: number, c: number) => [number, number];
 export const glypheditor_setGlyphGlif: (a: number, b: number, c: number) => [number, number];

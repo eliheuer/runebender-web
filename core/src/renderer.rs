@@ -33,6 +33,29 @@ use crate::text::TextLayout;
 
 type Srgb = AlphaColor<vello::peniko::color::Srgb>;
 
+/// Curvature-comb color ramp: a vibrant cool→warm gradient (teal → indigo →
+/// magenta → orange → amber) for low→high curvature. Opaque, tuned to look
+/// good on the dark canvas and in screenshots.
+fn curve_gradient(t: f64) -> Srgb {
+    const STOPS: [[f32; 3]; 5] = [
+        [0.16, 0.80, 0.82], // teal
+        [0.40, 0.44, 0.95], // indigo
+        [0.86, 0.28, 0.72], // magenta
+        [1.00, 0.55, 0.24], // orange
+        [1.00, 0.84, 0.36], // amber
+    ];
+    let u = (t.clamp(0.0, 1.0) as f32) * (STOPS.len() as f32 - 1.0);
+    let i = (u.floor() as usize).min(STOPS.len() - 2);
+    let f = u - i as f32;
+    let (a, b) = (STOPS[i], STOPS[i + 1]);
+    AlphaColor::new([
+        a[0] + (b[0] - a[0]) * f,
+        a[1] + (b[1] - a[1]) * f,
+        a[2] + (b[2] - a[2]) * f,
+        1.0,
+    ])
+}
+
 const fn srgb(color: theme::ColorRgba) -> Srgb {
     AlphaColor::from_rgba8(color.r, color.g, color.b, color.a)
 }
@@ -278,6 +301,15 @@ impl MeasureOptions {
     }
 }
 
+/// Which curve-smoothness layers are on. All-false = plain editor.
+#[derive(Clone, Copy, Default)]
+pub struct CurveOptions {
+    /// Speedpunk-style curvature comb.
+    pub comb: bool,
+    /// Continuity markers per smooth node (G0/G1/G2/G3 dots).
+    pub continuity: bool,
+}
+
 pub struct Renderer {
     // Hand-rolled wgpu setup (instead of vello::util::RenderContext) so
     // we can request the adapter's full max_texture_dimension_2d. Vello
@@ -302,6 +334,7 @@ pub struct Renderer {
     text_outline_cache: HashMap<String, TextOutlineCacheEntry>,
     hud_text: crate::hud_text::HudText,
     measure_options: MeasureOptions,
+    curve_options: CurveOptions,
     device_scale: f64,
     width: u32,
     height: u32,
@@ -597,6 +630,7 @@ impl Renderer {
             text_outline_cache: HashMap::new(),
             hud_text: crate::hud_text::HudText::new(),
             measure_options: MeasureOptions::default(),
+            curve_options: CurveOptions::default(),
             device_scale: 1.0,
             width,
             height,
@@ -655,6 +689,10 @@ impl Renderer {
             spans,
             sidebearings,
         };
+    }
+
+    pub fn set_curve_options(&mut self, comb: bool, continuity: bool) {
+        self.curve_options = CurveOptions { comb, continuity };
     }
 
     fn px(&self, value: f64) -> f64 {
@@ -874,6 +912,9 @@ impl Renderer {
         glyph_view: Affine,
         changed_path_indices: Option<&HashSet<usize>>,
     ) {
+        // Curvature comb first, so the outline, handle lines, and points draw
+        // on top of it and stay grabbable.
+        self.draw_curvature_comb(state, glyph_view);
         // Handle lines and points are drawn in screen space so they
         // stay at constant pixel size regardless of zoom.
         let point_scale = self.point_scale(state.viewport.zoom);
@@ -929,6 +970,89 @@ impl Renderer {
         }
 
         self.draw_measurements(state, glyph_view);
+        self.draw_continuity_markers(state, glyph_view);
+    }
+
+    /// The curve-smoothness HUD: a Speedpunk-style curvature comb and/or
+    /// per-node continuity markers (G0/G1/G2/G3), toggled from the curve panel.
+    /// Curvature comb — drawn BEHIND the outline/handles/points so they stay
+    /// selectable and movable over it.
+    fn draw_curvature_comb(&mut self, state: &EditorState, glyph_view: Affine) {
+        if self.curve_options.comb {
+            let maxk = crate::curve::max_curvature(&state.paths);
+            if maxk > 1e-12 {
+                // Shorter than Speedpunk's default so ribs don't collide
+                // across tight counters; scales with the em.
+                let scale = 74.0 / maxk;
+                let strips = crate::curve::curvature_comb(&state.paths, 1.0, scale, false, 32);
+                let env_stroke = Stroke::new(self.px(0.9));
+                for strip in &strips {
+                    if strip.len() < 2 {
+                        continue;
+                    }
+                    // Filled ribbon: one gradient-colored quad per sample pair.
+                    for w in strip.windows(2) {
+                        let (s0, s1) = (w[0], w[1]);
+                        let mut quad = BezPath::new();
+                        quad.move_to(glyph_view * s0.on);
+                        quad.line_to(glyph_view * s1.on);
+                        quad.line_to(glyph_view * s1.outer);
+                        quad.line_to(glyph_view * s0.outer);
+                        quad.close_path();
+                        let k = (s0.kappa.abs() + s1.kappa.abs()) * 0.5 / maxk;
+                        self.scene.fill(
+                            Fill::NonZero,
+                            Affine::IDENTITY,
+                            curve_gradient(k),
+                            None,
+                            &quad,
+                        );
+                    }
+                    // Crisp outer envelope line on top for a clean edge.
+                    let mut env = BezPath::new();
+                    for (i, s) in strip.iter().enumerate() {
+                        let p = glyph_view * s.outer;
+                        if i == 0 {
+                            env.move_to(p);
+                        } else {
+                            env.line_to(p);
+                        }
+                    }
+                    let midk = strip[strip.len() / 2].kappa.abs() / maxk;
+                    self.scene.stroke(
+                        &env_stroke,
+                        Affine::IDENTITY,
+                        curve_gradient(midk),
+                        None,
+                        &env,
+                    );
+                }
+            }
+        }
+    }
+
+    /// Continuity markers — drawn on top, like the points they annotate.
+    fn draw_continuity_markers(&mut self, state: &EditorState, glyph_view: Affine) {
+        if self.curve_options.continuity {
+            let green: Srgb = AlphaColor::new([0.09, 0.72, 0.44, 1.0]);
+            let yellow: Srgb = AlphaColor::new([1.0, 0.86, 0.2, 1.0]);
+            let red: Srgb = AlphaColor::new([1.0, 0.29, 0.24, 1.0]);
+            let blue: Srgb = AlphaColor::new([0.4, 0.6, 1.0, 0.8]);
+            let r = self.px(5.0);
+            for nc in crate::curve::node_continuity(&state.paths) {
+                use crate::curve::GLevel;
+                let color = match nc.level {
+                    GLevel::Corner => continue,
+                    GLevel::G2 | GLevel::G3 => green,
+                    GLevel::G1 => yellow,
+                    GLevel::G1Line => blue,
+                    GLevel::Kink => red,
+                };
+                let c = glyph_view * nc.at;
+                self.scene
+                    .fill(Fill::NonZero, Affine::IDENTITY, color, None, &Circle::new(c, r));
+            }
+        }
     }
 
     /// The live grid-measurement HUD. Layers are toggled by MeasureOptions:

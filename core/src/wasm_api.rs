@@ -1615,6 +1615,12 @@ impl GlyphEditor {
             .set_measure_options(colorize, handles, segments, spans, sidebearings);
     }
 
+    /// Toggle the curve-smoothness HUD layers (comb, continuity markers).
+    #[wasm_bindgen(js_name = setCurveOptions)]
+    pub fn set_curve_options(&mut self, comb: bool, continuity: bool) {
+        self.renderer.set_curve_options(comb, continuity);
+    }
+
     pub fn render(&mut self) -> Result<(), JsValue> {
         let text_mode_active = self.tool.is_text() && self.state.has_text_session;
         let preview_mode = self.tool.is_preview();

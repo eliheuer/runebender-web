@@ -55,6 +55,7 @@ import GlyphCell from "./components/GlyphCell.vue";
 import GlyphInfoSidebar from "./components/GlyphInfoSidebar.vue";
 import SketchPanel from "./components/SketchPanel.vue";
 import SelectPanel from "./components/SelectPanel.vue";
+import CurvePanel from "./components/CurvePanel.vue";
 import MarkColorPanel from "./components/MarkColorPanel.vue";
 import MasterToolbar from "./components/MasterToolbar.vue";
 import TopBar from "./components/TopBar.vue";
@@ -220,6 +221,8 @@ const measureHandles = ref(false);
 const measureSegments = ref(false);
 const measureSpans = ref(false);
 const measureSidebearings = ref(false);
+const curveComb = ref(false);
+const curveContinuity = ref(false);
 const activeShape = ref<ShapeKind>("rectangle");
 const textDirection = ref<TextDirection>("ltr");
 const hasTextBufferSession = ref<boolean>(false);
@@ -1436,6 +1439,7 @@ type Editor = {
     spans: boolean,
     sidebearings: boolean,
   ): void;
+  setCurveOptions(comb: boolean, continuity: boolean): void;
   setGlyphSvg(svg: string): void;
   setGlyphGlif(bytes: Uint8Array): void;
   setComponentGlyphs(glyphXmlByName: string): void;
@@ -1770,6 +1774,12 @@ watch(
   ],
   applyMeasureOptions,
 );
+
+function applyCurveOptions() {
+  editor?.setCurveOptions(curveComb.value, curveContinuity.value);
+  requestRender({ refreshDerivedState: false });
+}
+watch([curveComb, curveContinuity], applyCurveOptions);
 
 function requestRender(options: RenderRequestOptions = {}) {
   if (!editor || (viewMode.value !== "editor" && glyphNames.value.length > 0)) return;
@@ -8935,20 +8945,29 @@ onBeforeUnmount(() => {
           @bank="bankSketchPair"
         />
 
-        <SelectPanel
+        <div
           v-if="viewMode === 'editor' && editorPanelsVisible && selectActive"
-          class="helper-overlay"
-          :colorize="measureColorize"
-          :handles="measureHandles"
-          :segments="measureSegments"
-          :spans="measureSpans"
-          :sidebearings="measureSidebearings"
-          @update:colorize="(v: boolean) => (measureColorize = v)"
-          @update:handles="(v: boolean) => (measureHandles = v)"
-          @update:segments="(v: boolean) => (measureSegments = v)"
-          @update:spans="(v: boolean) => (measureSpans = v)"
-          @update:sidebearings="(v: boolean) => (measureSidebearings = v)"
-        />
+          class="helper-overlay select-stack"
+        >
+          <SelectPanel
+            :colorize="measureColorize"
+            :handles="measureHandles"
+            :segments="measureSegments"
+            :spans="measureSpans"
+            :sidebearings="measureSidebearings"
+            @update:colorize="(v: boolean) => (measureColorize = v)"
+            @update:handles="(v: boolean) => (measureHandles = v)"
+            @update:segments="(v: boolean) => (measureSegments = v)"
+            @update:spans="(v: boolean) => (measureSpans = v)"
+            @update:sidebearings="(v: boolean) => (measureSidebearings = v)"
+          />
+          <CurvePanel
+            :comb="curveComb"
+            :continuity="curveContinuity"
+            @update:comb="(v: boolean) => (curveComb = v)"
+            @update:continuity="(v: boolean) => (curveContinuity = v)"
+          />
+        </div>
 
         <div
           v-if="viewMode === 'editor' && measureInfo"
@@ -9502,6 +9521,11 @@ onBeforeUnmount(() => {
   height: max-content;
   margin-block: auto;
   z-index: 3;
+}
+.select-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .stage.editor-bottom-preview-visible .helper-overlay {

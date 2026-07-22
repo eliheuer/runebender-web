@@ -206,6 +206,10 @@ export class GlyphEditor {
     setComponentGlyph(name: string, bytes: Uint8Array): void;
     setComponentGlyphs(glyph_xml_by_name: string): void;
     setCoordinateQuadrant(quadrant: string): void;
+    /**
+     * Toggle the curve-smoothness HUD layers (comb, continuity markers).
+     */
+    setCurveOptions(comb: boolean, continuity: boolean): void;
     setDeviceScale(scale: number): void;
     /**
      * Parse a UFO `fontinfo.plist` and store the vertical metrics
@@ -497,6 +501,7 @@ export interface InitOutput {
     readonly glypheditor_setComponentGlyph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly glypheditor_setComponentGlyphs: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_setCoordinateQuadrant: (a: number, b: number, c: number) => void;
+    readonly glypheditor_setCurveOptions: (a: number, b: number, c: number) => void;
     readonly glypheditor_setDeviceScale: (a: number, b: number) => void;
     readonly glypheditor_setFontInfo: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_setGlyphGlif: (a: number, b: number, c: number) => [number, number];
