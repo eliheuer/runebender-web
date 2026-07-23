@@ -5324,7 +5324,13 @@ function updateActiveTextKern(side: "left" | "right", value: string) {
     if (value.trim() !== value) return;
     const kernValue = Number(value);
     if (!Number.isFinite(kernValue)) return;
-    pairs.set(pair[1], kernValue);
+    // A 0 kern is no adjustment, so clear it back to Auto rather than storing
+    // an explicit 0 pair (which would clutter the kerning and read as "set").
+    if (kernValue === 0) {
+      pairs.delete(pair[1]);
+    } else {
+      pairs.set(pair[1], kernValue);
+    }
   }
 
   if (pairs.size > 0) {
