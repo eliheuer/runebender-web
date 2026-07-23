@@ -3419,17 +3419,27 @@ function deleteSelectedBackgroundImage(): boolean {
   return true;
 }
 
-function nudgeSelectedBackgroundImage(dx: number, dy: number): boolean {
+function nudgeSelectedBackgroundImage(
+  dx: number,
+  dy: number,
+  shift: boolean,
+  ctrl: boolean,
+): boolean {
   const bg = backgroundImage.value;
   if (!bg?.selected || bg.locked) return false;
+  // Keep the fine 1-unit base for precise alignment; shift/ctrl jump in
+  // bigger steps (matching the selection-nudge 8/32 convention).
+  const amount = ctrl ? 32 : shift ? 8 : 1;
+  const mx = dx * amount;
+  const my = dy * amount;
   backgroundImage.value = {
     ...bg,
-    designX: bg.designX + dx,
-    designY: bg.designY + dy,
-    traceXOffset: bg.traceXOffset === undefined ? undefined : bg.traceXOffset + dx,
-    traceYOffset: bg.traceYOffset === undefined ? undefined : bg.traceYOffset + dy,
+    designX: bg.designX + mx,
+    designY: bg.designY + my,
+    traceXOffset: bg.traceXOffset === undefined ? undefined : bg.traceXOffset + mx,
+    traceYOffset: bg.traceYOffset === undefined ? undefined : bg.traceYOffset + my,
   };
-  status.value = "background image moved";
+  status.value = `background image moved ${amount}u`;
   refreshBackgroundImageFrame();
   requestRender();
   return true;
@@ -8019,7 +8029,7 @@ function handleArrowNudgeKey(e: KeyboardEvent, meta: boolean): boolean {
   if (textModeActive.value) return false;
   const nudge = arrowNudgeDelta(e.key);
   if (!nudge) return false;
-  if (nudgeSelectedBackgroundImage(nudge[0], nudge[1])) {
+  if (nudgeSelectedBackgroundImage(nudge[0], nudge[1], e.shiftKey, meta)) {
     return true;
   }
   return (
