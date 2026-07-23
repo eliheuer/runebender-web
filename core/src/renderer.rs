@@ -1011,26 +1011,29 @@ impl Renderer {
         }
     }
 
-    /// Continuity markers — drawn on top, like the points they annotate.
+    /// Continuity markers — a hollow ring around each smooth node so the point
+    /// marker shows through inside. Colors are chosen distinct from the
+    /// editor's point palette (see the legend in CurvePanel). Drawn on top.
     fn draw_continuity_markers(&mut self, state: &EditorState, glyph_view: Affine) {
         if self.curve_options.continuity {
-            let green: Srgb = AlphaColor::new([0.09, 0.72, 0.44, 1.0]);
-            let yellow: Srgb = AlphaColor::new([1.0, 0.86, 0.2, 1.0]);
-            let red: Srgb = AlphaColor::new([1.0, 0.29, 0.24, 1.0]);
-            let blue: Srgb = AlphaColor::new([0.4, 0.6, 1.0, 0.8]);
-            let r = self.px(5.0);
+            let g2: Srgb = AlphaColor::new([0.13, 0.83, 0.65, 1.0]); // teal-green
+            let g1: Srgb = AlphaColor::new([1.0, 0.82, 0.25, 1.0]); // yellow
+            let line: Srgb = AlphaColor::new([0.50, 0.55, 0.64, 0.9]); // slate
+            let kink: Srgb = AlphaColor::new([1.0, 0.27, 0.23, 1.0]); // red
+            let r = self.px(9.0);
+            let ring = Stroke::new(self.px(1.75));
             for nc in crate::curve::node_continuity(&state.paths) {
                 use crate::curve::GLevel;
                 let color = match nc.level {
                     GLevel::Corner => continue,
-                    GLevel::G2 | GLevel::G3 => green,
-                    GLevel::G1 => yellow,
-                    GLevel::G1Line => blue,
-                    GLevel::Kink => red,
+                    GLevel::G2 | GLevel::G3 => g2,
+                    GLevel::G1 => g1,
+                    GLevel::G1Line => line,
+                    GLevel::Kink => kink,
                 };
                 let c = glyph_view * nc.at;
                 self.scene
-                    .fill(Fill::NonZero, Affine::IDENTITY, color, None, &Circle::new(c, r));
+                    .stroke(&ring, Affine::IDENTITY, color, None, &Circle::new(c, r));
             }
         }
     }
