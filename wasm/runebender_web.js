@@ -507,6 +507,15 @@ export class GlyphEditor {
         return v1;
     }
     /**
+     * Auto-fair: optimize handles for continuity + even curvature + low
+     * popcount (selection, or whole glyph if none selected).
+     * @returns {boolean}
+     */
+    optimizeSelection() {
+        const ret = wasm.glypheditor_optimizeSelection(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
      * @returns {boolean}
      */
     pasteSelection() {

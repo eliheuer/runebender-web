@@ -2373,6 +2373,54 @@ impl EditorState {
         changed
     }
 
+    /// Auto-fair: for each contour in scope, run the multi-objective optimizer
+    /// (continuity → even curvature → low popcount, in that priority) on the
+    /// handles, keeping the on-curve points fixed.
+    pub fn optimize_selection(&mut self) -> bool {
+        let sel = self.selection.clone();
+        let all = sel.is_empty();
+        let mut changed = false;
+        for path in &mut self.paths {
+            let Path::Cubic(cubic) = path else {
+                continue;
+            };
+            if !cubic.closed {
+                continue;
+            }
+            let mut pts = cubic.points.to_vec();
+            if pts.len() < 4 {
+                continue;
+            }
+            if !all && !pts.iter().any(|p| sel.contains(&p.id)) {
+                continue;
+            }
+            let opts: Vec<crate::curve::OptPoint> = pts
+                .iter()
+                .map(|p| crate::curve::OptPoint {
+                    p: p.point,
+                    on: p.is_on_curve(),
+                    smooth: matches!(p.typ, crate::path::PointType::OnCurve { smooth: true }),
+                })
+                .collect();
+            let newpos = crate::curve::optimize_contour(&opts, 0.12);
+            let mut any = false;
+            for (i, p) in pts.iter_mut().enumerate() {
+                if !p.is_on_curve() && (p.point - newpos[i]).hypot() > 1e-6 {
+                    p.point = newpos[i];
+                    any = true;
+                }
+            }
+            if any {
+                cubic.points = PathPoints::from_vec(pts);
+                changed = true;
+            }
+        }
+        if changed {
+            self.bump_edit_revision();
+        }
+        changed
+    }
+
     pub fn insert_point_on_segment(&mut self, segment_info: &SegmentInfo, t: f64) -> bool {
         let Some(path) = self.paths.get_mut(segment_info.path_index) else {
             return false;

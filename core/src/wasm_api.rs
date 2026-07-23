@@ -1647,6 +1647,20 @@ impl GlyphEditor {
         }
     }
 
+    /// Auto-fair: optimize handles for continuity + even curvature + low
+    /// popcount (selection, or whole glyph if none selected).
+    #[wasm_bindgen(js_name = optimizeSelection)]
+    pub fn optimize_selection(&mut self) -> bool {
+        let snapshot = self.discrete_edit_snapshot();
+        if self.state.optimize_selection() {
+            self.undo.add_undo_group(snapshot);
+            self.pending_snapshot = None;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn render(&mut self) -> Result<(), JsValue> {
         let text_mode_active = self.tool.is_text() && self.state.has_text_session;
         let preview_mode = self.tool.is_preview();

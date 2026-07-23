@@ -12,6 +12,7 @@ const emit = defineEmits<{
   (e: "update:continuity", v: boolean): void;
   (e: "harmonize"): void;
   (e: "balance"): void;
+  (e: "optimize"): void;
 }>();
 
 function allOff() {
@@ -39,6 +40,12 @@ function allOff() {
     >
       continuity G0–G3
     </button>
+    <div v-if="props.continuity" class="legend">
+      <div class="key"><span class="ring g2"></span>G2 · smooth</div>
+      <div class="key"><span class="ring g1"></span>G1 · harmonize</div>
+      <div class="key"><span class="ring line"></span>line↔curve</div>
+      <div class="key"><span class="ring kink"></span>kink</div>
+    </div>
     <button class="row-btn small" @click="allOff">all off</button>
     <div class="label">tools</div>
     <button
@@ -54,6 +61,13 @@ function allOff() {
       @click="emit('balance')"
     >
       balance handles
+    </button>
+    <button
+      class="row-btn optimize"
+      title="Auto-fair: optimize continuity, even curvature, and low popcount together"
+      @click="emit('optimize')"
+    >
+      ✦ optimize
     </button>
   </section>
 </template>
@@ -100,5 +114,37 @@ function allOff() {
 .row-btn.on {
   background: color-mix(in srgb, var(--rb-accent, #18b86f) 22%, transparent);
   border-color: color-mix(in srgb, var(--rb-accent, #18b86f) 65%, transparent);
+}
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 2px 4px;
+}
+.key {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  opacity: 0.85;
+}
+.ring {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.75px solid;
+  flex: none;
+}
+.ring.g2 {
+  border-color: #21d4a6;
+}
+.ring.g1 {
+  border-color: #ffd140;
+}
+.ring.line {
+  border-color: #808ca3;
+}
+.ring.kink {
+  border-color: #ff453b;
 }
 </style>

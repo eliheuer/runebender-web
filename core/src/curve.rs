@@ -403,9 +403,231 @@ pub fn balance(p0: Point, p1: Point, p2: Point, p3: Point) -> Option<(Point, Poi
     Some((p0.lerp(s, avg), p3.lerp(s, avg)))
 }
 
+/// Popcount (Hamming weight) — number of powers of two a length is the sum of.
+pub fn popcount(v: i64) -> u32 {
+    (v.max(0) as u64).count_ones()
+}
+
+/// Even integer lengths within `window` of `l`, ordered lowest-popcount first
+/// (then closest). Even only, to stay on the 2-grid.
+fn nice_lengths_near(l: f64, window: f64) -> Vec<i64> {
+    let lo = ((l - window).max(2.0)).floor() as i64;
+    let hi = (l + window).ceil() as i64;
+    let mut v: Vec<i64> = (lo..=hi).filter(|x| x % 2 == 0).collect();
+    v.sort_by(|a, b| {
+        popcount(*a).cmp(&popcount(*b)).then(
+            (*a as f64 - l)
+                .abs()
+                .partial_cmp(&(*b as f64 - l).abs())
+                .unwrap(),
+        )
+    });
+    v
+}
+
+/// Signed curvature at a cubic's start (t=0), closed form. p3 unused.
+pub fn curvature_start(p0: Point, p1: Point, p2: Point, _p3: Point) -> f64 {
+    let h = p1 - p0;
+    let len = h.hypot();
+    if len < 1e-9 {
+        return 0.0;
+    }
+    (2.0 / 3.0) * cross(h, p2 - p0) / (len * len * len)
+}
+
+/// Signed curvature at a cubic's end (t=1), closed form. p0 unused.
+pub fn curvature_end(_p0: Point, p1: Point, p2: Point, p3: Point) -> f64 {
+    let h = p3 - p2;
+    let len = h.hypot();
+    if len < 1e-9 {
+        return 0.0;
+    }
+    (2.0 / 3.0) * cross(h, p1 - p2) / (len * len * len)
+}
+
+/// Variance of curvature sampled along a cubic — 0 for a circular arc.
+fn curvature_variance(p0: Point, p1: Point, p2: Point, p3: Point) -> f64 {
+    let c = Cubic {
+        p0,
+        p1,
+        p2,
+        p3,
+        straight: false,
+        start_smooth: false,
+    };
+    let n = 12;
+    let ks: Vec<f64> = (0..=n).map(|i| c.curvature(i as f64 / n as f64)).collect();
+    let m = ks.iter().sum::<f64>() / ks.len() as f64;
+    ks.iter().map(|k| (k - m) * (k - m)).sum::<f64>() / ks.len() as f64
+}
+
+/// One point for the optimizer.
+#[derive(Clone, Copy)]
+pub struct OptPoint {
+    pub p: Point,
+    pub on: bool,
+    pub smooth: bool,
+}
+
+/// Optimize a closed cubic contour's handles: balance → harmonize → balance
+/// (continuity + even curvature), then snap each handle's length to the
+/// lowest-popcount even value that doesn't worsen the local curvature/G2
+/// beyond `tol`. On-curve points never move. Returns new positions.
+pub fn optimize_contour(pts: &[OptPoint], tol: f64) -> Vec<Point> {
+    let n = pts.len();
+    let mut q: Vec<Point> = pts.iter().map(|x| x.p).collect();
+    let on: Vec<bool> = pts.iter().map(|x| x.on).collect();
+    let smooth: Vec<bool> = pts.iter().map(|x| x.smooth).collect();
+    if n < 4 {
+        return q;
+    }
+    balance_all(&mut q, &on, n);
+    harmonize_all(&mut q, &on, &smooth, n);
+    balance_all(&mut q, &on, n);
+    for _ in 0..2 {
+        snap_all(&mut q, &on, n, tol);
+    }
+    for (i, p) in q.iter_mut().enumerate() {
+        if !on[i] {
+            *p = p.round();
+        }
+    }
+    q
+}
+
+fn balance_all(q: &mut [Point], on: &[bool], n: usize) {
+    for i in 0..n {
+        let (b, c, d) = ((i + 1) % n, (i + 2) % n, (i + 3) % n);
+        if !on[i] || on[b] || on[c] || !on[d] {
+            continue;
+        }
+        if let Some((np1, np2)) = balance(q[i], q[b], q[c], q[d]) {
+            q[b] = np1;
+            q[c] = np2;
+        }
+    }
+}
+
+fn harmonize_all(q: &mut [Point], on: &[bool], smooth: &[bool], n: usize) {
+    for i in 0..n {
+        if !on[i] || !smooth[i] {
+            continue;
+        }
+        let (a1, a2, b1, b2) = ((i + n - 2) % n, (i + n - 1) % n, (i + 1) % n, (i + 2) % n);
+        if on[a1] || on[a2] || on[b1] || on[b2] {
+            continue;
+        }
+        if let Some((na2, nb1)) = harmonize(q[a1], q[a2], q[i], q[b1], q[b2]) {
+            q[a2] = na2;
+            q[b1] = nb1;
+        }
+    }
+}
+
+fn snap_all(q: &mut [Point], on: &[bool], n: usize, tol: f64) {
+    for h in 0..n {
+        if on[h] {
+            continue;
+        }
+        let anchor = if on[(h + n - 1) % n] {
+            q[(h + n - 1) % n]
+        } else if on[(h + 1) % n] {
+            q[(h + 1) % n]
+        } else {
+            continue;
+        };
+        let d = q[h] - anchor;
+        let l = d.hypot();
+        if l < 1e-6 {
+            continue;
+        }
+        let dir = d / l;
+        let base = local_cost(q, on, n, h);
+        for cand in nice_lengths_near(l, 12.0) {
+            let old = q[h];
+            q[h] = anchor + dir * cand as f64;
+            if local_cost(q, on, n, h) <= base * (1.0 + tol) + 1e-9 {
+                break; // lowest-popcount candidate that keeps the curve
+            }
+            q[h] = old;
+        }
+    }
+}
+
+/// Local curvature cost around off-curve handle `h`: variance of its segment
+/// plus a heavier G2-mismatch penalty at that segment's two joins.
+fn local_cost(q: &[Point], on: &[bool], n: usize, h: usize) -> f64 {
+    let s0 = if on[(h + n - 1) % n] {
+        (h + n - 1) % n
+    } else if on[(h + n - 2) % n] {
+        (h + n - 2) % n
+    } else {
+        return 0.0;
+    };
+    let (s1, s2, s3) = ((s0 + 1) % n, (s0 + 2) % n, (s0 + 3) % n);
+    if !on[s0] || on[s1] || on[s2] || !on[s3] {
+        return 0.0;
+    }
+    let seg = [q[s0], q[s1], q[s2], q[s3]];
+    let mut cost = curvature_variance(seg[0], seg[1], seg[2], seg[3]) * 1e6;
+    // G2 with the previous segment (ending at s0).
+    let p0 = (s0 + n - 3) % n;
+    if on[p0] && !on[(p0 + 1) % n] && !on[(p0 + 2) % n] {
+        let ke = curvature_end(q[p0], q[(p0 + 1) % n], q[(p0 + 2) % n], seg[0]);
+        cost += (ke - curvature_start(seg[0], seg[1], seg[2], seg[3])).abs() * 1e5;
+    }
+    // G2 with the next segment (starting at s3).
+    let ne = (s3 + 3) % n;
+    if on[ne] && !on[(s3 + 1) % n] && !on[(s3 + 2) % n] {
+        let ks = curvature_start(q[s3], q[(s3 + 1) % n], q[(s3 + 2) % n], q[ne]);
+        cost += (curvature_end(seg[0], seg[1], seg[2], seg[3]) - ks).abs() * 1e5;
+    }
+    cost
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn popcount_and_nice_prefer_clean() {
+        assert_eq!(popcount(128), 1);
+        assert_eq!(popcount(192), 2); // 128 + 64
+        assert_eq!(popcount(130), 2); // 128 + 2
+                                      // near 126: 128 (pc1) should sort ahead of 126 (pc6).
+        let cands = nice_lengths_near(126.0, 12.0);
+        assert_eq!(cands[0], 128);
+    }
+
+    #[test]
+    fn optimize_keeps_on_curve_fixed_and_smooth() {
+        // Quarter-ish circle-ish closed contour (unit-ish), on/off/off/on...
+        let r = 100.0;
+        let k = 0.5522847 * r;
+        let pts = vec![
+            OptPoint { p: Point::new(r, 0.0), on: true, smooth: true },
+            OptPoint { p: Point::new(r, k), on: false, smooth: false },
+            OptPoint { p: Point::new(k, r), on: false, smooth: false },
+            OptPoint { p: Point::new(0.0, r), on: true, smooth: true },
+            OptPoint { p: Point::new(-k, r), on: false, smooth: false },
+            OptPoint { p: Point::new(-r, k), on: false, smooth: false },
+            OptPoint { p: Point::new(-r, 0.0), on: true, smooth: true },
+            OptPoint { p: Point::new(-r, -k), on: false, smooth: false },
+            OptPoint { p: Point::new(-k, -r), on: false, smooth: false },
+            OptPoint { p: Point::new(0.0, -r), on: true, smooth: true },
+            OptPoint { p: Point::new(k, -r), on: false, smooth: false },
+            OptPoint { p: Point::new(r, -k), on: false, smooth: false },
+        ];
+        let out = optimize_contour(&pts, 0.12);
+        // On-curve points are unchanged.
+        for (i, op) in pts.iter().enumerate() {
+            if op.on {
+                assert!((out[i] - op.p).hypot() < 1e-6);
+            }
+        }
+        // Handles stay near the circle's control length (didn't blow up).
+        assert!((out[1] - Point::new(r, 0.0)).hypot() < r);
+    }
 
     // A cubic approximating a quarter circle of radius r: handle length
     // k·r with k = 4/3·(√2−1) ≈ 0.5523. Curvature ≈ 1/r.

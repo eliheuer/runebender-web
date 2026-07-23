@@ -1424,6 +1424,7 @@ type Editor = {
   roundSelectedCorners(): boolean;
   harmonizeSelection(): boolean;
   balanceSelection(): boolean;
+  optimizeSelection(): boolean;
   togglePointTypeAt(x: number, y: number): boolean;
   selectContourAt(x: number, y: number): boolean;
   unionSelection(): boolean;
@@ -1788,6 +1789,9 @@ function harmonizeCurves() {
 }
 function balanceCurves() {
   if (editor) applyEditorMutation(() => editor.balanceSelection());
+}
+function optimizeCurves() {
+  if (editor) applyEditorMutation(() => editor.optimizeSelection());
 }
 
 function requestRender(options: RenderRequestOptions = {}) {
@@ -8977,6 +8981,7 @@ onBeforeUnmount(() => {
             @update:continuity="(v: boolean) => (curveContinuity = v)"
             @harmonize="harmonizeCurves"
             @balance="balanceCurves"
+            @optimize="optimizeCurves"
           />
         </div>
 

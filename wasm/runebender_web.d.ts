@@ -134,6 +134,11 @@ export class GlyphEditor {
      * skips the contour-membership scan used by the full selection snapshot.
      */
     nudgeSelectionState(dx: number, dy: number, shift: boolean, ctrl: boolean, independent: boolean): Float64Array;
+    /**
+     * Auto-fair: optimize handles for continuity + even curvature + low
+     * popcount (selection, or whole glyph if none selected).
+     */
+    optimizeSelection(): boolean;
     pasteSelection(): boolean;
     /**
      * Backspace with the pen tool: delete the last point of the contour
@@ -480,6 +485,7 @@ export interface InitOutput {
     readonly glypheditor_nudgeSelection: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly glypheditor_nudgeSelectionFastState: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly glypheditor_nudgeSelectionState: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
+    readonly glypheditor_optimizeSelection: (a: number) => number;
     readonly glypheditor_pasteSelection: (a: number) => number;
     readonly glypheditor_penDeleteLastPoint: (a: number) => number;
     readonly glypheditor_pointerCancel: (a: number) => number;
