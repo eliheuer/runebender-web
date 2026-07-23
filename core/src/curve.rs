@@ -414,6 +414,21 @@ fn round_even(p: Point) -> Point {
     Point::new((p.x / 2.0).round() * 2.0, (p.y / 2.0).round() * 2.0)
 }
 
+fn round_even_scalar(v: f64) -> i64 {
+    ((v / 2.0).round() * 2.0) as i64
+}
+
+/// Even integers within `w` of `center` (center should already be even).
+fn even_range(center: i64, w: i64) -> Vec<i64> {
+    let mut out = Vec::new();
+    let mut d = -w;
+    while d <= w {
+        out.push(center + d);
+        d += 2;
+    }
+    out
+}
+
 /// Signed curvature at a cubic's start (t=0), closed form. p3 unused.
 pub fn curvature_start(p0: Point, p1: Point, p2: Point, _p3: Point) -> f64 {
     let h = p1 - p0;
@@ -466,12 +481,11 @@ pub fn optimize_contour(pts: &[OptPoint], tol: f64) -> Vec<Point> {
     let n = pts.len();
     let mut q: Vec<Point> = pts.iter().map(|x| x.p).collect();
     let on: Vec<bool> = pts.iter().map(|x| x.on).collect();
-    let smooth: Vec<bool> = pts.iter().map(|x| x.smooth).collect();
     if n < 4 {
         return q;
     }
-    balance_all(&mut q, &on, n);
-    harmonize_all(&mut q, &on, &smooth, n);
+    // Even the handle tension (direction-preserving, so continuity/G1 is
+    // never disturbed), then snap onto the grid toward clean popcounts.
     balance_all(&mut q, &on, n);
     for _ in 0..2 {
         snap_all(&mut q, &on, n, tol);
@@ -497,22 +511,6 @@ fn balance_all(q: &mut [Point], on: &[bool], n: usize) {
     }
 }
 
-fn harmonize_all(q: &mut [Point], on: &[bool], smooth: &[bool], n: usize) {
-    for i in 0..n {
-        if !on[i] || !smooth[i] {
-            continue;
-        }
-        let (a1, a2, b1, b2) = ((i + n - 2) % n, (i + n - 1) % n, (i + 1) % n, (i + 2) % n);
-        if on[a1] || on[a2] || on[b1] || on[b2] {
-            continue;
-        }
-        if let Some((na2, nb1)) = harmonize(q[a1], q[a2], q[i], q[b1], q[b2]) {
-            q[a2] = na2;
-            q[b1] = nb1;
-        }
-    }
-}
-
 fn snap_all(q: &mut [Point], on: &[bool], n: usize, tol: f64) {
     for h in 0..n {
         if on[h] {
@@ -526,27 +524,30 @@ fn snap_all(q: &mut [Point], on: &[bool], n: usize, tol: f64) {
             continue;
         };
         let smooth_pos = q[h];
-        // Baseline: nearest even-grid point (always on the 2-unit grid).
-        let base_pos = round_even(smooth_pos);
-        q[h] = base_pos;
-        let base = local_cost(q, on, n, h);
+        let d = smooth_pos - anchor;
+        // A handle that runs horizontally/vertically from its node sits at an
+        // extremum: pin the perpendicular coordinate to the node so the two
+        // handles stay colinear (flat tangent) and on-grid. Only the along-axis
+        // length is free to snap. Diagonal handles snap on both axes.
+        let lock_x = d.x.abs() < 0.5; // vertical handle → x pinned
+        let lock_y = d.y.abs() < 0.5; // horizontal handle → y pinned
         let ax = anchor.x.round() as i64;
         let ay = anchor.y.round() as i64;
-        let bx = base_pos.x as i64;
-        let by = base_pos.y as i64;
-        // Even-grid candidates in a small window, ordered by the popcount of
-        // the handle's delta from its anchor (prefers multiples of 8 / powers
-        // of two), then by closeness to the smooth position.
+        let base_x = if lock_x { ax } else { round_even_scalar(smooth_pos.x) };
+        let base_y = if lock_y { ay } else { round_even_scalar(smooth_pos.y) };
+        q[h] = Point::new(base_x as f64, base_y as f64);
+        let base = local_cost(q, on, n, h);
+        // Candidates: even values on the free axes only, ordered by the
+        // popcount of the delta from the anchor (prefers 8s / powers of two),
+        // then by closeness to the smooth position.
         let w = 8;
+        let xs = if lock_x { vec![ax] } else { even_range(base_x, w) };
+        let ys = if lock_y { vec![ay] } else { even_range(base_y, w) };
         let mut cands: Vec<(i64, i64)> = Vec::new();
-        let mut dx = -w;
-        while dx <= w {
-            let mut dy = -w;
-            while dy <= w {
-                cands.push((bx + dx, by + dy));
-                dy += 2;
+        for &x in &xs {
+            for &y in &ys {
+                cands.push((x, y));
             }
-            dx += 2;
         }
         cands.sort_by(|a, b| {
             let pa = popcount((a.0 - ax).abs()) + popcount((a.1 - ay).abs());
@@ -555,9 +556,7 @@ fn snap_all(q: &mut [Point], on: &[bool], n: usize, tol: f64) {
             let db = (b.0 as f64 - smooth_pos.x).hypot(b.1 as f64 - smooth_pos.y);
             pa.cmp(&pb).then(da.partial_cmp(&db).unwrap())
         });
-        // Keep the lowest-popcount even position that stays within tolerance
-        // of the smooth baseline; fall back to plain round-to-even.
-        let mut best = base_pos;
+        let mut best = Point::new(base_x as f64, base_y as f64);
         for (x, y) in cands {
             q[h] = Point::new(x as f64, y as f64);
             if local_cost(q, on, n, h) <= base * (1.0 + tol) + 1e-9 {
@@ -649,6 +648,13 @@ mod tests {
         }
         // Handles stay near the circle's control length (didn't blow up).
         assert!((out[1] - Point::new(r, 0.0)).hypot() < r);
+        // Extremum handles keep their axis: the two around the top node
+        // (0, r) stay horizontal (y == r); the two around the right node
+        // (r, 0) stay vertical (x == r). Colinearity preserved.
+        assert_eq!(out[2].y, r, "top-right handle left its flat tangent");
+        assert_eq!(out[4].y, r, "top-left handle left its flat tangent");
+        assert_eq!(out[1].x, r, "right-top handle left its vertical tangent");
+        assert_eq!(out[11].x, r, "right-bottom handle left its vertical tangent");
     }
 
     // A cubic approximating a quarter circle of radius r: handle length
