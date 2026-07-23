@@ -2376,7 +2376,7 @@ impl EditorState {
     /// Auto-fair: for each contour in scope, run the multi-objective optimizer
     /// (continuity → even curvature → low popcount, in that priority) on the
     /// handles, keeping the on-curve points fixed.
-    pub fn optimize_selection(&mut self) -> bool {
+    pub fn optimize_selection(&mut self, tol: f64) -> bool {
         let sel = self.selection.clone();
         let all = sel.is_empty();
         let mut changed = false;
@@ -2402,7 +2402,7 @@ impl EditorState {
                     smooth: matches!(p.typ, crate::path::PointType::OnCurve { smooth: true }),
                 })
                 .collect();
-            let newpos = crate::curve::optimize_contour(&opts, 0.12);
+            let newpos = crate::curve::optimize_contour(&opts, tol);
             let mut any = false;
             for (i, p) in pts.iter_mut().enumerate() {
                 if !p.is_on_curve() && (p.point - newpos[i]).hypot() > 1e-6 {

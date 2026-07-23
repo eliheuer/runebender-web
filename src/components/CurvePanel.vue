@@ -5,11 +5,13 @@
 const props = defineProps<{
   comb: boolean;
   continuity: boolean;
+  tol: number;
 }>();
 
 const emit = defineEmits<{
   (e: "update:comb", v: boolean): void;
   (e: "update:continuity", v: boolean): void;
+  (e: "update:tol", v: number): void;
   (e: "harmonize"): void;
   (e: "balance"): void;
   (e: "optimize"): void;
@@ -69,6 +71,22 @@ function allOff() {
     >
       ✦ optimize
     </button>
+    <div class="slider">
+      <div class="slider-head">
+        <span>tolerance</span>
+        <span class="val">{{ Math.round(props.tol * 100) }}%</span>
+      </div>
+      <input
+        type="range"
+        min="0"
+        max="0.4"
+        step="0.02"
+        :value="props.tol"
+        title="How much local smoothness the optimizer may trade for cleaner popcount. Lower = stricter curves, fewer snaps. Higher = chases clean numbers harder."
+        @input="emit('update:tol', Number(($event.target as HTMLInputElement).value))"
+      />
+      <div class="slider-ends"><span>smooth</span><span>clean</span></div>
+    </div>
   </section>
 </template>
 
@@ -146,5 +164,33 @@ function allOff() {
 }
 .ring.kink {
   border-color: #ff453b;
+}
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 2px 2px 0;
+}
+.slider-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  opacity: 0.7;
+}
+.slider-head .val {
+  opacity: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+.slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--rb-accent, #18b86f);
+}
+.slider-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.4;
 }
 </style>

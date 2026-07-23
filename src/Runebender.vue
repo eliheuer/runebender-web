@@ -223,6 +223,7 @@ const measureSpans = ref(false);
 const measureSidebearings = ref(false);
 const curveComb = ref(false);
 const curveContinuity = ref(false);
+const curveTol = ref(0.12);
 const activeShape = ref<ShapeKind>("rectangle");
 const textDirection = ref<TextDirection>("ltr");
 const hasTextBufferSession = ref<boolean>(false);
@@ -1424,7 +1425,7 @@ type Editor = {
   roundSelectedCorners(): boolean;
   harmonizeSelection(): boolean;
   balanceSelection(): boolean;
-  optimizeSelection(): boolean;
+  optimizeSelection(tol: number): boolean;
   togglePointTypeAt(x: number, y: number): boolean;
   selectContourAt(x: number, y: number): boolean;
   unionSelection(): boolean;
@@ -1791,7 +1792,7 @@ function balanceCurves() {
   if (editor) applyEditorMutation(() => editor.balanceSelection());
 }
 function optimizeCurves() {
-  if (editor) applyEditorMutation(() => editor.optimizeSelection());
+  if (editor) applyEditorMutation(() => editor.optimizeSelection(curveTol.value));
 }
 
 function requestRender(options: RenderRequestOptions = {}) {
@@ -8977,8 +8978,10 @@ onBeforeUnmount(() => {
           <CurvePanel
             :comb="curveComb"
             :continuity="curveContinuity"
+            :tol="curveTol"
             @update:comb="(v: boolean) => (curveComb = v)"
             @update:continuity="(v: boolean) => (curveContinuity = v)"
+            @update:tol="(v: number) => (curveTol = v)"
             @harmonize="harmonizeCurves"
             @balance="balanceCurves"
             @optimize="optimizeCurves"

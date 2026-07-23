@@ -1650,9 +1650,9 @@ impl GlyphEditor {
     /// Auto-fair: optimize handles for continuity + even curvature + low
     /// popcount (selection, or whole glyph if none selected).
     #[wasm_bindgen(js_name = optimizeSelection)]
-    pub fn optimize_selection(&mut self) -> bool {
+    pub fn optimize_selection(&mut self, tol: f64) -> bool {
         let snapshot = self.discrete_edit_snapshot();
-        if self.state.optimize_selection() {
+        if self.state.optimize_selection(tol) {
             self.undo.add_undo_group(snapshot);
             self.pending_snapshot = None;
             true
