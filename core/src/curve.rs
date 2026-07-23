@@ -408,21 +408,10 @@ pub fn popcount(v: i64) -> u32 {
     (v.max(0) as u64).count_ones()
 }
 
-/// Even integer lengths within `window` of `l`, ordered lowest-popcount first
-/// (then closest). Even only, to stay on the 2-grid.
-fn nice_lengths_near(l: f64, window: f64) -> Vec<i64> {
-    let lo = ((l - window).max(2.0)).floor() as i64;
-    let hi = (l + window).ceil() as i64;
-    let mut v: Vec<i64> = (lo..=hi).filter(|x| x % 2 == 0).collect();
-    v.sort_by(|a, b| {
-        popcount(*a).cmp(&popcount(*b)).then(
-            (*a as f64 - l)
-                .abs()
-                .partial_cmp(&(*b as f64 - l).abs())
-                .unwrap(),
-        )
-    });
-    v
+/// Round a point to the nearest even integer on both axes — the 2-unit
+/// design grid Virtua's coordinates all live on.
+fn round_even(p: Point) -> Point {
+    Point::new((p.x / 2.0).round() * 2.0, (p.y / 2.0).round() * 2.0)
 }
 
 /// Signed curvature at a cubic's start (t=0), closed form. p3 unused.
@@ -489,7 +478,7 @@ pub fn optimize_contour(pts: &[OptPoint], tol: f64) -> Vec<Point> {
     }
     for (i, p) in q.iter_mut().enumerate() {
         if !on[i] {
-            *p = p.round();
+            *p = round_even(*p);
         }
     }
     q
@@ -536,21 +525,47 @@ fn snap_all(q: &mut [Point], on: &[bool], n: usize, tol: f64) {
         } else {
             continue;
         };
-        let d = q[h] - anchor;
-        let l = d.hypot();
-        if l < 1e-6 {
-            continue;
-        }
-        let dir = d / l;
+        let smooth_pos = q[h];
+        // Baseline: nearest even-grid point (always on the 2-unit grid).
+        let base_pos = round_even(smooth_pos);
+        q[h] = base_pos;
         let base = local_cost(q, on, n, h);
-        for cand in nice_lengths_near(l, 12.0) {
-            let old = q[h];
-            q[h] = anchor + dir * cand as f64;
-            if local_cost(q, on, n, h) <= base * (1.0 + tol) + 1e-9 {
-                break; // lowest-popcount candidate that keeps the curve
+        let ax = anchor.x.round() as i64;
+        let ay = anchor.y.round() as i64;
+        let bx = base_pos.x as i64;
+        let by = base_pos.y as i64;
+        // Even-grid candidates in a small window, ordered by the popcount of
+        // the handle's delta from its anchor (prefers multiples of 8 / powers
+        // of two), then by closeness to the smooth position.
+        let w = 8;
+        let mut cands: Vec<(i64, i64)> = Vec::new();
+        let mut dx = -w;
+        while dx <= w {
+            let mut dy = -w;
+            while dy <= w {
+                cands.push((bx + dx, by + dy));
+                dy += 2;
             }
-            q[h] = old;
+            dx += 2;
         }
+        cands.sort_by(|a, b| {
+            let pa = popcount((a.0 - ax).abs()) + popcount((a.1 - ay).abs());
+            let pb = popcount((b.0 - ax).abs()) + popcount((b.1 - ay).abs());
+            let da = (a.0 as f64 - smooth_pos.x).hypot(a.1 as f64 - smooth_pos.y);
+            let db = (b.0 as f64 - smooth_pos.x).hypot(b.1 as f64 - smooth_pos.y);
+            pa.cmp(&pb).then(da.partial_cmp(&db).unwrap())
+        });
+        // Keep the lowest-popcount even position that stays within tolerance
+        // of the smooth baseline; fall back to plain round-to-even.
+        let mut best = base_pos;
+        for (x, y) in cands {
+            q[h] = Point::new(x as f64, y as f64);
+            if local_cost(q, on, n, h) <= base * (1.0 + tol) + 1e-9 {
+                best = q[h];
+                break;
+            }
+        }
+        q[h] = best;
     }
 }
 
@@ -590,13 +605,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn popcount_and_nice_prefer_clean() {
+    fn popcount_and_grid() {
         assert_eq!(popcount(128), 1);
         assert_eq!(popcount(192), 2); // 128 + 64
-        assert_eq!(popcount(130), 2); // 128 + 2
-                                      // near 126: 128 (pc1) should sort ahead of 126 (pc6).
-        let cands = nice_lengths_near(126.0, 12.0);
-        assert_eq!(cands[0], 128);
+        assert_eq!(popcount(139), 4); // odd, off-grid, noisy
+                                      // round_even keeps both axes on the 2-grid.
+        let r = round_even(Point::new(103.2, 137.6));
+        assert_eq!(r, Point::new(104.0, 138.0));
     }
 
     #[test]
@@ -623,6 +638,13 @@ mod tests {
         for (i, op) in pts.iter().enumerate() {
             if op.on {
                 assert!((out[i] - op.p).hypot() < 1e-6);
+            }
+        }
+        // Every off-curve handle lands on the 2-unit grid (even coords).
+        for (i, op) in pts.iter().enumerate() {
+            if !op.on {
+                assert_eq!(out[i].x as i64 % 2, 0, "x off-grid: {}", out[i].x);
+                assert_eq!(out[i].y as i64 % 2, 0, "y off-grid: {}", out[i].y);
             }
         }
         // Handles stay near the circle's control length (didn't blow up).
