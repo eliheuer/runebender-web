@@ -5327,22 +5327,25 @@ function updateActiveTextKern(side: "left" | "right", value: string) {
     else data.kerning.delete(pair[0]);
   };
 
-  if (!value || value === "-") {
-    // Auto: drop any glyph-pair exception and inherit the group (or nothing).
+  // Clearing the field (empty / "-") or typing 0 both mean "no adjustment
+  // for this pair." Drop any glyph-pair exception, then check whether a
+  // group/class kern still resolves: if so, cancel it *for this pair* with an
+  // explicit 0 exception -- a bare delete would just snap back to the group
+  // value. If nothing remains, stay empty rather than store a redundant 0.
+  const clearToNothing = () => {
     applyDirect(null);
+    const remaining = lookupKerningValue(pair[0], pair[1]);
+    if (remaining !== null && remaining !== 0) applyDirect(0);
+  };
+
+  if (!value || value === "-") {
+    clearToNothing();
   } else {
     if (value.trim() !== value) return;
     const kernValue = Number(value);
     if (!Number.isFinite(kernValue)) return;
     if (kernValue === 0) {
-      // Clear the direct pair, then check whether a group/class kern still
-      // resolves. If it does, the user wants to cancel it *for this pair*,
-      // which needs an explicit 0 exception — a bare delete would just snap
-      // back to the group value. If nothing remains, keep it Auto rather than
-      // storing a redundant explicit 0.
-      applyDirect(null);
-      const remaining = lookupKerningValue(pair[0], pair[1]);
-      if (remaining !== null && remaining !== 0) applyDirect(0);
+      clearToNothing();
     } else {
       // Any nonzero value writes a direct pair, overriding any group kern
       // (lookupKerningValue checks the direct pair first).
