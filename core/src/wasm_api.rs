@@ -1403,7 +1403,6 @@ impl GlyphEditor {
             .map_err(|e| JsValue::from_str(&format!("parse SVG path: {e}")))?;
         self.state.set_glyph_from_bezpath(&bez);
         self.undo.clear();
-        self.point_clipboard = None;
         self.component_glyphs.clear();
         self.source_glyph = None;
         self.pending_snapshot = None;
@@ -1422,7 +1421,6 @@ impl GlyphEditor {
         self.renderer.clear_glyph_geometry_caches();
         self.cache_source_glyph(glyph, Some(glyph_bytes_fingerprint(bytes)));
         self.undo.clear();
-        self.point_clipboard = None;
         self.component_glyphs.clear();
         self.pending_snapshot = None;
         self.clear_pending_nudge_snapshot();
@@ -1447,7 +1445,6 @@ impl GlyphEditor {
         self.renderer.clear_glyph_geometry_caches();
         self.cache_source_glyph(glyph, Some(glyph_bytes_fingerprint(bytes)));
         self.undo.clear();
-        self.point_clipboard = None;
         self.pending_snapshot = None;
         self.clear_pending_nudge_snapshot();
         Ok(())
@@ -1496,7 +1493,6 @@ impl GlyphEditor {
         self.set_glyph_from_norad_with_component_cache(&glyph);
         self.cache_source_glyph(glyph, Some(glyph_bytes_fingerprint(bytes)));
         self.undo.clear();
-        self.point_clipboard = None;
         self.pending_snapshot = None;
         self.clear_pending_nudge_snapshot();
         Ok(())
@@ -1522,7 +1518,6 @@ impl GlyphEditor {
         self.set_glyph_from_norad_with_component_cache(&glyph);
         self.cache_source_glyph(glyph, None);
         self.undo.clear();
-        self.point_clipboard = None;
         self.pending_snapshot = None;
         self.clear_pending_nudge_snapshot();
         Ok(true)
