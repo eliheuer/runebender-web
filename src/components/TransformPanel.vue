@@ -19,6 +19,7 @@ export type TransformActionId =
   | "flip-v"
   | "rot-cw"
   | "rot-ccw"
+  | "rot-180"
   | "duplicate"
   | "duplicate-repeat"
   | "union"
@@ -40,6 +41,7 @@ const actions = [
   ["Flip Vertical", "flip-v"],
   ["Rotate 90 CW", "rot-cw"],
   ["Rotate 90 CCW", "rot-ccw"],
+  ["Rotate 180", "rot-180"],
   ["Duplicate", "duplicate"],
   ["Dup + Repeat", "duplicate-repeat"],
   ["Union (Remove Overlap)", "union"],
@@ -53,6 +55,7 @@ const ACTION_ICONS: Record<TransformActionId, string> = {
   "flip-v": "flip-v",
   "rot-cw": "rot-cw",
   "rot-ccw": "rot-ccw",
+  "rot-180": "rot-cw",
   duplicate: "duplicate",
   "duplicate-repeat": "duplicate-repeat",
   union: "union",
@@ -74,6 +77,7 @@ function actionImplemented(id: string): boolean {
     id === "flip-v" ||
     id === "rot-cw" ||
     id === "rot-ccw" ||
+    id === "rot-180" ||
     id === "duplicate" ||
     id === "duplicate-repeat" ||
     id === "union" ||

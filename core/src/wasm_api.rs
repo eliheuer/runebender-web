@@ -2363,6 +2363,18 @@ impl GlyphEditor {
         }
     }
 
+    #[wasm_bindgen(js_name = rotateSelection180)]
+    pub fn rotate_selection_180(&mut self) -> bool {
+        let snapshot = self.discrete_edit_snapshot();
+        if self.state.rotate_selection(180.0) {
+            self.undo.add_undo_group(snapshot);
+            self.pending_snapshot = None;
+            true
+        } else {
+            false
+        }
+    }
+
     #[wasm_bindgen(js_name = duplicateSelection)]
     pub fn duplicate_selection(&mut self) -> bool {
         let snapshot = self.discrete_edit_snapshot();

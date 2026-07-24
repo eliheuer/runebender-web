@@ -1409,6 +1409,7 @@ type Editor = {
   flipSelectionVertical(): boolean;
   rotateSelectionClockwise(): boolean;
   rotateSelectionCounterClockwise(): boolean;
+  rotateSelection180(): boolean;
   duplicateSelection(): boolean;
   duplicateRepeatSelection(): boolean;
   reverseContours(): boolean;
@@ -6738,6 +6739,8 @@ function onTransform(action: TransformActionId) {
           ? editor.rotateSelectionClockwise()
           : action === "rot-ccw"
             ? editor.rotateSelectionCounterClockwise()
+            : action === "rot-180"
+              ? editor.rotateSelection180()
             : action === "duplicate"
           ? editor.duplicateSelection()
           : action === "duplicate-repeat"
