@@ -5267,30 +5267,39 @@ function kerningGroupsForGlyph(glyphName: string, hint?: string): string[] {
   return groupNames;
 }
 
-function lookupKerningValue(left: string, right: string): number | null {
+// The kerning.plist key pair that actually resolves for (left, right), following
+// UFO precedence: direct glyph-pair, then glyph×group, group×glyph, group×group.
+// Returns the *source keys* so edits land on the same entry that provides the
+// value (a class kern stays a class kern; clearing removes the real source).
+type KernEntry = { leftKey: string; rightKey: string; value: number };
+function resolveKerningEntry(left: string, right: string): KernEntry | null {
   const leftGroups = kerningGroupsForGlyph(left, glyphKerningGroups.value.get(left)?.right);
   const rightGroups = kerningGroupsForGlyph(right, glyphKerningGroups.value.get(right)?.left);
   const pairs = kerning.value.get(left);
   const direct = pairs?.get(right);
-  if (direct !== undefined) return direct;
+  if (direct !== undefined) return { leftKey: left, rightKey: right, value: direct };
   for (const rightGroup of rightGroups) {
     const value = pairs?.get(rightGroup);
-    if (value !== undefined) return value;
+    if (value !== undefined) return { leftKey: left, rightKey: rightGroup, value };
   }
   for (const leftGroup of leftGroups) {
     const value = kerning.value.get(leftGroup)?.get(right);
-    if (value !== undefined) return value;
+    if (value !== undefined) return { leftKey: leftGroup, rightKey: right, value };
   }
   for (const leftGroup of leftGroups) {
     const groupPairs = kerning.value.get(leftGroup);
     if (!groupPairs) continue;
     for (const rightGroup of rightGroups) {
       const value = groupPairs.get(rightGroup);
-      if (value !== undefined) return value;
+      if (value !== undefined) return { leftKey: leftGroup, rightKey: rightGroup, value };
     }
   }
-  // null = no explicit pair; distinguishes from an explicit pair of 0.
   return null;
+}
+
+function lookupKerningValue(left: string, right: string): number | null {
+  // null = no explicit pair; distinguishes from an explicit pair of 0.
+  return resolveKerningEntry(left, right)?.value ?? null;
 }
 
 function activeTextKernPair(side: "left" | "right"): [string, string] | null {
@@ -5317,40 +5326,44 @@ function updateActiveTextKern(side: "left" | "right", value: string) {
   const data = activeMasterData.value;
   const pair = activeTextKernPair(side);
   if (!data || !pair) return;
-  const pairs = data.kerning.get(pair[0]) ?? new Map<string, number>();
+  const [left, right] = pair;
 
-  // Write (or clear) the glyph-pair entry, then reconcile the parent map.
-  const applyDirect = (v: number | null) => {
-    if (v === null) pairs.delete(pair[1]);
-    else pairs.set(pair[1], v);
-    if (pairs.size > 0) data.kerning.set(pair[0], pairs);
-    else data.kerning.delete(pair[0]);
+  // Write (v) or delete (null) a kerning entry under (leftKey, rightKey),
+  // reconciling the parent map so an emptied row leaves no dangling key.
+  const setEntry = (leftKey: string, rightKey: string, v: number | null) => {
+    const pairs = data.kerning.get(leftKey) ?? new Map<string, number>();
+    if (v === null) pairs.delete(rightKey);
+    else pairs.set(rightKey, v);
+    if (pairs.size > 0) data.kerning.set(leftKey, pairs);
+    else data.kerning.delete(leftKey);
   };
 
-  // Clearing the field (empty / "-") or typing 0 both mean "no adjustment
-  // for this pair." Drop any glyph-pair exception, then check whether a
-  // group/class kern still resolves: if so, cancel it *for this pair* with an
-  // explicit 0 exception -- a bare delete would just snap back to the group
-  // value. If nothing remains, stay empty rather than store a redundant 0.
-  const clearToNothing = () => {
-    applyDirect(null);
-    const remaining = lookupKerningValue(pair[0], pair[1]);
-    if (remaining !== null && remaining !== 0) applyDirect(0);
-  };
-
+  // Parse the field: null = clear, undefined = ignore (mid-edit junk).
+  let kernValue: number | null;
   if (!value || value === "-") {
-    clearToNothing();
+    kernValue = null;
   } else {
     if (value.trim() !== value) return;
-    const kernValue = Number(value);
-    if (!Number.isFinite(kernValue)) return;
-    if (kernValue === 0) {
-      clearToNothing();
-    } else {
-      // Any nonzero value writes a direct pair, overriding any group kern
-      // (lookupKerningValue checks the direct pair first).
-      applyDirect(kernValue);
-    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) return;
+    kernValue = n;
+  }
+
+  // Edit the entry that actually resolves for this pair -- a class kern stays
+  // a class kern, a glyph pair stays a glyph pair.
+  const existing = resolveKerningEntry(left, right);
+  if (kernValue === null || kernValue === 0) {
+    // Clearing or 0 removes the real source so the pair reverts to nothing,
+    // rather than leaving a do-nothing 0 stacked on top of a group kern.
+    if (existing) setEntry(existing.leftKey, existing.rightKey, null);
+  } else if (existing) {
+    setEntry(existing.leftKey, existing.rightKey, kernValue);
+  } else {
+    // No entry yet: create one on the group keys when both sides are grouped
+    // (kern-to-groups by default), else on the glyph names.
+    const leftKey = data.glyphKerningGroups.get(left)?.right || left;
+    const rightKey = data.glyphKerningGroups.get(right)?.left || right;
+    setEntry(leftKey, rightKey, kernValue);
   }
 
   masterDataMap.value = new Map(masterDataMap.value);
