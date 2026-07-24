@@ -5319,26 +5319,37 @@ function updateActiveTextKern(side: "left" | "right", value: string) {
   if (!data || !pair) return;
   const pairs = data.kerning.get(pair[0]) ?? new Map<string, number>();
 
+  // Write (or clear) the glyph-pair entry, then reconcile the parent map.
+  const applyDirect = (v: number | null) => {
+    if (v === null) pairs.delete(pair[1]);
+    else pairs.set(pair[1], v);
+    if (pairs.size > 0) data.kerning.set(pair[0], pairs);
+    else data.kerning.delete(pair[0]);
+  };
+
   if (!value || value === "-") {
-    pairs.delete(pair[1]);
+    // Auto: drop any glyph-pair exception and inherit the group (or nothing).
+    applyDirect(null);
   } else {
     if (value.trim() !== value) return;
     const kernValue = Number(value);
     if (!Number.isFinite(kernValue)) return;
-    // A 0 kern is no adjustment, so clear it back to Auto rather than storing
-    // an explicit 0 pair (which would clutter the kerning and read as "set").
     if (kernValue === 0) {
-      pairs.delete(pair[1]);
+      // Clear the direct pair, then check whether a group/class kern still
+      // resolves. If it does, the user wants to cancel it *for this pair*,
+      // which needs an explicit 0 exception — a bare delete would just snap
+      // back to the group value. If nothing remains, keep it Auto rather than
+      // storing a redundant explicit 0.
+      applyDirect(null);
+      const remaining = lookupKerningValue(pair[0], pair[1]);
+      if (remaining !== null && remaining !== 0) applyDirect(0);
     } else {
-      pairs.set(pair[1], kernValue);
+      // Any nonzero value writes a direct pair, overriding any group kern
+      // (lookupKerningValue checks the direct pair first).
+      applyDirect(kernValue);
     }
   }
 
-  if (pairs.size > 0) {
-    data.kerning.set(pair[0], pairs);
-  } else {
-    data.kerning.delete(pair[0]);
-  }
   masterDataMap.value = new Map(masterDataMap.value);
   markKerningDirty();
   syncTextKerningModelToEditor();
