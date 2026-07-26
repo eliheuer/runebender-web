@@ -1,27 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <glyph name="i" format="2">
 	<unicode hex="0069"/>
-	<advance width="296"/>
+	<advance width="320"/>
 	<outline>
 		<contour>
-			<point x="68" y="656" type="line"/>
-			<point x="228" y="656" type="line"/>
-			<point x="244" y="672" type="line"/>
-			<point x="244" y="752" type="line"/>
-			<point x="228" y="768" type="line"/>
-			<point x="68" y="768" type="line"/>
-			<point x="52" y="752" type="line"/>
-			<point x="52" y="672" type="line"/>
+			<point x="64" y="640" type="line"/>
+			<point x="80" y="624" type="line"/>
+			<point x="240" y="624" type="line"/>
+			<point x="256" y="640" type="line"/>
+			<point x="256" y="752" type="line"/>
+			<point x="240" y="768" type="line"/>
+			<point x="80" y="768" type="line"/>
+			<point x="64" y="752" type="line"/>
 		</contour>
 		<contour>
-			<point x="68" y="0" type="line"/>
-			<point x="228" y="0" type="line"/>
-			<point x="244" y="16" type="line"/>
-			<point x="244" y="560" type="line"/>
-			<point x="228" y="576" type="line"/>
-			<point x="68" y="576" type="line"/>
-			<point x="52" y="560" type="line"/>
-			<point x="52" y="16" type="line"/>
+			<point x="64" y="16" type="line"/>
+			<point x="80" y="0" type="line"/>
+			<point x="240" y="0" type="line"/>
+			<point x="256" y="16" type="line"/>
+			<point x="256" y="560" type="line"/>
+			<point x="240" y="576" type="line"/>
+			<point x="80" y="576" type="line"/>
+			<point x="64" y="560" type="line"/>
 		</contour>
 	</outline>
+	<lib>
+		<dict>
+			<key>org.fontgarden.transfer</key>
+			<string>glyph-transfer v2 lambda 1.0 &lt;- image crop-i.png</string>
+			<key>public.markColor</key>
+			<string>0.09,0.72,0.44,1</string>
+		</dict>
+	</lib>
 </glyph>

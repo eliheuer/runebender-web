@@ -23,19 +23,19 @@
 			<point x="328" y="172" type="line"/>
 			<point x="520" y="172" type="line"/>
 			<point x="568" y="236" type="line"/>
-			<point x="444" y="236" type="line"/>
+			<point x="444" y="236" type="line" smooth="yes"/>
 			<point x="344" y="236" type="line"/>
 			<point x="252" y="304" type="line"/>
 			<point x="252" y="420" type="line"/>
 			<point x="344" y="488" type="line"/>
-			<point x="444" y="488" type="line"/>
+			<point x="444" y="488" type="line" smooth="yes"/>
 			<point x="568" y="488" type="line"/>
 		</contour>
 	</outline>
 	<lib>
 		<dict>
 			<key>public.markColor</key>
-			<string>1,0.3,0.3,1</string>
+			<string>1,0.29,0.24,1</string>
 		</dict>
 	</lib>
 </glyph>

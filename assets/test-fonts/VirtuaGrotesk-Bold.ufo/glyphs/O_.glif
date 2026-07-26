@@ -4,32 +4,40 @@
 	<advance width="848"/>
 	<outline>
 		<contour>
-			<point x="192" y="-16"/>
-			<point x="424" y="-16" type="curve"/>
-			<point x="656" y="-16"/>
-			<point x="800" y="152"/>
-			<point x="800" y="384" type="curve"/>
-			<point x="800" y="616"/>
-			<point x="656" y="784"/>
-			<point x="424" y="784" type="curve"/>
-			<point x="192" y="784"/>
-			<point x="48" y="616"/>
-			<point x="48" y="384" type="curve"/>
-			<point x="48" y="152"/>
+			<point x="216" y="-16"/>
+			<point x="424" y="-16" type="curve" smooth="yes"/>
+			<point x="632" y="-16"/>
+			<point x="800" y="128"/>
+			<point x="800" y="384" type="curve" smooth="yes"/>
+			<point x="800" y="640"/>
+			<point x="632" y="784"/>
+			<point x="424" y="784" type="curve" smooth="yes"/>
+			<point x="216" y="784"/>
+			<point x="48" y="640"/>
+			<point x="48" y="384" type="curve" smooth="yes"/>
+			<point x="48" y="128"/>
 		</contour>
 		<contour>
-			<point x="552" y="144"/>
-			<point x="424" y="144" type="curve"/>
-			<point x="296" y="144"/>
-			<point x="236" y="240"/>
-			<point x="236" y="384" type="curve"/>
-			<point x="236" y="528"/>
-			<point x="296" y="624"/>
-			<point x="424" y="624" type="curve"/>
-			<point x="552" y="624"/>
-			<point x="612" y="528"/>
-			<point x="612" y="384" type="curve"/>
-			<point x="612" y="240"/>
+			<point x="552" y="132"/>
+			<point x="424" y="132" type="curve" smooth="yes"/>
+			<point x="296" y="132"/>
+			<point x="252" y="256"/>
+			<point x="252" y="384" type="curve" smooth="yes"/>
+			<point x="252" y="512"/>
+			<point x="296" y="636"/>
+			<point x="424" y="636" type="curve" smooth="yes"/>
+			<point x="552" y="636"/>
+			<point x="596" y="512"/>
+			<point x="596" y="384" type="curve" smooth="yes"/>
+			<point x="596" y="256"/>
 		</contour>
 	</outline>
+	<lib>
+		<dict>
+			<key>org.fontgarden.transfer</key>
+			<string>glyph-transfer v2 lambda 1.0 &lt;- image crop-O.png</string>
+			<key>public.markColor</key>
+			<string>0.09,0.72,0.44,1</string>
+		</dict>
+	</lib>
 </glyph>

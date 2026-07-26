@@ -181,6 +181,7 @@ export class GlyphEditor {
     reverseContourAt(x: number, y: number): boolean;
     reverseContours(): boolean;
     rightSidebearing(): number;
+    rotateSelection180(): boolean;
     rotateSelectionClockwise(): boolean;
     rotateSelectionCounterClockwise(): boolean;
     roundSelectedCorners(): boolean;
@@ -502,6 +503,7 @@ export interface InitOutput {
     readonly glypheditor_reverseContourAt: (a: number, b: number, c: number) => number;
     readonly glypheditor_reverseContours: (a: number) => number;
     readonly glypheditor_rightSidebearing: (a: number) => number;
+    readonly glypheditor_rotateSelection180: (a: number) => number;
     readonly glypheditor_rotateSelectionClockwise: (a: number) => number;
     readonly glypheditor_rotateSelectionCounterClockwise: (a: number) => number;
     readonly glypheditor_roundSelectedCorners: (a: number) => number;

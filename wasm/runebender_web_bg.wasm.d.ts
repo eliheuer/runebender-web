@@ -84,6 +84,7 @@ export const glypheditor_resizeSelectionReferenceState: (a: number, b: number, c
 export const glypheditor_reverseContourAt: (a: number, b: number, c: number) => number;
 export const glypheditor_reverseContours: (a: number) => number;
 export const glypheditor_rightSidebearing: (a: number) => number;
+export const glypheditor_rotateSelection180: (a: number) => number;
 export const glypheditor_rotateSelectionClockwise: (a: number) => number;
 export const glypheditor_rotateSelectionCounterClockwise: (a: number) => number;
 export const glypheditor_roundSelectedCorners: (a: number) => number;

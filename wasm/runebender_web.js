@@ -675,6 +675,13 @@ export class GlyphEditor {
     /**
      * @returns {boolean}
      */
+    rotateSelection180() {
+        const ret = wasm.glypheditor_rotateSelection180(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {boolean}
+     */
     rotateSelectionClockwise() {
         const ret = wasm.glypheditor_rotateSelectionClockwise(this.__wbg_ptr);
         return ret !== 0;

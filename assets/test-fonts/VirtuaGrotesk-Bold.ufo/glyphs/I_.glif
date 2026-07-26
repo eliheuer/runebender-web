@@ -1,17 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <glyph name="I" format="2">
 	<unicode hex="0049"/>
-	<advance width="360"/>
+	<advance width="352"/>
 	<outline>
 		<contour>
+			<point x="80" y="16" type="line"/>
 			<point x="96" y="0" type="line"/>
-			<point x="264" y="0" type="line"/>
-			<point x="280" y="16" type="line"/>
-			<point x="280" y="752" type="line"/>
-			<point x="264" y="768" type="line"/>
+			<point x="256" y="0" type="line"/>
+			<point x="272" y="16" type="line"/>
+			<point x="272" y="752" type="line"/>
+			<point x="256" y="768" type="line"/>
 			<point x="96" y="768" type="line"/>
 			<point x="80" y="752" type="line"/>
-			<point x="80" y="16" type="line"/>
 		</contour>
 	</outline>
+	<lib>
+		<dict>
+			<key>org.fontgarden.transfer</key>
+			<string>glyph-transfer v2 lambda 1.0 &lt;- image crop-I.png</string>
+			<key>public.markColor</key>
+			<string>0.09,0.72,0.44,1</string>
+		</dict>
+	</lib>
 </glyph>

@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <glyph name="uacute" format="2">
-	<unicode hex="00FA" />
-	<advance width="656" />
+	<unicode hex="00FA"/>
+	<advance width="656"/>
 	<outline>
-		<component base="u" />
-		<component base="acute" xOffset="222" yOffset="2" />
+		<component base="u"/>
+		<component base="acute" xOffset="222"/>
 	</outline>
+	<lib>
+		<dict>
+			<key>public.markColor</key>
+			<string>1,0.29,0.24,1</string>
+		</dict>
+	</lib>
 </glyph>
