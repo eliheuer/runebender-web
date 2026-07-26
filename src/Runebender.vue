@@ -2423,27 +2423,31 @@ function refreshMeasureState() {
     return;
   }
   const info = editor.measureInfo();
+  // measureInfo positions come from the renderer in backing (device) pixels;
+  // the HTML overlay is placed with CSS `left/top` in logical pixels, so scale
+  // down by the device pixel ratio (same convention as refreshSketchFrame).
+  const dpr = window.devicePixelRatio || 1;
   measureInfo.value =
     info.length >= 4
       ? {
-          x: info[0],
-          y: info[1],
+          x: info[0] / dpr,
+          y: info[1] / dpr,
           distance: info[2],
           angle: info[3],
-          labels: measureLabelsFromInfo(info),
+          labels: measureLabelsFromInfo(info, dpr),
         }
       : undefined;
 }
 
-function measureLabelsFromInfo(info: Float64Array): MeasureInfo["labels"] {
+function measureLabelsFromInfo(info: Float64Array, dpr: number): MeasureInfo["labels"] {
   const count = Math.max(0, Math.floor(info[4] ?? 0));
   const labels: MeasureInfo["labels"] = [];
   for (let i = 0; i < count; i++) {
     const offset = 5 + i * 3;
     if (info.length < offset + 3) break;
     labels.push({
-      x: info[offset],
-      y: info[offset + 1],
+      x: info[offset] / dpr,
+      y: info[offset + 1] / dpr,
       length: info[offset + 2],
     });
   }
