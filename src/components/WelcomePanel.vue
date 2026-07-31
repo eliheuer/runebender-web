@@ -3,8 +3,15 @@
 // runebender-xilem's `views/welcome.rs`: compact upper-left welcome
 // UI layered over an interactive demo glyph canvas.
 
+defineProps<{
+  // Workspace remembered from a previous visit (File System Access
+  // host); shows a one-click reopen above the picker button.
+  reopenName?: string | null;
+}>();
+
 defineEmits<{
   (e: "openUfo"): void;
+  (e: "reopen"): void;
 }>();
 </script>
 
@@ -15,6 +22,9 @@ defineEmits<{
     <div class="prompt">
       Drop a <code>.ufo</code> folder or <code>.designspace</code> file.
     </div>
+    <button v-if="reopenName" type="button" class="reopen" @click="$emit('reopen')">
+      Reopen {{ reopenName }}
+    </button>
     <button type="button" @click="$emit('openUfo')">Open UFO...</button>
   </div>
 </template>
@@ -66,6 +76,10 @@ button {
 button:hover {
   color: var(--rb-accent, #18b86f);
   border-color: var(--rb-accent, #18b86f);
+}
+button.reopen {
+  color: var(--rb-accent, #18b86f);
+  margin-top: 0;
 }
 code {
   font: 12px ui-monospace, monospace;

@@ -154,7 +154,7 @@ function sendJson(res, status, obj, headers = {}) {
 const CORS = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, PUT, DELETE, OPTIONS",
-  "access-control-allow-headers": "content-type, if-match",
+  "access-control-allow-headers": "content-type, if-match, x-allow-outline-clear",
   "access-control-expose-headers": "etag, last-modified",
 };
 

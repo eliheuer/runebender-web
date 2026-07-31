@@ -1644,10 +1644,7 @@ onMounted(async () => {
 
     if (currentFontPath.value) {
       await loadWorkspaceSlot(currentFontPath.value);
-      // Hosts with a file watcher (the local workspace server) push
-      // external edits — an agent rewriting glifs on disk — into the
-      // editor live.
-      runebenderHost.watchWorkspaceChanges?.(applyExternalWorkspaceChanges);
+      ensureWorkspaceWatch();
     } else if (props.initialFiles) {
       try {
         const loaded = await loadDevTestFont();
@@ -1671,8 +1668,20 @@ watch(
   async (slot) => {
     if (!slot || !editor || !canvas.value) return;
     await loadWorkspaceSlot(slot);
+    ensureWorkspaceWatch();
   },
 );
+
+// Hosts with a file watcher (the local workspace server, the File
+// System Access host) push external edits — an agent rewriting glifs
+// on disk — into the editor live. Wired once, whether the workspace
+// arrived at mount or from a later folder pick.
+let workspaceWatchWired = false;
+function ensureWorkspaceWatch() {
+  if (workspaceWatchWired) return;
+  workspaceWatchWired = true;
+  runebenderHost.watchWorkspaceChanges?.(applyExternalWorkspaceChanges);
+}
 
 type RenderRequestOptions = {
   refreshDerivedState?: boolean;
@@ -3070,6 +3079,15 @@ function onBackgroundImageInput(event: Event) {
 }
 
 async function openFontDirectoryPicker() {
+  // A host that can open local folders itself (the File System Access
+  // host) owns the picker; it triggers the workspace load through the
+  // fontPathRef, so saves go through the guarded host write path
+  // instead of raw per-file handles.
+  if (runebenderHost.openWorkspaceFolder) {
+    const res = await runebenderHost.openWorkspaceFolder();
+    if (res.error) status.value = `open failed: ${res.error}`;
+    return;
+  }
   const picker = (window as Window & {
     showDirectoryPicker?: DirectoryPicker;
   }).showDirectoryPicker;
@@ -3087,6 +3105,18 @@ async function openFontDirectoryPicker() {
       status.value = `open failed: ${e}`;
     }
   }
+}
+
+// Workspace remembered by the host from a previous visit (File System
+// Access host). Reopening runs in a click gesture so Chrome can offer
+// its persistent "Allow on every visit" grant.
+const reopenWorkspaceName = ref<string | null>(
+  runebenderHost.storedWorkspaceName?.() ?? null,
+);
+
+async function reopenStoredWorkspace() {
+  const res = await runebenderHost.reopenStoredWorkspace?.();
+  if (res?.error) status.value = `reopen failed: ${res.error}`;
 }
 
 async function onFontDirectoryInput(event: Event) {
@@ -8621,7 +8651,9 @@ onBeforeUnmount(() => {
              "Drop a .ufo folder" would be confusing. -->
         <WelcomePanel
           v-if="glyphNames.length === 0 && !currentFontPath && !initialFontLoading"
+          :reopen-name="reopenWorkspaceName"
           @open-ufo="openFontDirectoryPicker"
+          @reopen="reopenStoredWorkspace"
         />
 
         <div

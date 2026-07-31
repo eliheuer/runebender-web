@@ -1,19 +1,26 @@
 // Standalone entry — both `pnpm dev` and the production build mount
 // the Runebender widget directly into index.html.
 //
-// At boot we probe for the local workspace server (server/serve.mjs).
-// If present, the editor opens the served font with load/save/watch
-// wired through it; otherwise it falls back to the browser host and
-// the bundled demo font.
-//
-// `?workspace=http://localhost:8765` points the editor at a server on
-// another origin — useful when developing the editor under `pnpm dev`
-// while a workspace server runs separately.
+// Host selection at boot:
+//   1. A local workspace server (server/serve.mjs), probed via
+//      `/runebender/api/info` (or `?workspace=` for another origin) —
+//      load/save/watch wired through it.
+//   2. File System Access (desktop Chromium): the fsAccess host opens
+//      a UFO/designspace folder straight from disk with the same
+//      save/watch contract; a workspace remembered from a previous
+//      visit reopens silently when the user granted "Allow on every
+//      visit", otherwise the welcome panel offers to reopen it.
+//   3. Anything else: the read-only browser host with the bundled
+//      demo font.
 
-import { createApp } from "vue";
+import { createApp, ref } from "vue";
 import { readDevTestFontFiles } from "./devTestFont";
 import { runebenderHostKey } from "./host/runebenderHost";
 import { browserHost } from "./hosts/browser/browserHost";
+import {
+  createFsAccessHost,
+  isFsAccessSupported,
+} from "./hosts/fsaccess/fsAccessHost";
 import { createLocalHost, type LocalServerInfo } from "./hosts/local/localHost";
 import Runebender from "./Runebender.vue";
 
@@ -42,13 +49,38 @@ async function boot() {
     })
       .provide(runebenderHostKey, createLocalHost(server.info, server.base))
       .mount("#app");
-  } else {
-    createApp(Runebender, {
-      initialFiles: readDevTestFontFiles,
-    })
-      .provide(runebenderHostKey, browserHost)
-      .mount("#app");
+    return;
   }
+
+  if (isFsAccessSupported()) {
+    const fontPathRef = ref("");
+    const host = createFsAccessHost({
+      onWorkspaceOpened(slot) {
+        fontPathRef.value = slot;
+      },
+    });
+    const stored = await host.primeStoredWorkspace();
+    if (stored?.permission === "granted") {
+      await host.reopenStoredWorkspaceSilently();
+    }
+    // A remembered workspace that still needs a permission click gets
+    // the welcome panel (with its Reopen button) instead of the demo
+    // font auto-load.
+    const needsReopen = stored !== null && !fontPathRef.value;
+    createApp(Runebender, {
+      fontPathRef,
+      ...(needsReopen ? {} : { initialFiles: readDevTestFontFiles }),
+    })
+      .provide(runebenderHostKey, host)
+      .mount("#app");
+    return;
+  }
+
+  createApp(Runebender, {
+    initialFiles: readDevTestFontFiles,
+  })
+    .provide(runebenderHostKey, browserHost)
+    .mount("#app");
 }
 
 void boot();

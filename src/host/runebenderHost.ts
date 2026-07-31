@@ -147,6 +147,24 @@ export type RunebenderHost = {
     data: TraceBackgroundCandidateResult;
   }>;
   invalidateWorkspacePath(path: string): Promise<void>;
+  // Optional: hosts that can open a local folder themselves (the File
+  // System Access host) own the picker and the resulting workspace;
+  // the editor's "Open UFO" affordances call these instead of running
+  // its own picker, and the load is triggered by the host via the
+  // fontPathRef it was wired to at boot.
+  openWorkspaceFolder?(): Promise<{
+    slot?: string;
+    cancelled?: boolean;
+    error?: string;
+  }>;
+  reopenStoredWorkspace?(): Promise<{
+    slot?: string;
+    cancelled?: boolean;
+    error?: string;
+  }>;
+  // Name of the workspace remembered from a previous visit, if any —
+  // drives the welcome panel's "Reopen <name>" button.
+  storedWorkspaceName?(): string | null;
   // Optional: hosts that can observe the workspace (the local server's
   // file watcher) call `handler` whenever files change externally. The
   // editor applies the changes live — the "watch the agent work" loop.
