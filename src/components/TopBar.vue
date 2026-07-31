@@ -4,12 +4,10 @@
 // + components/master_toolbar.rs
 // + components/system_toolbar.rs
 //
-// Layout: font label + save status stretches left; master switcher
-// in the middle-right; system buttons on the far right. All three
-// are individual panel tiles, separated by
+// Layout: system menu (logo button) in the far-left corner via the
+// `menu` slot; font label + save status stretches; master switcher
+// on the right. All tiles are individual panels, separated by
 // BENTO_GAP (6px), matching xilem's bento layout.
-
-import SystemToolbar from "./SystemToolbar.vue";
 
 defineProps<{
   /** Display label for the open font (UFO folder name, designspace
@@ -30,13 +28,6 @@ defineProps<{
   activeMaster?: number;
   /** Rendered preview glyphs for each master, usually lowercase n. */
   masterPreviews?: Array<string | undefined>;
-  /** False when there is no loaded font/workspace to persist. */
-  saveEnabled?: boolean;
-  /** False when there is no loaded workspace to export. */
-  saveAsEnabled?: boolean;
-  /** True when the host wants a Close button next to Save (e.g. when
-   *  embedded as a ComfyUI overlay). */
-  closeEnabled?: boolean;
   /** Show only the status/file panel, used above the editor canvas. */
   fileOnly?: boolean;
 }>();
@@ -47,14 +38,14 @@ function masterLabel(name: string): string {
 
 defineEmits<{
   (e: "selectMaster", index: number): void;
-  (e: "save"): void;
-  (e: "saveAs"): void;
-  (e: "close"): void;
 }>();
 </script>
 
 <template>
   <div class="top-bar">
+    <!-- System menu (logo button) in the corner -->
+    <slot name="menu" />
+
     <!-- File info: stretches to fill -->
     <div class="panel file-info">
       <div class="file-path">
@@ -92,15 +83,6 @@ defineEmits<{
       </button>
     </div>
 
-    <SystemToolbar
-      v-if="!fileOnly"
-      :save-enabled="saveEnabled"
-      :save-as-enabled="saveAsEnabled"
-      :close-enabled="closeEnabled"
-      @save="$emit('save')"
-      @save-as="$emit('saveAs')"
-      @close="$emit('close')"
-    />
   </div>
 </template>
 

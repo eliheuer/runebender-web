@@ -63,13 +63,13 @@ async function boot() {
     if (stored?.permission === "granted") {
       await host.reopenStoredWorkspaceSilently();
     }
-    // A remembered workspace that still needs a permission click gets
-    // the welcome panel (with its Reopen button) instead of the demo
-    // font auto-load.
-    const needsReopen = stored !== null && !fontPathRef.value;
+    // A remembered workspace that still needs a permission click boots
+    // into the demo font like everyone else; the system menu offers
+    // "Reopen <name>". (The welcome panel's reopen flow still exists
+    // for hosts without a demo font.)
     createApp(Runebender, {
       fontPathRef,
-      ...(needsReopen ? {} : { initialFiles: readDevTestFontFiles }),
+      initialFiles: readDevTestFontFiles,
     })
       .provide(runebenderHostKey, host)
       .mount("#app");

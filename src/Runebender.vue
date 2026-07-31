@@ -47,7 +47,7 @@ import GeneratedIcon from "./components/GeneratedIcon.vue";
 import { type ToolId } from "./components/toolIds";
 import ShapesToolbar from "./components/ShapesToolbar.vue";
 import type { ShapeKind } from "./components/ShapesToolbar.vue";
-import SystemToolbar from "./components/SystemToolbar.vue";
+import SystemMenu from "./components/SystemMenu.vue";
 import TextDirectionToolbar from "./components/TextDirectionToolbar.vue";
 import type { TextDirection } from "./components/TextDirectionToolbar.vue";
 import GlyphAnatomyPanel from "./components/GlyphAnatomyPanel.vue";
@@ -3118,6 +3118,13 @@ async function reopenStoredWorkspace() {
   const res = await runebenderHost.reopenStoredWorkspace?.();
   if (res?.error) status.value = `reopen failed: ${res.error}`;
 }
+
+// "Reopen <name>" in the system menu: offered while the remembered
+// workspace isn't the one that's open (e.g. sitting in the demo font).
+const systemMenuReopenName = computed(() => {
+  const name = reopenWorkspaceName.value;
+  return name && currentFontPath.value !== name ? name : null;
+});
 
 async function onFontDirectoryInput(event: Event) {
   const input = event.target as HTMLInputElement | null;
@@ -8475,14 +8482,22 @@ onBeforeUnmount(() => {
       :masters="masters"
       :active-master="activeMasterIndex"
       :master-previews="masterPreviewSvgs"
-      :save-enabled="glyphNames.length > 0"
-      :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
-      :close-enabled="!!props.onCloseRequested"
       @select-master="onSelectMaster"
-      @save="onSave"
-      @save-as="onSaveAs"
-      @close="props.onCloseRequested?.()"
-    />
+    >
+      <template #menu>
+        <SystemMenu
+          :save-enabled="glyphNames.length > 0"
+          :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
+          :close-enabled="!!props.onCloseRequested"
+          :reopen-name="systemMenuReopenName"
+          @open-ufo="openFontDirectoryPicker"
+          @reopen="reopenStoredWorkspace"
+          @save="onSave"
+          @save-as="onSaveAs"
+          @close="props.onCloseRequested?.()"
+        />
+      </template>
+    </TopBar>
 
     <!-- Content row: left rail switches based on view mode
          (glyph navigation in grid, tool palette in editor). The
@@ -8575,6 +8590,18 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-if="viewMode === 'editor'" class="editor-top-overlay">
+          <SystemMenu
+            class="editor-system-menu"
+            :save-enabled="glyphNames.length > 0"
+            :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
+            :close-enabled="!!props.onCloseRequested"
+            :reopen-name="systemMenuReopenName"
+            @open-ufo="openFontDirectoryPicker"
+            @reopen="reopenStoredWorkspace"
+            @save="onSave"
+            @save-as="onSaveAs"
+            @close="props.onCloseRequested?.()"
+          />
           <div class="editor-tools-cluster">
             <EditModeToolbar
               :active="activeTool"
@@ -8632,14 +8659,6 @@ onBeforeUnmount(() => {
               @select-master="onSelectMaster"
             />
             <WorkspaceToolbar @glyph-grid="backToGrid" />
-            <SystemToolbar
-              :save-enabled="glyphNames.length > 0"
-              :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
-              :close-enabled="!!props.onCloseRequested"
-              @save="onSave"
-              @save-as="onSaveAs"
-              @close="props.onCloseRequested?.()"
-            />
           </div>
         </div>
 
