@@ -48,6 +48,7 @@ import { type ToolId } from "./components/toolIds";
 import ShapesToolbar from "./components/ShapesToolbar.vue";
 import type { ShapeKind } from "./components/ShapesToolbar.vue";
 import SystemMenu from "./components/SystemMenu.vue";
+import SystemMenuPanel from "./components/SystemMenuPanel.vue";
 import TextDirectionToolbar from "./components/TextDirectionToolbar.vue";
 import type { TextDirection } from "./components/TextDirectionToolbar.vue";
 import GlyphAnatomyPanel from "./components/GlyphAnatomyPanel.vue";
@@ -3125,6 +3126,10 @@ const systemMenuReopenName = computed(() => {
   const name = reopenWorkspaceName.value;
   return name && currentFontPath.value !== name ? name : null;
 });
+
+// The system menu panel joins the bento grid when open: top of the
+// left column in grid view, one gap below the button in editor view.
+const systemMenuOpen = ref(false);
 
 async function onFontDirectoryInput(event: Event) {
   const input = event.target as HTMLInputElement | null;
@@ -8486,15 +8491,8 @@ onBeforeUnmount(() => {
     >
       <template #menu>
         <SystemMenu
-          :save-enabled="glyphNames.length > 0"
-          :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
-          :close-enabled="!!props.onCloseRequested"
-          :reopen-name="systemMenuReopenName"
-          @open-ufo="openFontDirectoryPicker"
-          @reopen="reopenStoredWorkspace"
-          @save="onSave"
-          @save-as="onSaveAs"
-          @close="props.onCloseRequested?.()"
+          :open="systemMenuOpen"
+          @toggle="systemMenuOpen = !systemMenuOpen"
         />
       </template>
     </TopBar>
@@ -8505,6 +8503,19 @@ onBeforeUnmount(() => {
          info whenever a font is loaded. -->
     <div class="content">
       <div v-if="glyphNames.length > 0 && viewMode === 'grid'" class="left-col">
+          <SystemMenuPanel
+            v-if="systemMenuOpen"
+            :save-enabled="glyphNames.length > 0"
+            :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
+            :close-enabled="!!props.onCloseRequested"
+            :reopen-name="systemMenuReopenName"
+            @open-ufo="openFontDirectoryPicker"
+            @reopen="reopenStoredWorkspace"
+            @save="onSave"
+            @save-as="onSaveAs"
+            @close-editor="props.onCloseRequested?.()"
+            @dismiss="systemMenuOpen = false"
+          />
           <CategorySidebar
             v-model:search-query="sidebarSearchQuery"
             v-model:search-mode="sidebarSearchMode"
@@ -8590,18 +8601,26 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-if="viewMode === 'editor'" class="editor-top-overlay">
-          <SystemMenu
-            class="editor-system-menu"
-            :save-enabled="glyphNames.length > 0"
-            :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
-            :close-enabled="!!props.onCloseRequested"
-            :reopen-name="systemMenuReopenName"
-            @open-ufo="openFontDirectoryPicker"
-            @reopen="reopenStoredWorkspace"
-            @save="onSave"
-            @save-as="onSaveAs"
-            @close="props.onCloseRequested?.()"
-          />
+          <div class="editor-system-menu">
+            <SystemMenu
+              :open="systemMenuOpen"
+              @toggle="systemMenuOpen = !systemMenuOpen"
+            />
+            <SystemMenuPanel
+              v-if="systemMenuOpen"
+              class="editor-system-menu-panel"
+              :save-enabled="glyphNames.length > 0"
+              :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
+              :close-enabled="!!props.onCloseRequested"
+              :reopen-name="systemMenuReopenName"
+              @open-ufo="openFontDirectoryPicker"
+              @reopen="reopenStoredWorkspace"
+              @save="onSave"
+              @save-as="onSaveAs"
+              @close-editor="props.onCloseRequested?.()"
+              @dismiss="systemMenuOpen = false"
+            />
+          </div>
           <div class="editor-tools-cluster">
             <EditModeToolbar
               :active="activeTool"
@@ -9494,6 +9513,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   width: 286px;
   margin-right: 0;
+  gap: 6px; /* bento gap between the system menu panel and the sidebar */
 }
 .left-col > :deep(.category-sidebar) {
   flex: 1;
@@ -9691,6 +9711,18 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   gap: 6px;
   align-items: flex-start;
+}
+
+.editor-system-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+.editor-system-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px); /* one bento gap below the button tile */
+  left: 0;
+  min-width: 220px;
+  z-index: 100;
 }
 
 .background-image {
