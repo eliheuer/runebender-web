@@ -153,13 +153,15 @@ onBeforeUnmount(() => {
 }
 
 .menu-btn {
+  /* No button chrome: the rune sits directly on the panel background;
+     the hover tilt is the click affordance. */
   appearance: none;
   width: 48px;
   height: 48px;
   box-sizing: border-box;
   padding: 3px;
-  background: var(--rb-button-background, #181818);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  background: transparent;
+  border: none;
   border-radius: var(--rb-button-radius, 8px);
   display: flex;
   align-items: center;
@@ -192,10 +194,6 @@ onBeforeUnmount(() => {
   to {
     transform: rotateY(360deg);
   }
-}
-.menu-btn:hover,
-.menu-btn.active {
-  border-color: var(--rb-accent, #18b86f);
 }
 
 .dropdown {
