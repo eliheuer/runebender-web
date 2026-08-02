@@ -23,10 +23,22 @@ export async function readDevTestFontFiles(): Promise<File[]> {
   const entries = Object.entries(FILES);
   if (entries.length === 0) return [];
 
-  return Promise.all(
-    entries.map(async ([sourcePath, url]) => {
+  // ~1000 small fetches in one burst: a single transient failure must
+  // not take down the whole demo load (it used to — the editor fell
+  // back to the welcome screen). Retry each file once, then skip it.
+  const fetchBlob = async (url: string) => {
+    try {
       const res = await fetch(url);
-      const blob = await res.blob();
+      if (res.ok) return res.blob();
+    } catch {}
+    const retry = await fetch(url);
+    if (!retry.ok) throw new Error(`fetch failed: ${url}`);
+    return retry.blob();
+  };
+
+  const settled = await Promise.allSettled(
+    entries.map(async ([sourcePath, url]) => {
+      const blob = await fetchBlob(url);
       // The source path looks like one of:
       //   "../assets/test-fonts/VirtuaGrotesk-Regular.ufo/glyphs/A_.glif"
       //   "../assets/test-fonts/VirtuaGrotesk.designspace"
@@ -50,4 +62,12 @@ export async function readDevTestFontFiles(): Promise<File[]> {
       return file;
     }),
   );
+  const files = settled
+    .filter((r): r is PromiseFulfilledResult<File> => r.status === "fulfilled")
+    .map((r) => r.value);
+  const failed = settled.length - files.length;
+  if (failed > 0) {
+    console.warn(`[runebender] demo font: ${failed} file(s) failed to load`);
+  }
+  return files;
 }

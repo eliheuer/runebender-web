@@ -48,6 +48,7 @@
 pub mod editing;
 pub mod editor;
 pub mod curve;
+pub mod glyphs_import;
 pub mod image_trace;
 pub mod measure;
 pub mod model;

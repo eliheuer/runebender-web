@@ -38,6 +38,9 @@ const TEXT_EXTENSIONS = [
   ".xml",
   ".json",
   ".txt",
+  // Glyphs sources load via the editor's in-memory conversion
+  // (read-only), so a picked folder holding only a .glyphs works.
+  ".glyphs",
 ];
 
 const isTextPath = (p: string) =>

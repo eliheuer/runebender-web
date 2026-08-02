@@ -21,6 +21,7 @@ import init, {
   glifWithOutlinesFrom,
   glifWithUnicode,
   glyphCategoryForCodepoint,
+  glyphsToUfoFiles,
   traceImageToGlifReport,
 } from "../wasm/runebender_web.js";
 import CategorySidebar, {
@@ -149,6 +150,7 @@ const gridViewportWidth = ref<number>(0);
 const gridViewportHeight = ref<number>(0);
 const backgroundImageInput = ref<HTMLInputElement | null>(null);
 const fontDirectoryInput = ref<HTMLInputElement | null>(null);
+const glyphsFileInput = ref<HTMLInputElement | null>(null);
 const status = ref<string>("initializing");
 const lastSavedDisplay = ref<string | null>(null);
 const mirroredSaveWrites = ref<number>(0);
@@ -3131,6 +3133,49 @@ const systemMenuReopenName = computed(() => {
 // left column in grid view, one gap below the button in editor view.
 const systemMenuOpen = ref(false);
 
+// Workspace was imported from a .glyphs source: editable in memory,
+// but saving back is not supported yet (stage 1 is read-only).
+const glyphsSourceReadOnly = ref(false);
+const glyphsSourceLabel = ref("");
+
+async function openGlyphsFilePicker() {
+  const picker = (window as Window & {
+    showOpenFilePicker?: (options?: {
+      types?: { description: string; accept: Record<string, string[]> }[];
+      excludeAcceptAllOption?: boolean;
+    }) => Promise<FileSystemFileHandle[]>;
+  }).showOpenFilePicker;
+  if (!picker) {
+    glyphsFileInput.value?.click();
+    return;
+  }
+  try {
+    const [handle] = await picker({
+      types: [
+        {
+          description: "Glyphs source",
+          accept: { "text/plain": [".glyphs"] },
+        },
+      ],
+      excludeAcceptAllOption: false,
+    });
+    const file = await handle.getFile();
+    await loadGlifFiles([file]);
+  } catch (e) {
+    if ((e as DOMException).name !== "AbortError") {
+      console.warn("glyphs file picker failed:", e);
+      status.value = `open failed: ${e}`;
+    }
+  }
+}
+
+async function onGlyphsFileInput(event: Event) {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0];
+  if (input) input.value = "";
+  if (file) await loadGlifFiles([file]);
+}
+
 async function onFontDirectoryInput(event: Event) {
   const input = event.target as HTMLInputElement | null;
   const files = Array.from(input?.files ?? []);
@@ -5623,6 +5668,55 @@ async function loadGlifFiles(
 ) {
   if (!editor || !canvas.value) return;
 
+  // A .glyphs source (Glyphs 2 or 3) is converted in-wasm to an
+  // in-memory UFO + designspace file set and continues down the
+  // normal load path. Read-only for now: we never write .glyphs.
+  // Native UFO/designspace files win when both are present.
+  glyphsSourceReadOnly.value = false;
+  // relPath is empty for files straight out of showOpenFilePicker
+  // (webkitRelativePath is "" there, and ?? keeps it), so fall back
+  // to the plain file name.
+  const pathOf = (f: File) => (relPath(f) || f.name).toLowerCase();
+  const hasNativeSource = files.some((f) => {
+    const p = pathOf(f);
+    return p.endsWith(".designspace") || p.endsWith(".glif");
+  });
+  const glyphsFile = hasNativeSource
+    ? undefined
+    : files.find((f) => pathOf(f).endsWith(".glyphs"));
+  if (glyphsFile) {
+    try {
+      status.value = `converting ${glyphsFile.name}…`;
+      const raw = await glyphsFile.text();
+      const result = JSON.parse(glyphsToUfoFiles(raw)) as {
+        family_name: string;
+        files: { path: string; text: string }[];
+        warnings: string[];
+      };
+      if (result.warnings.length) {
+        console.warn("[runebender] glyphs import warnings:", result.warnings);
+      }
+      files = result.files.map(({ path, text }) => {
+        const name = path.split("/").pop() ?? path;
+        const file = new File([text], name, { type: "text/plain" });
+        try {
+          Object.defineProperty(file, "webkitRelativePath", {
+            value: path,
+            configurable: true,
+          });
+        } catch {}
+        return file;
+      });
+      fileHandles = new Map();
+      glyphsSourceReadOnly.value = true;
+      glyphsSourceLabel.value = glyphsFile.name;
+    } catch (e) {
+      console.warn("glyphs import failed:", e);
+      status.value = `failed to open ${glyphsFile.name}: ${e}`;
+      return;
+    }
+  }
+
   // Reset all selection state regardless of which load path runs.
   currentGlyph.value = "";
   selectedGlyph.value = "";
@@ -7118,6 +7212,10 @@ function handleZoomShortcut(key: string): boolean {
 }
 
 async function onSave(): Promise<boolean> {
+  if (glyphsSourceReadOnly.value) {
+    status.value = `${glyphsSourceLabel.value} opened read-only — saving back to .glyphs isn't supported yet`;
+    return false;
+  }
   const data = activeMasterData.value;
   if ((!data || !activeMasterName.value) && !designspaceDirty.value) return true;
 
@@ -8477,6 +8575,13 @@ onBeforeUnmount(() => {
       webkitdirectory
       @change="onFontDirectoryInput"
     />
+    <input
+      ref="glyphsFileInput"
+      class="hidden-file-input"
+      type="file"
+      accept=".glyphs"
+      @change="onGlyphsFileInput"
+    />
     <TopBar
       v-if="glyphNames.length > 0 && viewMode === 'grid'"
       :font-label="fontLabel"
@@ -8510,6 +8615,7 @@ onBeforeUnmount(() => {
             :close-enabled="!!props.onCloseRequested"
             :reopen-name="systemMenuReopenName"
             @open-ufo="openFontDirectoryPicker"
+            @open-glyphs="openGlyphsFilePicker"
             @reopen="reopenStoredWorkspace"
             @save="onSave"
             @save-as="onSaveAs"
@@ -8614,6 +8720,7 @@ onBeforeUnmount(() => {
               :close-enabled="!!props.onCloseRequested"
               :reopen-name="systemMenuReopenName"
               @open-ufo="openFontDirectoryPicker"
+              @open-glyphs="openGlyphsFilePicker"
               @reopen="reopenStoredWorkspace"
               @save="onSave"
               @save-as="onSaveAs"
@@ -8691,6 +8798,7 @@ onBeforeUnmount(() => {
           v-if="glyphNames.length === 0 && !currentFontPath && !initialFontLoading"
           :reopen-name="reopenWorkspaceName"
           @open-ufo="openFontDirectoryPicker"
+          @open-glyphs="openGlyphsFilePicker"
           @reopen="reopenStoredWorkspace"
         />
 

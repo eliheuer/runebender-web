@@ -141,6 +141,7 @@ export const glypheditor_updateSelectedAnchor: (a: number, b: number, c: number,
 export const glypheditor_updateTextGlyph: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
 export const glypheditor_wheel: (a: number, b: number, c: number, d: number) => void;
 export const glypheditor_zoom: (a: number) => number;
+export const glyphsToUfoFiles: (a: number, b: number) => [number, number, number, number];
 export const traceImageToGlif: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const traceImageToGlifReport: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const init: () => void;

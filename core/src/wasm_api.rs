@@ -29,6 +29,17 @@ use crate::tool::{ActiveTool, ShapeKind};
 type GlifXmlMap = HashMap<String, String>;
 type CompatMasterGlyphMap = HashMap<String, Option<String>>;
 
+/// Convert a .glyphs source (Glyphs 2 or 3) into an in-memory UFO +
+/// designspace file set, returned as JSON:
+/// `{ family_name, files: [{path, text}], warnings: [..] }`.
+/// The editor feeds the files through its normal UFO load pipeline.
+#[wasm_bindgen(js_name = glyphsToUfoFiles)]
+pub fn glyphs_to_ufo_files(glyphs_text: &str) -> Result<String, JsValue> {
+    let result = crate::glyphs_import::glyphs_to_ufo_files(glyphs_text)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 #[wasm_bindgen(js_name = traceImageToGlif)]
 pub fn trace_image_to_glif(image_bytes: &[u8], config_json: &str) -> Result<String, JsValue> {
     crate::image_trace::trace_image_to_glif(image_bytes, config_json)

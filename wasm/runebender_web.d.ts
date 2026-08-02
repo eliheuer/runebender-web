@@ -410,6 +410,14 @@ export function glifWithUnicode(bytes: Uint8Array, unicode: string): Uint8Array;
  */
 export function glyphCategoryForCodepoint(cp: number): string;
 
+/**
+ * Convert a .glyphs source (Glyphs 2 or 3) into an in-memory UFO +
+ * designspace file set, returned as JSON:
+ * `{ family_name, files: [{path, text}], warnings: [..] }`.
+ * The editor feeds the files through its normal UFO load pipeline.
+ */
+export function glyphsToUfoFiles(glyphs_text: string): string;
+
 export function init(): void;
 
 export function traceImageToGlif(image_bytes: Uint8Array, config_json: string): string;
@@ -560,6 +568,7 @@ export interface InitOutput {
     readonly glypheditor_updateTextGlyph: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly glypheditor_wheel: (a: number, b: number, c: number, d: number) => void;
     readonly glypheditor_zoom: (a: number) => number;
+    readonly glyphsToUfoFiles: (a: number, b: number) => [number, number, number, number];
     readonly traceImageToGlif: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly traceImageToGlifReport: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly init: () => void;
