@@ -150,7 +150,6 @@ const gridViewportWidth = ref<number>(0);
 const gridViewportHeight = ref<number>(0);
 const backgroundImageInput = ref<HTMLInputElement | null>(null);
 const fontDirectoryInput = ref<HTMLInputElement | null>(null);
-const glyphsFileInput = ref<HTMLInputElement | null>(null);
 const status = ref<string>("initializing");
 const lastSavedDisplay = ref<string | null>(null);
 const mirroredSaveWrites = ref<number>(0);
@@ -3135,46 +3134,10 @@ const systemMenuOpen = ref(false);
 
 // Workspace was imported from a .glyphs source: editable in memory,
 // but saving back is not supported yet (stage 1 is read-only).
+// Glyphs sources load through "Open Font Source..." (pick the folder
+// containing the .glyphs) or by dropping the file onto the editor.
 const glyphsSourceReadOnly = ref(false);
 const glyphsSourceLabel = ref("");
-
-async function openGlyphsFilePicker() {
-  const picker = (window as Window & {
-    showOpenFilePicker?: (options?: {
-      types?: { description: string; accept: Record<string, string[]> }[];
-      excludeAcceptAllOption?: boolean;
-    }) => Promise<FileSystemFileHandle[]>;
-  }).showOpenFilePicker;
-  if (!picker) {
-    glyphsFileInput.value?.click();
-    return;
-  }
-  try {
-    const [handle] = await picker({
-      types: [
-        {
-          description: "Glyphs source",
-          accept: { "text/plain": [".glyphs"] },
-        },
-      ],
-      excludeAcceptAllOption: false,
-    });
-    const file = await handle.getFile();
-    await loadGlifFiles([file]);
-  } catch (e) {
-    if ((e as DOMException).name !== "AbortError") {
-      console.warn("glyphs file picker failed:", e);
-      status.value = `open failed: ${e}`;
-    }
-  }
-}
-
-async function onGlyphsFileInput(event: Event) {
-  const input = event.target as HTMLInputElement | null;
-  const file = input?.files?.[0];
-  if (input) input.value = "";
-  if (file) await loadGlifFiles([file]);
-}
 
 async function onFontDirectoryInput(event: Event) {
   const input = event.target as HTMLInputElement | null;
@@ -8575,13 +8538,6 @@ onBeforeUnmount(() => {
       webkitdirectory
       @change="onFontDirectoryInput"
     />
-    <input
-      ref="glyphsFileInput"
-      class="hidden-file-input"
-      type="file"
-      accept=".glyphs"
-      @change="onGlyphsFileInput"
-    />
     <TopBar
       v-if="glyphNames.length > 0 && viewMode === 'grid'"
       :font-label="fontLabel"
@@ -8615,7 +8571,6 @@ onBeforeUnmount(() => {
             :close-enabled="!!props.onCloseRequested"
             :reopen-name="systemMenuReopenName"
             @open-ufo="openFontDirectoryPicker"
-            @open-glyphs="openGlyphsFilePicker"
             @reopen="reopenStoredWorkspace"
             @save="onSave"
             @save-as="onSaveAs"
@@ -8720,7 +8675,6 @@ onBeforeUnmount(() => {
               :close-enabled="!!props.onCloseRequested"
               :reopen-name="systemMenuReopenName"
               @open-ufo="openFontDirectoryPicker"
-              @open-glyphs="openGlyphsFilePicker"
               @reopen="reopenStoredWorkspace"
               @save="onSave"
               @save-as="onSaveAs"
@@ -8798,7 +8752,6 @@ onBeforeUnmount(() => {
           v-if="glyphNames.length === 0 && !currentFontPath && !initialFontLoading"
           :reopen-name="reopenWorkspaceName"
           @open-ufo="openFontDirectoryPicker"
-          @open-glyphs="openGlyphsFilePicker"
           @reopen="reopenStoredWorkspace"
         />
 
