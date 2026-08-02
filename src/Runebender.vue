@@ -3097,7 +3097,13 @@ async function grantPendingSourceFolder() {
   // On cancel the panel stays up so the grant can be retried.
 }
 
+function resetSourceChoice() {
+  pendingSourceChoice.value = null;
+  activeSourceChoice.value = null;
+}
+
 async function openFontDirectoryPicker() {
+  resetSourceChoice();
   // File-first opening: .designspace and .glyphs are directly
   // clickable in a FILE picker — the gesture designers expect. A
   // .glyphs is self-contained; a .designspace needs one follow-up
@@ -3125,6 +3131,7 @@ async function openFontDirectoryPicker() {
 // Folder-first opening, for UFO-only sources (a bare .ufo is a
 // package on macOS, so it can't be clicked in a file picker).
 async function openSourceFolderPicker() {
+  resetSourceChoice();
   if (runebenderHost.openWorkspaceFolder) {
     const res = await runebenderHost.openWorkspaceFolder();
     if (res.error) status.value = `open failed: ${res.error}`;
@@ -3161,6 +3168,7 @@ const reopenWorkspaceName = ref<string | null>(
 );
 
 async function reopenStoredWorkspace() {
+  resetSourceChoice();
   const res = await runebenderHost.reopenStoredWorkspace?.();
   if (res?.error) status.value = `reopen failed: ${res.error}`;
 }
@@ -5675,9 +5683,31 @@ function refreshGridGlyphSvg(
   return svg;
 }
 
+type SourceChoice = { kind: "designspace" | "ufo"; path: string };
+
+// Ambiguous folder waiting on the user to pick which source to open.
+const pendingSourceChoice = ref<{
+  files: File[];
+  fileHandles: Map<string, FileSystemFileHandle>;
+  designspaces: string[];
+  ufos: string[];
+} | null>(null);
+// The choice made for the current workspace — reused on reloads (an
+// agent touching the designspace must not re-open the chooser).
+const activeSourceChoice = ref<SourceChoice | null>(null);
+
+async function applySourceChoice(choice: SourceChoice) {
+  const pending = pendingSourceChoice.value;
+  if (!pending) return;
+  pendingSourceChoice.value = null;
+  activeSourceChoice.value = choice;
+  await loadGlifFiles(pending.files, pending.fileHandles, choice);
+}
+
 async function loadGlifFiles(
   files: File[],
   fileHandles: Map<string, FileSystemFileHandle> = new Map(),
+  chosenSource: SourceChoice | null = null,
 ) {
   if (!editor || !canvas.value) return;
 
@@ -5755,17 +5785,80 @@ async function loadGlifFiles(
   designspaceFileHandle.value = null;
   designspaceDirty.value = false;
 
-  // Prefer the designspace closest to the workspace root: folders
-  // like archive/ or backup/ often hold retired designspaces (a
-  // sources/ dir with archive/old.designspace used to win the
-  // files.find race and silently load the wrong font).
-  const dsFile = files
+  // Source selection. A folder can hold several openable things —
+  // multiple designspaces (archive/ copies, variants) or standalone
+  // UFOs — and silently picking one is how the wrong font gets
+  // edited. Exactly one candidate loads directly; any ambiguity
+  // surfaces the source-chooser panel instead.
+  // Case-preserving paths here: pathOf lowercases (fine for extension
+  // tests, wrong for display and for matching designspace
+  // filename="..." references, which are case-sensitive).
+  const rawPathOf = (f: File) => relPath(f) || f.name;
+  const byDepth = (a: string, b: string) =>
+    a.split("/").length - b.split("/").length || a.localeCompare(b);
+  const dsPaths = files
     .filter((f) => /\.designspace$/i.test(f.name))
-    .sort((a, b) => {
-      const depthA = (relPath(a) || a.name).split("/").length;
-      const depthB = (relPath(b) || b.name).split("/").length;
-      return depthA - depthB || a.name.localeCompare(b.name);
-    })[0];
+    .map((f) => rawPathOf(f))
+    .sort(byDepth);
+  const ufoRoots = [
+    ...new Set(
+      files
+        .map((f) => {
+          const p = rawPathOf(f);
+          const i = p.toLowerCase().indexOf(".ufo/");
+          return i === -1 ? null : p.slice(0, i + 4);
+        })
+        .filter((p): p is string => p !== null),
+    ),
+  ].sort(byDepth);
+
+  let source = chosenSource ?? activeSourceChoice.value;
+  if (
+    source &&
+    !(source.kind === "designspace"
+      ? dsPaths.includes(source.path)
+      : ufoRoots.includes(source.path))
+  ) {
+    source = null;
+  }
+
+  if (!source) {
+    // Which UFOs are standalone (not referenced by any designspace)?
+    const dsTexts = await Promise.all(
+      files.filter((f) => /\.designspace$/i.test(f.name)).map((f) => f.text()),
+    );
+    const unreferencedUfos = ufoRoots.filter((root) => {
+      const base = (root.split("/").pop() ?? root).toLowerCase();
+      return !dsTexts.some((t) => t.toLowerCase().includes(base));
+    });
+    const ambiguous =
+      dsPaths.length >= 2 ||
+      (dsPaths.length === 0 && ufoRoots.length >= 2) ||
+      (dsPaths.length >= 1 && unreferencedUfos.length >= 1);
+    if (ambiguous) {
+      pendingSourceChoice.value = {
+        files,
+        fileHandles,
+        designspaces: dsPaths,
+        ufos: ufoRoots,
+      };
+      status.value = "several sources found — choose one to open";
+      return;
+    }
+  } else {
+    activeSourceChoice.value = source;
+  }
+
+  let dsFile: File | undefined;
+  if (source?.kind === "ufo") {
+    files = files.filter((f) => rawPathOf(f).startsWith(`${source.path}/`));
+  } else if (source?.kind === "designspace") {
+    dsFile = files.find((f) => rawPathOf(f) === source.path);
+  } else {
+    dsFile = files
+      .filter((f) => /\.designspace$/i.test(f.name))
+      .sort((a, b) => byDepth(rawPathOf(a), rawPathOf(b)))[0];
+  }
   if (dsFile) {
     await loadDesignspace(dsFile, files, fileHandles);
   } else {
@@ -5881,10 +5974,14 @@ async function loadWorkspaceSlot(slot: string) {
   // else the slot); line 2 says where it lives — complementary, not
   // the same string twice.
   const dsName = designspacePath.value?.split("/").pop();
+  const chosenUfo =
+    activeSourceChoice.value?.kind === "ufo"
+      ? activeSourceChoice.value.path.split("/").pop()
+      : undefined;
   const ufoName = data.origin_source?.endsWith(".ufo")
     ? data.origin_source.split("/").pop()
     : undefined;
-  fontLabel.value = dsName || ufoName || slot;
+  fontLabel.value = dsName || chosenUfo || ufoName || slot;
   // Show the fullest path this host knows: the workspace server
   // knows the absolute path; the browser's File System Access API
   // deliberately hides everything above the granted folder, so there
@@ -8824,6 +8921,46 @@ onBeforeUnmount(() => {
              supplied a path, the editor is in the brief loading
              window before glyphs populate, and a momentary flash of
              "Drop a .ufo folder" would be confusing. -->
+        <!-- Ambiguous folder: several designspaces / standalone UFOs.
+             The user picks which source to open. -->
+        <div v-if="pendingSourceChoice" class="grant-overlay">
+          <div class="grant-panel">
+            <div class="grant-title">Choose a source to open</div>
+            <div class="grant-text">
+              This folder holds more than one font source.
+            </div>
+            <div class="source-choice-list">
+              <template v-if="pendingSourceChoice.designspaces.length">
+                <div class="source-choice-group">Designspaces</div>
+                <button
+                  v-for="path in pendingSourceChoice.designspaces"
+                  :key="`ds-${path}`"
+                  type="button"
+                  @click="applySourceChoice({ kind: 'designspace', path })"
+                >
+                  {{ path }}
+                </button>
+              </template>
+              <template v-if="pendingSourceChoice.ufos.length">
+                <div class="source-choice-group">Single UFO masters</div>
+                <button
+                  v-for="path in pendingSourceChoice.ufos"
+                  :key="`ufo-${path}`"
+                  type="button"
+                  @click="applySourceChoice({ kind: 'ufo', path })"
+                >
+                  {{ path }}
+                </button>
+              </template>
+            </div>
+            <div class="grant-actions">
+              <button type="button" @click="pendingSourceChoice = null">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- One-click folder grant after picking a .designspace file:
              the browser can't read the sibling UFOs without it. -->
         <div v-if="pendingGrantSource" class="grant-overlay">
@@ -9910,6 +10047,39 @@ onBeforeUnmount(() => {
 .grant-text {
   line-height: 1.45;
 }
+.source-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.source-choice-group {
+  margin: 6px 0 2px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rb-secondary-text, #707070);
+}
+.source-choice-list button {
+  appearance: none;
+  text-align: left;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--rb-button-radius, 8px);
+  color: var(--rb-primary-text, #909090);
+  font: 14px ui-monospace, monospace;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.source-choice-list button:hover {
+  color: var(--rb-accent, #18b86f);
+  background: var(--rb-button-background, #181818);
+}
+
 .grant-actions {
   display: flex;
   justify-content: flex-end;
