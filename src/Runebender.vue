@@ -5885,9 +5885,18 @@ async function loadWorkspaceSlot(slot: string) {
     ? data.origin_source.split("/").pop()
     : undefined;
   fontLabel.value = dsName || ufoName || slot;
-  const root = data.display_root || data.origin_root || slot;
+  // Show the fullest path this host knows: the workspace server
+  // knows the absolute path; the browser's File System Access API
+  // deliberately hides everything above the granted folder, so there
+  // the path starts at that folder.
+  const fullest =
+    data.display_source ||
+    data.origin_source ||
+    data.display_root ||
+    data.origin_root ||
+    slot;
   sourceSaveLabel.value = data.linked_source
-    ? `on disk: ${root}/`
+    ? `on disk: ${fullest}`
     : "Managed copy (workspace cache)";
   if (data.refreshed_from_source) {
     status.value = "reloaded source changes from disk";
