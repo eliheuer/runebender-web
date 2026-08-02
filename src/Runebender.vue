@@ -48,6 +48,10 @@ import GeneratedIcon from "./components/GeneratedIcon.vue";
 import { type ToolId } from "./components/toolIds";
 import ShapesToolbar from "./components/ShapesToolbar.vue";
 import type { ShapeKind } from "./components/ShapesToolbar.vue";
+import EditorSidebar, {
+  type SidebarAxis,
+  type SidebarShape,
+} from "./components/EditorSidebar.vue";
 import SystemMenu from "./components/SystemMenu.vue";
 import SystemMenuPanel from "./components/SystemMenuPanel.vue";
 import TextDirectionToolbar from "./components/TextDirectionToolbar.vue";
@@ -3191,6 +3195,80 @@ const systemMenuReopenName = computed(() => {
 // The system menu panel joins the bento grid when open: top of the
 // left column in grid view, one gap below the button in editor view.
 const systemMenuOpen = ref(false);
+
+// ---- Editor sidebar (Glyphs-style tabs) ----
+
+// Shapes of the current glyph, parsed from its .glif for the Shapes
+// tab. Each row remembers a point on the shape so clicking it can
+// select the contour through the existing hit-test API.
+const sidebarShapes = computed<SidebarShape[]>(() => {
+  const data = activeMasterData.value;
+  const bytes = data?.glyphBytes.get(currentGlyph.value);
+  if (!bytes) return [];
+  try {
+    const xml = new DOMParser().parseFromString(
+      new TextDecoder().decode(bytes),
+      "text/xml",
+    );
+    const shapes: SidebarShape[] = [];
+    xml.querySelectorAll("outline > contour").forEach((contour, index) => {
+      const points = contour.querySelectorAll("point");
+      const first = points[0];
+      shapes.push({
+        kind: "contour",
+        label: `contour ${index + 1}`,
+        detail: `${points.length} nodes`,
+        x: Number(first?.getAttribute("x") ?? 0),
+        y: Number(first?.getAttribute("y") ?? 0),
+        });
+    });
+    xml.querySelectorAll("outline > component").forEach((component) => {
+      shapes.push({
+        kind: "component",
+        label: component.getAttribute("base") ?? "component",
+        detail: "component",
+        x: 0,
+        y: 0,
+      });
+    });
+    return shapes;
+  } catch {
+    return [];
+  }
+});
+
+// Axes from the loaded designspace (the .glyphs importer emits one
+// too). Read-only until the interpolation engine lands.
+const sidebarAxes = computed<SidebarAxis[]>(() => {
+  if (!designspaceText.value) return [];
+  try {
+    const xml = new DOMParser().parseFromString(
+      designspaceText.value,
+      "text/xml",
+    );
+    return [...xml.querySelectorAll("axes > axis")].map((axis) => ({
+      name: axis.getAttribute("name") ?? axis.getAttribute("tag") ?? "axis",
+      tag: axis.getAttribute("tag") ?? "",
+      min: Number(axis.getAttribute("minimum") ?? 0),
+      max: Number(axis.getAttribute("maximum") ?? 0),
+      default: Number(axis.getAttribute("default") ?? 0),
+    }));
+  } catch {
+    return [];
+  }
+});
+
+function onSidebarJumpGlyph(name: string) {
+  openGridSelectionInEditor(name);
+}
+
+function onSidebarSelectShape(shape: SidebarShape) {
+  if (shape.kind !== "contour" || !editor) return;
+  if (editor.selectContourAt(shape.x, shape.y)) {
+    requestRender({ refreshSelectionState: true });
+    status.value = `selected ${shape.label}`;
+  }
+}
 
 // Recently opened folders / .glyphs files (FS Access host); refreshed
 // each time the menu opens. Clicking one runs inside that click's
@@ -8943,6 +9021,18 @@ onBeforeUnmount(() => {
              pane's absolute positioning still targets the stage. -->
         <div class="editor-mid-row">
           <div v-if="viewMode === 'editor'" class="editor-side-col editor-left-col">
+            <EditorSidebar
+              :glyph-names="glyphNames"
+              :glyph-svgs="glyphSvgs"
+              :current-glyph="currentGlyph"
+              :shapes="sidebarShapes"
+              :axes="sidebarAxes"
+              :masters="masters"
+              :active-master="activeMasterIndex"
+              @jump-glyph="onSidebarJumpGlyph"
+              @select-shape="onSidebarSelectShape"
+              @select-master="onSelectMaster"
+            />
             <div
               v-if="editorPanelsVisible && selectActive"
               class="helper-overlay select-stack"
@@ -10038,8 +10128,30 @@ onBeforeUnmount(() => {
 .editor-side-col > * {
   position: static;
 }
-.editor-right-col .coordinate-overlay {
+.editor-right-col > .transform-overlay,
+.editor-right-col > .anchor-overlay,
+.editor-right-col > .coordinate-overlay {
+  position: static;
+  margin: 0;
+}
+.editor-right-col > .coordinate-overlay {
   margin-top: auto;
+}
+/* Tool panels become real bento tiles in the columns: same width as
+   the sidebar, panel chrome instead of floating chips. The explicit
+   position/margin/height resets must out-rank .helper-overlay's
+   floating rules (scoped-attr specificity ties resolve by order). */
+.editor-left-col > .helper-overlay,
+.editor-side-col > .helper-overlay {
+  position: static;
+  margin-block: 0;
+  height: auto;
+  box-sizing: border-box;
+  width: 232px;
+  padding: 8px;
+  background: var(--rb-panel-background, #1c1c1c);
+  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border-radius: var(--rb-panel-radius, 12px);
 }
 
 /* Outside editor mode the pane sits inert behind the grid so the
