@@ -3086,8 +3086,13 @@ async function openFontDirectoryPicker() {
   // fontPathRef, so saves go through the guarded host write path
   // instead of raw per-file handles.
   if (runebenderHost.openWorkspaceFolder) {
+    // The OS folder picker grays out files by design; people read
+    // that as "broken", so spell out the gesture while it's open.
+    status.value =
+      "in the picker: highlight the folder holding your sources (files stay grayed out), then press Select";
     const res = await runebenderHost.openWorkspaceFolder();
     if (res.error) status.value = `open failed: ${res.error}`;
+    else if (res.cancelled) status.value = "open cancelled";
     return;
   }
   const picker = (window as Window & {
