@@ -5877,18 +5877,17 @@ async function loadWorkspaceSlot(slot: string) {
 
   await loadGlifFiles(files);
 
-  // Name the thing being edited, not the folder it lives in: the
-  // designspace (set by loadGlifFiles) beats the slot name.
+  // Line 1 names the thing being edited (designspace, else the .ufo,
+  // else the slot); line 2 says where it lives — complementary, not
+  // the same string twice.
   const dsName = designspacePath.value?.split("/").pop();
-  fontLabel.value = dsName || slot;
+  const ufoName = data.origin_source?.endsWith(".ufo")
+    ? data.origin_source.split("/").pop()
+    : undefined;
+  fontLabel.value = dsName || ufoName || slot;
+  const root = data.display_root || data.origin_root || slot;
   sourceSaveLabel.value = data.linked_source
-    ? `Editing ${
-        data.display_source ||
-        data.origin_source ||
-        data.display_root ||
-        data.origin_root ||
-        "source"
-      }`
+    ? `on disk: ${root}/`
     : "Managed copy (workspace cache)";
   if (data.refreshed_from_source) {
     status.value = "reloaded source changes from disk";
