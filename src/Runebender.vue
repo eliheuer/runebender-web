@@ -8938,6 +8938,63 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
+        <!-- Middle bento row: left panel column, canvas pane, right
+             panel column. display:contents outside editor mode so the
+             pane's absolute positioning still targets the stage. -->
+        <div class="editor-mid-row">
+          <div v-if="viewMode === 'editor'" class="editor-side-col editor-left-col">
+            <div
+              v-if="editorPanelsVisible && selectActive"
+              class="helper-overlay select-stack"
+            >
+              <SelectPanel
+                :colorize="measureColorize"
+                :handles="measureHandles"
+                :segments="measureSegments"
+                :spans="measureSpans"
+                :sidebearings="measureSidebearings"
+                @update:colorize="(v: boolean) => (measureColorize = v)"
+                @update:handles="(v: boolean) => (measureHandles = v)"
+                @update:segments="(v: boolean) => (measureSegments = v)"
+                @update:spans="(v: boolean) => (measureSpans = v)"
+                @update:sidebearings="(v: boolean) => (measureSidebearings = v)"
+              />
+              <CurvePanel
+                :comb="curveComb"
+                :continuity="curveContinuity"
+                :tol="curveTol"
+                @update:comb="(v: boolean) => (curveComb = v)"
+                @update:continuity="(v: boolean) => (curveContinuity = v)"
+                @update:tol="(v: number) => (curveTol = v)"
+                @harmonize="harmonizeCurves"
+                @balance="balanceCurves"
+                @optimize="optimizeCurves"
+              />
+            </div>
+            <SketchPanel
+              v-if="editorPanelsVisible && sketchActive"
+              class="helper-overlay"
+              :brush="sketchBrush"
+              :erase="sketchErase"
+              :trace-mode="sketchTraceMode"
+              :has-ink="sketchHasInk"
+              :tracing="sketchTracing"
+              :drafting="sketchDrafting"
+              @update:brush="(v: number) => (sketchBrush = v)"
+              @update:erase="(v: boolean) => (sketchErase = v)"
+              @update:trace-mode="(v: string) => (sketchTraceMode = v)"
+              :banking="sketchBanking"
+              :bank-count="sketchBankCount"
+              :bank-flash="sketchBankFlash"
+              :identity="sketchIdentity"
+              @update:identity="(v: number) => (sketchIdentity = v)"
+              @clear="clearSketch"
+              @trace="traceSketchToGlyph"
+              @draft="draftSketchWithVirtua"
+              @bank="bankSketchPair"
+            />
+          </div>
+
         <!-- The canvas pane: a bento tile in editor mode; in grid mode
              it sits inert behind the grid (the WebGPU canvas must stay
              mounted). Everything positioned in canvas coordinates
@@ -9395,83 +9452,6 @@ onBeforeUnmount(() => {
           {{ clipboardNotice }}
         </div>
 
-        <CoordinatePanel
-          v-if="viewMode === 'editor' && editorPanelsVisible"
-          class="coordinate-overlay"
-          :value="selectedBounds"
-          :selection-count="selectionCount"
-          :quadrant="coordinateQuadrant"
-          @select-quadrant="onCoordinateQuadrant"
-          @change-coordinate="onCoordinateChange"
-        />
-
-        <AnchorPanel
-          v-if="viewMode === 'editor' && editorPanelsVisible && selectedAnchor"
-          class="anchor-overlay"
-          :value="selectedAnchor"
-          @change-anchor="onAnchorChange"
-        />
-
-        <TransformPanel
-          v-if="viewMode === 'editor' && editorPanelsVisible"
-          class="transform-overlay"
-          :bounds="selectedBounds"
-          :contour-count="currentContours"
-          @transform="onTransform"
-        />
-
-        <SketchPanel
-          v-if="viewMode === 'editor' && editorPanelsVisible && sketchActive"
-          class="helper-overlay"
-          :brush="sketchBrush"
-          :erase="sketchErase"
-          :trace-mode="sketchTraceMode"
-          :has-ink="sketchHasInk"
-          :tracing="sketchTracing"
-          :drafting="sketchDrafting"
-          @update:brush="(v: number) => (sketchBrush = v)"
-          @update:erase="(v: boolean) => (sketchErase = v)"
-          @update:trace-mode="(v: string) => (sketchTraceMode = v)"
-          :banking="sketchBanking"
-          :bank-count="sketchBankCount"
-          :bank-flash="sketchBankFlash"
-          :identity="sketchIdentity"
-          @update:identity="(v: number) => (sketchIdentity = v)"
-          @clear="clearSketch"
-          @trace="traceSketchToGlyph"
-          @draft="draftSketchWithVirtua"
-          @bank="bankSketchPair"
-        />
-
-        <div
-          v-if="viewMode === 'editor' && editorPanelsVisible && selectActive"
-          class="helper-overlay select-stack"
-        >
-          <SelectPanel
-            :colorize="measureColorize"
-            :handles="measureHandles"
-            :segments="measureSegments"
-            :spans="measureSpans"
-            :sidebearings="measureSidebearings"
-            @update:colorize="(v: boolean) => (measureColorize = v)"
-            @update:handles="(v: boolean) => (measureHandles = v)"
-            @update:segments="(v: boolean) => (measureSegments = v)"
-            @update:spans="(v: boolean) => (measureSpans = v)"
-            @update:sidebearings="(v: boolean) => (measureSidebearings = v)"
-          />
-          <CurvePanel
-            :comb="curveComb"
-            :continuity="curveContinuity"
-            :tol="curveTol"
-            @update:comb="(v: boolean) => (curveComb = v)"
-            @update:continuity="(v: boolean) => (curveContinuity = v)"
-            @update:tol="(v: number) => (curveTol = v)"
-            @harmonize="harmonizeCurves"
-            @balance="balanceCurves"
-            @optimize="optimizeCurves"
-          />
-        </div>
-
         <div
           v-if="viewMode === 'editor' && measureInfo"
           class="measure-overlay"
@@ -9490,6 +9470,32 @@ onBeforeUnmount(() => {
           <span>{{ formatMeasure(label.length) }}</span>
         </div>
 
+        </div>
+
+          <div v-if="viewMode === 'editor'" class="editor-side-col editor-right-col">
+            <TransformPanel
+              v-if="editorPanelsVisible"
+              class="transform-overlay"
+              :bounds="selectedBounds"
+              :contour-count="currentContours"
+              @transform="onTransform"
+            />
+            <AnchorPanel
+              v-if="editorPanelsVisible && selectedAnchor"
+              class="anchor-overlay"
+              :value="selectedAnchor"
+              @change-anchor="onAnchorChange"
+            />
+            <CoordinatePanel
+              v-if="editorPanelsVisible"
+              class="coordinate-overlay"
+              :value="selectedBounds"
+              :selection-count="selectionCount"
+              :quadrant="coordinateQuadrant"
+              @select-quadrant="onCoordinateQuadrant"
+              @change-coordinate="onCoordinateChange"
+            />
+          </div>
         </div>
 
         <div
@@ -10005,6 +10011,37 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
 }
 
+/* Middle bento row: display:contents outside editor mode so the
+   canvas pane's absolute inset still resolves against the stage. */
+.editor-mid-row {
+  display: contents;
+}
+.stage-bento .editor-mid-row {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
+}
+.editor-side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+.editor-side-col:empty {
+  display: none;
+}
+/* Panels keep their overlay classes but live as static tiles here. */
+.editor-side-col > * {
+  position: static;
+}
+.editor-right-col .coordinate-overlay {
+  margin-top: auto;
+}
+
 /* Outside editor mode the pane sits inert behind the grid so the
    WebGPU canvas stays mounted; overlays inside it (folder grant,
    source chooser) stay clickable. */
@@ -10019,7 +10056,7 @@ onBeforeUnmount(() => {
 .canvas-pane--inert > .grant-overlay {
   pointer-events: auto;
 }
-.stage-bento > .canvas-pane {
+.stage-bento .canvas-pane {
   position: relative;
   inset: auto;
   flex: 1;
@@ -10058,6 +10095,14 @@ onBeforeUnmount(() => {
 
 .stage.editor-bottom-preview-visible .anchor-overlay {
   bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset, 8px) + 92px);
+}
+
+/* Bento: the canvas pane already ends above the preview pane, so the
+   preview-height compensation must not double-offset in-pane
+   overlays. */
+.stage-bento.editor-bottom-preview-visible .glyph-preview-overlay,
+.stage-bento.editor-bottom-preview-visible .active-glyph-overlay {
+  bottom: var(--rb-editor-edge-inset, 8px);
 }
 
 .transform-overlay {
