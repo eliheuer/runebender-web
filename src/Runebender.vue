@@ -67,7 +67,10 @@ import TransformPanel, {
 import WelcomePanel from "./components/WelcomePanel.vue";
 import WorkspaceToolbar from "./components/WorkspaceToolbar.vue";
 import { runebenderHostKey } from "./host/runebenderHost";
-import type { WorkspaceExternalChange } from "./host/runebenderHost";
+import type {
+  WorkspaceExternalChange,
+  WorkspaceSlotPayload,
+} from "./host/runebenderHost";
 import { browserHost } from "./hosts/browser/browserHost";
 
 const props = defineProps<{
@@ -3087,6 +3090,9 @@ function onBackgroundImageInput(event: Event) {
 const pendingGrantSource = ref<string | null>(null);
 
 async function grantPendingSourceFolder() {
+  // The user already told us WHICH file they want — the ambiguity
+  // chooser must not re-ask after the folder grant.
+  preferredSourceFileName.value = pendingGrantSource.value;
   const res = await runebenderHost.grantSourceFolder?.();
   if (!res) return;
   if (res.error) {
@@ -3100,6 +3106,8 @@ async function grantPendingSourceFolder() {
 function resetSourceChoice() {
   pendingSourceChoice.value = null;
   activeSourceChoice.value = null;
+  workspaceMeta.value = null;
+  preferredSourceFileName.value = null;
 }
 
 async function openFontDirectoryPicker() {
@@ -3202,6 +3210,7 @@ async function onFontDirectoryInput(event: Event) {
   const files = Array.from(input?.files ?? []);
   if (input) input.value = "";
   if (files.length === 0) return;
+  resetSourceChoice();
   await loadGlifFiles(files);
 }
 
@@ -5695,6 +5704,13 @@ const pendingSourceChoice = ref<{
 // The choice made for the current workspace — reused on reloads (an
 // agent touching the designspace must not re-open the chooser).
 const activeSourceChoice = ref<SourceChoice | null>(null);
+// Payload metadata of the host workspace currently loaded; label
+// rendering reads from it so a chooser-driven (re)load can't wipe
+// the "on disk: ..." line.
+const workspaceMeta = ref<WorkspaceSlotPayload | null>(null);
+// Set when the user already named the file they want (the file-first
+// grant flow): answers the chooser silently instead of re-asking.
+const preferredSourceFileName = ref<string | null>(null);
 
 async function applySourceChoice(choice: SourceChoice) {
   const pending = pendingSourceChoice.value;
@@ -5702,6 +5718,47 @@ async function applySourceChoice(choice: SourceChoice) {
   pendingSourceChoice.value = null;
   activeSourceChoice.value = choice;
   await loadGlifFiles(pending.files, pending.fileHandles, choice);
+  applyWorkspaceLabels();
+}
+
+// Top-bar labels for a host workspace. Line 1 names the thing being
+// edited (designspace, chosen UFO, else the slot); line 2 says where
+// it lives — complementary, not the same string twice. Reads from
+// workspaceMeta so chooser-driven reloads land on the same labels.
+function applyWorkspaceLabels() {
+  const data = workspaceMeta.value;
+  if (!data) return;
+  const slot = data.slot;
+  const dsName = designspacePath.value?.split("/").pop();
+  const chosenUfo =
+    activeSourceChoice.value?.kind === "ufo"
+      ? activeSourceChoice.value.path.split("/").pop()
+      : undefined;
+  const ufoName = data.origin_source?.endsWith(".ufo")
+    ? data.origin_source.split("/").pop()
+    : undefined;
+  fontLabel.value = dsName || chosenUfo || ufoName || slot;
+  // Show the fullest path this host knows: the workspace server
+  // knows the absolute path; the browser's File System Access API
+  // deliberately hides everything above the granted folder, so there
+  // the path starts at that folder.
+  let fullest =
+    data.display_source ||
+    data.origin_source ||
+    data.display_root ||
+    data.origin_root ||
+    slot;
+  const chosen = activeSourceChoice.value?.path;
+  if (chosen) {
+    const rel = chosen.startsWith(`${slot}/`)
+      ? chosen.slice(slot.length + 1)
+      : chosen;
+    const root = data.display_root || data.origin_root || slot;
+    fullest = `${root}/${rel}`;
+  }
+  sourceSaveLabel.value = data.linked_source
+    ? `on disk: ${fullest}`
+    : "Managed copy (workspace cache)";
 }
 
 async function loadGlifFiles(
@@ -5813,6 +5870,15 @@ async function loadGlifFiles(
   ].sort(byDepth);
 
   let source = chosenSource ?? activeSourceChoice.value;
+  // The file-first flow already named the wanted file — answer the
+  // chooser with it (shallowest match when the name repeats, e.g. an
+  // archive/ copy of the same designspace).
+  if (!source && preferredSourceFileName.value) {
+    const wanted = preferredSourceFileName.value;
+    preferredSourceFileName.value = null;
+    const match = dsPaths.find((p) => p.split("/").pop() === wanted);
+    if (match) source = { kind: "designspace", path: match };
+  }
   if (
     source &&
     !(source.kind === "designspace"
@@ -5968,33 +6034,9 @@ async function loadWorkspaceSlot(slot: string) {
     return file;
   });
 
+  workspaceMeta.value = data;
   await loadGlifFiles(files);
-
-  // Line 1 names the thing being edited (designspace, else the .ufo,
-  // else the slot); line 2 says where it lives — complementary, not
-  // the same string twice.
-  const dsName = designspacePath.value?.split("/").pop();
-  const chosenUfo =
-    activeSourceChoice.value?.kind === "ufo"
-      ? activeSourceChoice.value.path.split("/").pop()
-      : undefined;
-  const ufoName = data.origin_source?.endsWith(".ufo")
-    ? data.origin_source.split("/").pop()
-    : undefined;
-  fontLabel.value = dsName || chosenUfo || ufoName || slot;
-  // Show the fullest path this host knows: the workspace server
-  // knows the absolute path; the browser's File System Access API
-  // deliberately hides everything above the granted folder, so there
-  // the path starts at that folder.
-  const fullest =
-    data.display_source ||
-    data.origin_source ||
-    data.display_root ||
-    data.origin_root ||
-    slot;
-  sourceSaveLabel.value = data.linked_source
-    ? `on disk: ${fullest}`
-    : "Managed copy (workspace cache)";
+  applyWorkspaceLabels();
   if (data.refreshed_from_source) {
     status.value = "reloaded source changes from disk";
   }
@@ -8214,6 +8256,7 @@ async function onDrop(e: DragEvent) {
   e.stopPropagation();
   const items = e.dataTransfer?.items;
   if (!items) return;
+  resetSourceChoice();
 
   const collected: File[] = [];
   const collectedFileHandles = new Map<string, FileSystemFileHandle>();
