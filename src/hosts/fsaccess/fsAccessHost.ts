@@ -465,12 +465,14 @@ export function createFsAccessHost(options: {
           mode: "readwrite",
           startIn: source,
         });
-        // Guard against picking some unrelated folder.
-        try {
-          await handle.getFileHandle(source.name);
-        } catch {
+        // Guard against picking some unrelated folder. The file may
+        // sit deeper than the granted root (picking a parent folder
+        // is fine), so search the tree instead of only direct children.
+        const found: { rel: string; handle: FileSystemFileHandle }[] = [];
+        await walkTextFiles(handle, "", found);
+        if (!found.some(({ rel }) => rel.split("/").pop() === source.name)) {
           return {
-            error: `${handle.name} does not contain ${source.name} — pick the folder the file lives in`,
+            error: `${handle.name} does not contain ${source.name} — pick that file's folder (or a folder above it)`,
           };
         }
         pendingSourceFile = null;
@@ -514,6 +516,20 @@ export function createFsAccessHost(options: {
         }
       });
       void startWatching();
+      // Surface WHAT is being edited, not just the folder: the
+      // shallowest designspace (folders like archive/ hold retired
+      // ones), else the first .ufo directory.
+      const paths = found.map(({ rel }) => rel);
+      const byDepth = (a: string, b: string) =>
+        a.split("/").length - b.split("/").length || a.localeCompare(b);
+      const entry =
+        paths.filter((p) => p.endsWith(".designspace")).sort(byDepth)[0] ??
+        paths
+          .filter((p) => p.includes(".ufo/"))
+          .map((p) => p.slice(0, p.indexOf(".ufo/") + 4))
+          .sort(byDepth)[0] ??
+        null;
+      const displaySource = entry ? `${slot}/${entry}` : slot;
       return {
         slot,
         files: entries.filter(
@@ -521,9 +537,9 @@ export function createFsAccessHost(options: {
         ),
         linked_source: true,
         origin_root: slot,
-        origin_source: slot,
+        origin_source: entry ?? slot,
         display_root: slot,
-        display_source: slot,
+        display_source: displaySource,
       };
     },
 

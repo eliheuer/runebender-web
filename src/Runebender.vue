@@ -5746,7 +5746,17 @@ async function loadGlifFiles(
   designspaceFileHandle.value = null;
   designspaceDirty.value = false;
 
-  const dsFile = files.find((f) => /\.designspace$/i.test(f.name));
+  // Prefer the designspace closest to the workspace root: folders
+  // like archive/ or backup/ often hold retired designspaces (a
+  // sources/ dir with archive/old.designspace used to win the
+  // files.find race and silently load the wrong font).
+  const dsFile = files
+    .filter((f) => /\.designspace$/i.test(f.name))
+    .sort((a, b) => {
+      const depthA = (relPath(a) || a.name).split("/").length;
+      const depthB = (relPath(b) || b.name).split("/").length;
+      return depthA - depthB || a.name.localeCompare(b.name);
+    })[0];
   if (dsFile) {
     await loadDesignspace(dsFile, files, fileHandles);
   } else {
@@ -5858,7 +5868,10 @@ async function loadWorkspaceSlot(slot: string) {
 
   await loadGlifFiles(files);
 
-  fontLabel.value = slot;
+  // Name the thing being edited, not the folder it lives in: the
+  // designspace (set by loadGlifFiles) beats the slot name.
+  const dsName = designspacePath.value?.split("/").pop();
+  fontLabel.value = dsName || slot;
   sourceSaveLabel.value = data.linked_source
     ? `Editing ${
         data.display_source ||
