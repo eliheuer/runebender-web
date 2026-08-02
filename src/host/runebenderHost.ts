@@ -184,6 +184,19 @@ export type RunebenderHost = {
   // Name of the workspace remembered from a previous visit, if any —
   // drives the welcome panel's "Reopen <name>" button.
   storedWorkspaceName?(): string | null;
+  // Optional: recently opened folders/.glyphs files, newest first —
+  // drives the system menu's Open Recent section. openRecentWorkspace
+  // must run inside a user gesture (permission re-request); folders
+  // come back as { slot }, single files as { file }.
+  listRecentWorkspaces?(): Promise<
+    { index: number; name: string; kind: "folder" | "file" }[]
+  >;
+  openRecentWorkspace?(index: number): Promise<{
+    slot?: string;
+    file?: File;
+    cancelled?: boolean;
+    error?: string;
+  }>;
   // Optional: hosts that can observe the workspace (the local server's
   // file watcher) call `handler` whenever files change externally. The
   // editor applies the changes live — the "watch the agent work" loop.

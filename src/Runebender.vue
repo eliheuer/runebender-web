@@ -3192,6 +3192,34 @@ const systemMenuReopenName = computed(() => {
 // left column in grid view, one gap below the button in editor view.
 const systemMenuOpen = ref(false);
 
+// Recently opened folders / .glyphs files (FS Access host); refreshed
+// each time the menu opens. Clicking one runs inside that click's
+// user gesture, which is what the permission re-request needs.
+const recentWorkspaces = ref<
+  { index: number; name: string; kind: "folder" | "file" }[]
+>([]);
+watch(systemMenuOpen, async (open) => {
+  if (open && runebenderHost.listRecentWorkspaces) {
+    recentWorkspaces.value = await runebenderHost.listRecentWorkspaces();
+  }
+});
+
+async function openRecentWorkspace(index: number) {
+  resetSourceChoice();
+  const previousSlot = currentFontPath.value;
+  const res = await runebenderHost.openRecentWorkspace?.(index);
+  if (!res) return;
+  if (res.error) {
+    status.value = `open failed: ${res.error}`;
+  } else if (res.file) {
+    await loadGlifFiles([res.file]);
+  } else if (res.slot && res.slot === previousSlot) {
+    // Same slot string doesn't re-trigger the fontPath watcher, but
+    // the host reset its file state on adopt — reload explicitly.
+    await loadWorkspaceSlot(res.slot);
+  }
+}
+
 // True while the bundled demo font is what's loaded — the top bar
 // labels it as the demo and points at the menu for opening your own.
 // Any other load path clears it (loadGlifFiles resets, the demo boot
@@ -8783,7 +8811,9 @@ onBeforeUnmount(() => {
             :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
             :close-enabled="!!props.onCloseRequested"
             :reopen-name="systemMenuReopenName"
+            :recents="recentWorkspaces"
             @open-ufo="openFontDirectoryPicker"
+            @open-recent="openRecentWorkspace"
             @open-folder="openSourceFolderPicker"
             @reopen="reopenStoredWorkspace"
             @save="onSave"
@@ -8888,7 +8918,9 @@ onBeforeUnmount(() => {
               :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
               :close-enabled="!!props.onCloseRequested"
               :reopen-name="systemMenuReopenName"
+              :recents="recentWorkspaces"
               @open-ufo="openFontDirectoryPicker"
+              @open-recent="openRecentWorkspace"
               @open-folder="openSourceFolderPicker"
               @reopen="reopenStoredWorkspace"
               @save="onSave"

@@ -15,24 +15,33 @@ withDefaults(
     closeEnabled?: boolean;
     /** Workspace remembered from a previous visit (FS Access host). */
     reopenName?: string | null;
+    /** Recently opened folders / .glyphs files, newest first. */
+    recents?: { index: number; name: string; kind: "folder" | "file" }[];
   }>(),
   {
     saveEnabled: false,
     saveAsEnabled: false,
     closeEnabled: false,
     reopenName: null,
+    recents: () => [],
   },
 );
 
 const emit = defineEmits<{
   (e: "openUfo"): void;
   (e: "openFolder"): void;
+  (e: "openRecent", index: number): void;
   (e: "reopen"): void;
   (e: "save"): void;
   (e: "saveAs"): void;
   (e: "closeEditor"): void;
   (e: "dismiss"): void;
 }>();
+
+function pickRecent(index: number) {
+  emit("openRecent", index);
+  emit("dismiss");
+}
 
 const rootEl = ref<HTMLElement | null>(null);
 
@@ -94,6 +103,20 @@ onBeforeUnmount(() => {
     >
       Open Font File...
     </button>
+    <template v-if="recents.length">
+      <div class="separator" />
+      <div class="group-label">Open Recent</div>
+      <button
+        v-for="entry in recents"
+        :key="`recent-${entry.index}`"
+        type="button"
+        role="menuitem"
+        :title="entry.kind === 'file' ? 'Glyphs file' : 'Font folder'"
+        @click="pickRecent(entry.index)"
+      >
+        {{ entry.name }}{{ entry.kind === "folder" ? "/" : "" }}
+      </button>
+    </template>
     <button
       v-if="reopenName"
       type="button"
@@ -166,6 +189,14 @@ onBeforeUnmount(() => {
 }
 .system-menu-panel button.accent {
   color: var(--rb-accent, #18b86f);
+}
+
+.group-label {
+  margin: 4px 10px 2px;
+  font: 11px ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rb-secondary-text, #707070);
 }
 
 .separator {

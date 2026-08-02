@@ -25,9 +25,12 @@ import type {
   WorkspaceSlotPayload,
 } from "../../host/runebenderHost";
 import {
+  addRecentWorkspace,
   clearWorkspaceHandle,
+  loadRecentWorkspaces,
   loadWorkspaceHandle,
   saveWorkspaceHandle,
+  type RecentEntry,
 } from "./handleStore";
 
 const TEXT_EXTENSIONS = [
@@ -167,6 +170,8 @@ export function createFsAccessHost(options: {
   // A .designspace picked via pickSourceFile, waiting for its folder
   // grant (grantSourceFolder starts the directory picker here).
   let pendingSourceFile: FileSystemFileHandle | null = null;
+  // Recents as last listed — openRecentWorkspace indexes into this.
+  let recents: RecentEntry[] = [];
   let watchHandler:
     | ((
         changes: WorkspaceExternalChange[],
@@ -359,6 +364,7 @@ export function createFsAccessHost(options: {
         console.warn("could not persist workspace handle:", e);
       }
     }
+    void addRecentWorkspace(handle, "folder");
     options.onWorkspaceOpened(slot);
     return slot;
   }
@@ -440,6 +446,7 @@ export function createFsAccessHost(options: {
         const name = handle.name.toLowerCase();
         if (name.endsWith(".glyphs")) {
           pendingSourceFile = null;
+          void addRecentWorkspace(handle, "file");
           return { kind: "glyphs" as const, file: await handle.getFile() };
         }
         pendingSourceFile = handle;
@@ -481,6 +488,41 @@ export function createFsAccessHost(options: {
         if ((e as DOMException).name === "AbortError") {
           return { cancelled: true };
         }
+        return { error: String(e) };
+      }
+    },
+
+    async listRecentWorkspaces() {
+      recents = await loadRecentWorkspaces();
+      return recents.map((entry, index) => ({
+        index,
+        name: entry.name,
+        kind: entry.kind,
+      }));
+    },
+
+    async openRecentWorkspace(index: number) {
+      const entry = recents[index];
+      if (!entry) return { error: "That recent entry is gone." };
+      const handle = entry.handle as PermissionCapableHandle;
+      const mode = entry.kind === "folder" ? "readwrite" : "read";
+      try {
+        const state =
+          (await handle.requestPermission?.({ mode: mode as "readwrite" })) ??
+          "denied";
+        if (state !== "granted") return { cancelled: true };
+        if (entry.kind === "file") {
+          void addRecentWorkspace(entry.handle, "file");
+          return {
+            file: await (entry.handle as FileSystemFileHandle).getFile(),
+          };
+        }
+        return {
+          slot: await adoptDirectory(
+            entry.handle as FileSystemDirectoryHandle,
+          ),
+        };
+      } catch (e) {
         return { error: String(e) };
       }
     },
