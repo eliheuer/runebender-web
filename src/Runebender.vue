@@ -8847,64 +8847,12 @@ onBeforeUnmount(() => {
       <div
         ref="stage"
         class="stage"
-        :class="{ 'editor-bottom-preview-visible': editorBottomPreviewVisible }"
+        :class="{
+          'editor-bottom-preview-visible': editorBottomPreviewVisible,
+          'stage-bento': viewMode === 'editor',
+        }"
         :style="editorBottomPreviewStyle"
       >
-        <canvas
-          ref="canvas"
-          class="runebender-canvas"
-          :class="{
-            'is-hidden': viewMode !== 'editor' && glyphNames.length > 0,
-            'text-buffer-visible': viewMode === 'editor' && textBufferPreviewVisible,
-          }"
-          @pointerdown="onPointerDown"
-          @pointermove="onPointerMove"
-          @pointerup="onPointerUp"
-          @pointercancel="onPointerCancel"
-          @dblclick="onCanvasDoubleClick"
-          @wheel.prevent="onWheel"
-          @contextmenu.prevent="onCanvasContextMenu"
-          @dragover="onDragOver"
-          @drop="onDrop"
-        />
-
-        <canvas
-          v-if="sketchActive && viewMode === 'editor'"
-          ref="sketchOverlay"
-          class="sketch-overlay"
-          :width="SKETCH_RECT.w"
-          :height="SKETCH_RECT.h"
-          :style="sketchFrame"
-          @pointerdown="onSketchPointerDown"
-          @pointermove="onSketchPointerMove"
-          @pointerup="onSketchPointerUp"
-          @pointercancel="onSketchPointerUp"
-          @wheel.prevent="onWheel"
-        />
-
-        <div
-          ref="gridView"
-          v-if="viewMode === 'grid' && glyphNames.length > 0"
-          class="grid-view"
-          :style="gridStyle"
-          @dragover="onDragOver"
-          @drop="onDrop"
-        >
-          <GlyphCell
-            v-for="item in gridGlyphItems"
-            :key="item.name"
-            :data-glyph-index="item.index"
-            :name="item.name"
-            :unicode="glyphUnicodes.get(item.name)"
-            :svg="glyphSvgs.get(item.name)"
-            :selected="selectedGlyphs.has(item.name)"
-            :column-span="item.columnSpan"
-            :mark-color="glyphMarkColors.get(item.name)"
-            @click="selectGlyph(item.name, $event)"
-            @dblclick="openGridSelectionInEditor(item.name)"
-          />
-        </div>
-
         <div v-if="viewMode === 'editor'" class="editor-top-overlay">
           <div class="editor-system-menu">
             <SystemMenu
@@ -8989,6 +8937,47 @@ onBeforeUnmount(() => {
             <WorkspaceToolbar @glyph-grid="backToGrid" />
           </div>
         </div>
+
+        <!-- The canvas pane: a bento tile in editor mode; in grid mode
+             it sits inert behind the grid (the WebGPU canvas must stay
+             mounted). Everything positioned in canvas coordinates
+             (markers, background image, panels) lives inside it so
+             canvas-relative math keeps working. -->
+        <div
+          class="canvas-pane"
+          :class="{ 'canvas-pane--inert': viewMode !== 'editor' && glyphNames.length > 0 }"
+        >
+        <canvas
+          ref="canvas"
+          class="runebender-canvas"
+          :class="{
+            'is-hidden': viewMode !== 'editor' && glyphNames.length > 0,
+            'text-buffer-visible': viewMode === 'editor' && textBufferPreviewVisible,
+          }"
+          @pointerdown="onPointerDown"
+          @pointermove="onPointerMove"
+          @pointerup="onPointerUp"
+          @pointercancel="onPointerCancel"
+          @dblclick="onCanvasDoubleClick"
+          @wheel.prevent="onWheel"
+          @contextmenu.prevent="onCanvasContextMenu"
+          @dragover="onDragOver"
+          @drop="onDrop"
+        />
+
+        <canvas
+          v-if="sketchActive && viewMode === 'editor'"
+          ref="sketchOverlay"
+          class="sketch-overlay"
+          :width="SKETCH_RECT.w"
+          :height="SKETCH_RECT.h"
+          :style="sketchFrame"
+          @pointerdown="onSketchPointerDown"
+          @pointermove="onSketchPointerMove"
+          @pointerup="onSketchPointerUp"
+          @pointercancel="onSketchPointerUp"
+          @wheel.prevent="onWheel"
+        />
 
         <!-- Welcome / file-picker panel. Only show when there's
              genuinely no font to open: no glyphs loaded AND the host
@@ -9501,6 +9490,31 @@ onBeforeUnmount(() => {
           <span>{{ formatMeasure(label.length) }}</span>
         </div>
 
+        </div>
+
+        <div
+          ref="gridView"
+          v-if="viewMode === 'grid' && glyphNames.length > 0"
+          class="grid-view"
+          :style="gridStyle"
+          @dragover="onDragOver"
+          @drop="onDrop"
+        >
+          <GlyphCell
+            v-for="item in gridGlyphItems"
+            :key="item.name"
+            :data-glyph-index="item.index"
+            :name="item.name"
+            :unicode="glyphUnicodes.get(item.name)"
+            :svg="glyphSvgs.get(item.name)"
+            :selected="selectedGlyphs.has(item.name)"
+            :column-span="item.columnSpan"
+            :mark-color="glyphMarkColors.get(item.name)"
+            @click="selectGlyph(item.name, $event)"
+            @dblclick="openGridSelectionInEditor(item.name)"
+          />
+        </div>
+
         <div
           v-if="editorBottomPreviewVisible"
           class="editor-bottom-preview-panel"
@@ -9981,6 +9995,47 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+/* Editor mode is a bento column: top toolbar row, canvas pane, bottom
+   preview pane — real tiles with gaps, nothing overlapping. */
+.stage.stage-bento {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--rb-editor-edge-inset, 8px);
+  box-sizing: border-box;
+}
+
+/* Outside editor mode the pane sits inert behind the grid so the
+   WebGPU canvas stays mounted; overlays inside it (folder grant,
+   source chooser) stay clickable. */
+.canvas-pane {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.canvas-pane--inert {
+  pointer-events: none;
+}
+.canvas-pane--inert > .grant-overlay {
+  pointer-events: auto;
+}
+.stage-bento > .canvas-pane {
+  position: relative;
+  inset: auto;
+  flex: 1;
+  min-height: 0;
+  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border-radius: var(--rb-panel-radius, 12px);
+  overflow: hidden;
+}
+/* Inside the pane the canvas always fills it; the pane shrinks when
+   the bottom preview row takes its height, so the old bottom-inset
+   hack must not double-shrink the canvas. */
+.stage-bento .runebender-canvas.text-buffer-visible {
+  bottom: 0;
+  height: 100%;
+}
+
 .coordinate-overlay {
   position: absolute;
   right: var(--rb-editor-edge-inset, 8px);
@@ -10047,15 +10102,15 @@ onBeforeUnmount(() => {
   bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset, 8px) + 92px);
 }
 
+/* Bento layout: the top row is a normal flex row of tiles, not an
+   overlay floating on the canvas. */
 .editor-top-overlay {
-  position: absolute;
-  left: var(--rb-editor-edge-inset, 8px);
-  top: var(--rb-editor-edge-inset, 8px);
-  right: var(--rb-editor-edge-inset, 8px);
+  position: relative;
   z-index: 4;
   display: flex;
   align-items: flex-start;
   gap: 6px;
+  flex: 0 0 auto;
   pointer-events: none;
 }
 
@@ -10798,11 +10853,10 @@ onBeforeUnmount(() => {
 }
 
 .editor-bottom-preview-panel {
-  position: absolute;
+  /* A bento pane at the bottom of the editor column. */
+  position: relative;
   z-index: 2;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  flex: 0 0 auto;
   height: var(--rb-editor-bottom-preview-height);
   box-sizing: border-box;
   display: flex;
@@ -10811,6 +10865,8 @@ onBeforeUnmount(() => {
   padding: 12px var(--rb-editor-edge-inset, 8px) 14px;
   overflow: hidden;
   background: var(--rb-panel-background, #1c1c1c);
+  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border-radius: var(--rb-panel-radius, 12px);
   pointer-events: auto;
 }
 
