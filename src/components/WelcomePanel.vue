@@ -26,7 +26,7 @@ defineEmits<{
     <button v-if="reopenName" type="button" class="reopen" @click="$emit('reopen')">
       Reopen {{ reopenName }}
     </button>
-    <button type="button" @click="$emit('openUfo')">Open Font Source...</button>
+    <button type="button" @click="$emit('openUfo')">Open Font Folder...</button>
   </div>
 </template>
 

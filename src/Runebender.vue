@@ -8853,8 +8853,7 @@ onBeforeUnmount(() => {
         <WelcomePanel
           v-if="glyphNames.length === 0 && !currentFontPath && !initialFontLoading"
           :reopen-name="reopenWorkspaceName"
-          @open-ufo="openFontDirectoryPicker"
-          @open-folder="openSourceFolderPicker"
+          @open-ufo="openSourceFolderPicker"
           @reopen="reopenStoredWorkspace"
         />
 

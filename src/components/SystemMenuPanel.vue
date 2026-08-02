@@ -81,18 +81,18 @@ onBeforeUnmount(() => {
     <button
       type="button"
       role="menuitem"
-      title="Pick a .designspace or .glyphs file"
-      @click="pick('openUfo')"
+      title="One dialog: highlight the folder holding your .designspace / .ufo / .glyphs and press Select"
+      @click="pick('openFolder')"
     >
-      Open Font Source...
+      Open Font Folder...
     </button>
     <button
       type="button"
       role="menuitem"
-      title="Pick a folder of sources (for bare .ufo masters without a .designspace)"
-      @click="pick('openFolder')"
+      title="Pick a .designspace or .glyphs file directly (a folder confirm follows for designspaces; .ufo is a folder — use Open Font Folder)"
+      @click="pick('openUfo')"
     >
-      Open Source Folder...
+      Open Font File...
     </button>
     <button
       v-if="reopenName"
