@@ -1650,7 +1650,9 @@ onMounted(async () => {
     } else if (props.initialFiles) {
       try {
         const loaded = await loadDevTestFont();
-        if (!loaded) {
+        if (loaded) {
+          demoFontLoaded.value = true;
+        } else {
           loadWelcomeDemoGlyph();
         }
       } finally {
@@ -3173,6 +3175,12 @@ const systemMenuReopenName = computed(() => {
 // The system menu panel joins the bento grid when open: top of the
 // left column in grid view, one gap below the button in editor view.
 const systemMenuOpen = ref(false);
+
+// True while the bundled demo font is what's loaded — the top bar
+// labels it as the demo and points at the menu for opening your own.
+// Any other load path clears it (loadGlifFiles resets, the demo boot
+// path re-sets it).
+const demoFontLoaded = ref(false);
 
 // Workspace was imported from a .glyphs source: editable in memory,
 // but saving back is not supported yet (stage 1 is read-only).
@@ -5678,6 +5686,7 @@ async function loadGlifFiles(
   // normal load path. Read-only for now: we never write .glyphs.
   // Native UFO/designspace files win when both are present.
   glyphsSourceReadOnly.value = false;
+  demoFontLoaded.value = false;
   // relPath is empty for files straight out of showOpenFilePicker
   // (webkitRelativePath is "" there, and ?? keeps it), so fall back
   // to the plain file name.
@@ -8600,6 +8609,7 @@ onBeforeUnmount(() => {
       :last-saved="lastSavedDisplay"
       :source-label="sourceSaveLabel"
       :notice="workspaceNotice"
+      :demo="demoFontLoaded"
       :masters="masters"
       :active-master="activeMasterIndex"
       :master-previews="masterPreviewSvgs"
@@ -8784,6 +8794,7 @@ onBeforeUnmount(() => {
             :last-saved="lastSavedDisplay"
             :source-label="sourceSaveLabel"
             :notice="workspaceNotice"
+            :demo="demoFontLoaded"
             file-only
           />
 

@@ -30,6 +30,9 @@ defineProps<{
   masterPreviews?: Array<string | undefined>;
   /** Show only the status/file panel, used above the editor canvas. */
   fileOnly?: boolean;
+  /** The bundled demo font is loaded — label it as such and point at
+   *  the system menu for opening a real source. */
+  demo?: boolean;
 }>();
 
 function masterLabel(name: string): string {
@@ -50,9 +53,14 @@ defineEmits<{
     <div class="panel file-info">
       <div class="file-path">
         {{ fontLabel || "No font loaded" }}
+        <span v-if="demo" class="demo-badge">demo font</span>
+      </div>
+      <div v-if="demo" class="demo-note">
+        This is the bundled demo — open your own font from the
+        Runebender menu in the top-left corner.
       </div>
       <div
-        v-if="fontLabel"
+        v-else-if="fontLabel"
         class="save-status"
         :class="{ saved: !unsaved && lastSaved }"
       >
@@ -135,6 +143,25 @@ defineEmits<{
   width: 100%;
   min-width: 0;
 }
+.demo-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border: var(--rb-stroke-width, 1px) solid var(--rb-accent, #18b86f);
+  border-radius: 999px;
+  color: var(--rb-accent, #18b86f);
+  font: 12px ui-sans-serif, system-ui, sans-serif;
+  vertical-align: 2px;
+}
+.demo-note {
+  color: var(--rb-secondary-text, #707070);
+  font: 16px ui-sans-serif, system-ui, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 .save-status {
   color: var(--rb-warning, #ffdc32);
   font: 16px ui-sans-serif, system-ui, sans-serif;
