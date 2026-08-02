@@ -69,7 +69,13 @@ type DirectoryPickerWindow = Window & {
   showDirectoryPicker?: (options?: {
     id?: string;
     mode?: "read" | "readwrite";
+    startIn?: FileSystemHandle | string;
   }) => Promise<FileSystemDirectoryHandle>;
+  showOpenFilePicker?: (options?: {
+    id?: string;
+    types?: { description: string; accept: Record<string, string[]> }[];
+    excludeAcceptAllOption?: boolean;
+  }) => Promise<FileSystemFileHandle[]>;
 };
 
 type ObserverRecord = {
@@ -158,6 +164,9 @@ export function createFsAccessHost(options: {
 
   let stored: { handle: FileSystemDirectoryHandle; name: string } | null =
     null;
+  // A .designspace picked via pickSourceFile, waiting for its folder
+  // grant (grantSourceFolder starts the directory picker here).
+  let pendingSourceFile: FileSystemFileHandle | null = null;
   let watchHandler:
     | ((
         changes: WorkspaceExternalChange[],
@@ -403,6 +412,68 @@ export function createFsAccessHost(options: {
           id: "runebender-font",
           mode: "readwrite",
         });
+        return { slot: await adoptDirectory(handle) };
+      } catch (e) {
+        if ((e as DOMException).name === "AbortError") {
+          return { cancelled: true };
+        }
+        return { error: String(e) };
+      }
+    },
+
+    async pickSourceFile() {
+      const picker = (window as DirectoryPickerWindow).showOpenFilePicker;
+      if (!picker) return { error: "File System Access is not supported." };
+      try {
+        const [handle] = await picker({
+          id: "runebender-font",
+          types: [
+            {
+              description: "Font source (.designspace, .glyphs)",
+              accept: {
+                "text/plain": [".designspace", ".glyphs"],
+              },
+            },
+          ],
+          excludeAcceptAllOption: false,
+        });
+        const name = handle.name.toLowerCase();
+        if (name.endsWith(".glyphs")) {
+          pendingSourceFile = null;
+          return { kind: "glyphs" as const, file: await handle.getFile() };
+        }
+        pendingSourceFile = handle;
+        return { kind: "designspace" as const, name: handle.name };
+      } catch (e) {
+        if ((e as DOMException).name === "AbortError") {
+          return { cancelled: true };
+        }
+        return { error: String(e) };
+      }
+    },
+
+    async grantSourceFolder() {
+      const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
+      if (!picker) return { error: "File System Access is not supported." };
+      const source = pendingSourceFile;
+      if (!source) return { error: "No source file is pending." };
+      try {
+        // startIn: the picked file's handle — the dialog opens in the
+        // directory that CONTAINS it, so Select is one click.
+        const handle = await picker({
+          id: "runebender-font",
+          mode: "readwrite",
+          startIn: source,
+        });
+        // Guard against picking some unrelated folder.
+        try {
+          await handle.getFileHandle(source.name);
+        } catch {
+          return {
+            error: `${handle.name} does not contain ${source.name} — pick the folder the file lives in`,
+          };
+        }
+        pendingSourceFile = null;
         return { slot: await adoptDirectory(handle) };
       } catch (e) {
         if ((e as DOMException).name === "AbortError") {

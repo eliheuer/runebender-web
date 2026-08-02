@@ -26,6 +26,7 @@ withDefaults(
 
 const emit = defineEmits<{
   (e: "openUfo"): void;
+  (e: "openFolder"): void;
   (e: "reopen"): void;
   (e: "save"): void;
   (e: "saveAs"): void;
@@ -36,7 +37,7 @@ const emit = defineEmits<{
 const rootEl = ref<HTMLElement | null>(null);
 
 function pick(
-  action: "openUfo" | "reopen" | "save" | "saveAs" | "closeEditor",
+  action: "openUfo" | "openFolder" | "reopen" | "save" | "saveAs" | "closeEditor",
   enabled = true,
 ) {
   if (!enabled) return;
@@ -80,10 +81,18 @@ onBeforeUnmount(() => {
     <button
       type="button"
       role="menuitem"
-      title="Pick the folder that CONTAINS your sources — .designspace/.ufo or .glyphs (files show grayed out — that's normal), then click Select"
+      title="Pick a .designspace or .glyphs file"
       @click="pick('openUfo')"
     >
       Open Font Source...
+    </button>
+    <button
+      type="button"
+      role="menuitem"
+      title="Pick a folder of sources (for bare .ufo masters without a .designspace)"
+      @click="pick('openFolder')"
+    >
+      Open Source Folder...
     </button>
     <button
       v-if="reopenName"

@@ -3080,21 +3080,58 @@ function onBackgroundImageInput(event: Event) {
   if (input) input.value = "";
 }
 
+// A .designspace picked file-first, waiting for the one-click folder
+// grant (the dialog opens inside the right folder already).
+const pendingGrantSource = ref<string | null>(null);
+
+async function grantPendingSourceFolder() {
+  const res = await runebenderHost.grantSourceFolder?.();
+  if (!res) return;
+  if (res.error) {
+    status.value = `open failed: ${res.error}`;
+  } else if (res.slot) {
+    pendingGrantSource.value = null;
+  }
+  // On cancel the panel stays up so the grant can be retried.
+}
+
 async function openFontDirectoryPicker() {
-  // A host that can open local folders itself (the File System Access
-  // host) owns the picker; it triggers the workspace load through the
-  // fontPathRef, so saves go through the guarded host write path
-  // instead of raw per-file handles.
-  if (runebenderHost.openWorkspaceFolder) {
-    // The OS folder picker grays out files by design; people read
-    // that as "broken", so spell out the gesture while it's open.
-    status.value =
-      "in the picker: highlight the folder holding your sources (files stay grayed out), then press Select";
-    const res = await runebenderHost.openWorkspaceFolder();
-    if (res.error) status.value = `open failed: ${res.error}`;
-    else if (res.cancelled) status.value = "open cancelled";
+  // File-first opening: .designspace and .glyphs are directly
+  // clickable in a FILE picker — the gesture designers expect. A
+  // .glyphs is self-contained; a .designspace needs one follow-up
+  // click to grant access to its folder (for the sibling UFOs).
+  if (runebenderHost.pickSourceFile) {
+    const res = await runebenderHost.pickSourceFile();
+    if (res.error) {
+      status.value = `open failed: ${res.error}`;
+    } else if (res.kind === "glyphs" && res.file) {
+      await loadGlifFiles([res.file]);
+    } else if (res.kind === "designspace" && res.name) {
+      pendingGrantSource.value = res.name;
+    }
     return;
   }
+  // Hosts with only the folder flow (no file picker support).
+  if (runebenderHost.openWorkspaceFolder) {
+    const res = await runebenderHost.openWorkspaceFolder();
+    if (res.error) status.value = `open failed: ${res.error}`;
+    return;
+  }
+  await openLegacyFontDirectoryPicker();
+}
+
+// Folder-first opening, for UFO-only sources (a bare .ufo is a
+// package on macOS, so it can't be clicked in a file picker).
+async function openSourceFolderPicker() {
+  if (runebenderHost.openWorkspaceFolder) {
+    const res = await runebenderHost.openWorkspaceFolder();
+    if (res.error) status.value = `open failed: ${res.error}`;
+    return;
+  }
+  await openLegacyFontDirectoryPicker();
+}
+
+async function openLegacyFontDirectoryPicker() {
   const picker = (window as Window & {
     showDirectoryPicker?: DirectoryPicker;
   }).showDirectoryPicker;
@@ -8576,6 +8613,7 @@ onBeforeUnmount(() => {
             :close-enabled="!!props.onCloseRequested"
             :reopen-name="systemMenuReopenName"
             @open-ufo="openFontDirectoryPicker"
+            @open-folder="openSourceFolderPicker"
             @reopen="reopenStoredWorkspace"
             @save="onSave"
             @save-as="onSaveAs"
@@ -8680,6 +8718,7 @@ onBeforeUnmount(() => {
               :close-enabled="!!props.onCloseRequested"
               :reopen-name="systemMenuReopenName"
               @open-ufo="openFontDirectoryPicker"
+              @open-folder="openSourceFolderPicker"
               @reopen="reopenStoredWorkspace"
               @save="onSave"
               @save-as="onSaveAs"
@@ -8753,10 +8792,37 @@ onBeforeUnmount(() => {
              supplied a path, the editor is in the brief loading
              window before glyphs populate, and a momentary flash of
              "Drop a .ufo folder" would be confusing. -->
+        <!-- One-click folder grant after picking a .designspace file:
+             the browser can't read the sibling UFOs without it. -->
+        <div v-if="pendingGrantSource" class="grant-overlay">
+          <div class="grant-panel">
+            <div class="grant-title">{{ pendingGrantSource }}</div>
+            <div class="grant-text">
+              A designspace loads its UFO masters from the folder around
+              it. Chrome asks you to confirm access to that folder — the
+              next dialog opens right there, so just press
+              <strong>Select</strong>.
+            </div>
+            <div class="grant-actions">
+              <button type="button" @click="pendingGrantSource = null">
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="grant-primary"
+                @click="grantPendingSourceFolder"
+              >
+                Grant folder access
+              </button>
+            </div>
+          </div>
+        </div>
+
         <WelcomePanel
           v-if="glyphNames.length === 0 && !currentFontPath && !initialFontLoading"
           :reopen-name="reopenWorkspaceName"
           @open-ufo="openFontDirectoryPicker"
+          @open-folder="openSourceFolderPicker"
           @reopen="reopenStoredWorkspace"
         />
 
@@ -9782,6 +9848,60 @@ onBeforeUnmount(() => {
 .editor-system-menu {
   position: relative;
   flex: 0 0 auto;
+}
+
+.grant-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+.grant-panel {
+  width: min(440px, calc(100vw - 48px));
+  box-sizing: border-box;
+  padding: 16px;
+  background: var(--rb-panel-background, #1c1c1c);
+  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border-radius: var(--rb-panel-radius, 12px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font: 14px ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-primary-text, #909090);
+}
+.grant-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--rb-accent, #18b86f);
+}
+.grant-text {
+  line-height: 1.45;
+}
+.grant-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+.grant-actions button {
+  appearance: none;
+  padding: 8px 14px;
+  background: var(--rb-button-background, #181818);
+  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border-radius: var(--rb-button-radius, 8px);
+  color: var(--rb-primary-text, #909090);
+  font: 14px ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+.grant-actions button:hover {
+  color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent, #18b86f);
+}
+.grant-actions .grant-primary {
+  color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent, #18b86f);
 }
 .editor-system-menu-panel {
   position: absolute;

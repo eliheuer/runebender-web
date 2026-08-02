@@ -157,6 +157,25 @@ export type RunebenderHost = {
     cancelled?: boolean;
     error?: string;
   }>;
+  // Optional: file-first opening. pickSourceFile shows a FILE picker
+  // (.designspace / .glyphs are clickable — the gesture designers
+  // expect). A .glyphs is self-contained and comes back as a File; a
+  // .designspace needs its sibling UFOs, so the host holds the picked
+  // handle and the editor calls grantSourceFolder (from a fresh user
+  // gesture) — that folder picker opens AT the file's own directory,
+  // so it's one click on Select.
+  pickSourceFile?(): Promise<{
+    kind?: "glyphs" | "designspace";
+    file?: File;
+    name?: string;
+    cancelled?: boolean;
+    error?: string;
+  }>;
+  grantSourceFolder?(): Promise<{
+    slot?: string;
+    cancelled?: boolean;
+    error?: string;
+  }>;
   reopenStoredWorkspace?(): Promise<{
     slot?: string;
     cancelled?: boolean;
