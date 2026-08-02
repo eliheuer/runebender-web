@@ -59,14 +59,13 @@ async function boot() {
         fontPathRef.value = slot;
       },
     });
-    const stored = await host.primeStoredWorkspace();
-    if (stored?.permission === "granted") {
-      await host.reopenStoredWorkspaceSilently();
-    }
-    // A remembered workspace that still needs a permission click boots
-    // into the demo font like everyone else; the system menu offers
-    // "Reopen <name>". (The welcome panel's reopen flow still exists
-    // for hosts without a demo font.)
+    // Prime the remembered workspace for the menu's "Reopen <name>",
+    // but never auto-open it: every visit lands on the clearly-badged
+    // demo font, and returning to your own font is a deliberate click.
+    // (Silently restoring the user's font made the boot state
+    // ambiguous — "is this the demo?" — even with a granted
+    // persistent permission.)
+    await host.primeStoredWorkspace();
     createApp(Runebender, {
       fontPathRef,
       initialFiles: readDevTestFontFiles,
