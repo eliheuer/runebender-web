@@ -7124,7 +7124,16 @@ function openGridSelectionInEditor(name: string) {
 /// the UFO `public.markColor` string "r,g,b,a"; empty string clears.
 /// Defaults to the active master; the color panel can opt into all masters.
 function setMarkOnSelected(rgba: string) {
-  const names = selectedGridGlyphNames();
+  applyMarkColor(selectedGridGlyphNames(), rgba);
+}
+
+/** The sidebar's Colors section marks the glyph open in the editor. */
+function setMarkOnCurrentGlyph(rgba: string) {
+  if (!currentGlyph.value) return;
+  applyMarkColor([currentGlyph.value], rgba);
+}
+
+function applyMarkColor(names: string[], rgba: string) {
   if (names.length === 0) return;
   const targetMasterNames = markColorApplyAllMasters.value
     ? masters.value
@@ -9029,10 +9038,14 @@ onBeforeUnmount(() => {
               :axes="sidebarAxes"
               :masters="masters"
               :active-master="activeMasterIndex"
+              :mark-color="currentGlyph ? glyphMarkColors.get(currentGlyph) : ''"
+              :can-apply-all-masters="masters.length > 1"
+              v-model:mark-apply-all-masters="markColorApplyAllMasters"
               @jump-glyph="onSidebarJumpGlyph"
               @select-shape="onSidebarSelectShape"
               @select-master="onSelectMaster"
               @back-to-grid="backToGrid"
+              @set-mark="setMarkOnCurrentGlyph"
             />
             <div
               v-if="viewMode === 'editor' && editorPanelsVisible && activeGlyphPanelVisible"
@@ -10212,6 +10225,13 @@ onBeforeUnmount(() => {
      fixed tile when the column is already full. */
   min-height: 86px;
 }
+/* The sidebar is the elastic tile of the left column: the glyph grid
+   inside it stretches into whatever the font-info pane leaves. */
+.editor-left-col > .editor-sidebar {
+  flex: 1 1 auto;
+  max-height: none;
+}
+
 /* The font-info pane lives in the left column: fields stack in one
    narrow column instead of the old wide grid rows. */
 .editor-left-col > .active-glyph-overlay {

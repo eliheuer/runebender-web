@@ -6,6 +6,7 @@
 
 import { computed, ref } from "vue";
 import GlyphCell from "./GlyphCell.vue";
+import MarkColorPanel from "./MarkColorPanel.vue";
 
 export type SidebarGlyphItem = {
   name: string;
@@ -37,6 +38,10 @@ const props = withDefaults(
     axes?: SidebarAxis[];
     masters?: string[];
     activeMaster?: number;
+    /** Mark color on the glyph open in the editor, if any. */
+    markColor?: string;
+    canApplyAllMasters?: boolean;
+    markApplyAllMasters?: boolean;
   }>(),
   {
     glyphs: () => [],
@@ -45,6 +50,9 @@ const props = withDefaults(
     axes: () => [],
     masters: () => [],
     activeMaster: 0,
+    markColor: "",
+    canApplyAllMasters: false,
+    markApplyAllMasters: false,
   },
 );
 
@@ -53,6 +61,8 @@ const emit = defineEmits<{
   (e: "selectShape", shape: SidebarShape): void;
   (e: "selectMaster", index: number): void;
   (e: "backToGrid"): void;
+  (e: "setMark", rgba: string): void;
+  (e: "update:markApplyAllMasters", value: boolean): void;
 }>();
 
 const tab = ref<"overview" | "shapes" | "axes">("overview");
@@ -136,7 +146,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
       </button>
     </div>
 
-    <div v-if="tab === 'overview'" class="tab-body">
+    <div v-if="tab === 'overview'" class="tab-body overview">
       <button
         type="button"
         class="back-to-grid"
@@ -145,6 +155,34 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
       >
         ⊞ Full glyph overview
       </button>
+      <!-- The grid takes all the height the fixed rows leave and
+           scrolls on its own; search sits at the bottom, next to the
+           colors it filters against. -->
+      <div class="mini-grid-scroll">
+        <div class="mini-grid">
+          <GlyphCell
+            v-for="item in packedGlyphs"
+            :key="item.name"
+            :name="item.name"
+            :unicode="item.unicode"
+            :svg="item.svg"
+            :selected="item.name === currentGlyph"
+            :column-span="item.columnSpan"
+            :mark-color="item.markColor"
+            @click="emit('jumpGlyph', item.name)"
+          />
+        </div>
+      </div>
+      <hr class="rule" />
+      <MarkColorPanel
+        class="sidebar-colors"
+        :active="markColor"
+        :enabled="!!currentGlyph"
+        :can-apply-all-masters="canApplyAllMasters"
+        :apply-all-masters="markApplyAllMasters"
+        @set="emit('setMark', $event)"
+        @update:apply-all-masters="emit('update:markApplyAllMasters', $event)"
+      />
       <input
         v-model="search"
         class="search"
@@ -152,19 +190,6 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
         placeholder="Search glyphs…"
         aria-label="Search glyphs"
       />
-      <div class="mini-grid">
-        <GlyphCell
-          v-for="item in packedGlyphs"
-          :key="item.name"
-          :name="item.name"
-          :unicode="item.unicode"
-          :svg="item.svg"
-          :selected="item.name === currentGlyph"
-          :column-span="item.columnSpan"
-          :mark-color="item.markColor"
-          @click="emit('jumpGlyph', item.name)"
-        />
-      </div>
     </div>
 
     <div v-else-if="tab === 'shapes'" class="tab-body">
@@ -305,6 +330,48 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 .back-to-grid:hover {
   color: var(--rb-accent, #18b86f);
   border-color: var(--rb-accent, #18b86f);
+}
+
+/* The overview tab owns its own scrolling: the grid stretches, the
+   back button, colors and search stay pinned. */
+.tab-body.overview {
+  overflow: hidden;
+}
+.mini-grid-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.rule {
+  flex: 0 0 auto;
+  width: 100%;
+  height: 0;
+  margin: 0;
+  border: none;
+  border-top: 1px solid rgba(96, 96, 96, 0.5);
+}
+
+/* Flat inside the sidebar tile — the section rule separates it, so it
+   does not need its own panel chrome. */
+.sidebar-colors {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  min-height: 0;
+}
+.sidebar-colors :deep(.header-row) {
+  padding: 2px 2px 6px;
+}
+.sidebar-colors :deep(.header) {
+  font-size: 13px;
+}
+.sidebar-colors :deep(.all-masters-toggle) {
+  font-size: 12px;
+}
+.sidebar-colors :deep(.swatches) {
+  padding: 0;
+  justify-content: flex-start;
 }
 
 /* The mini grid reuses the main overview's GlyphCell, scaled down:
