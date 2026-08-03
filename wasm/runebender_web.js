@@ -1002,6 +1002,13 @@ export class GlyphEditor {
         wasm.glypheditor_setOffset(this.__wbg_ptr, x, y);
     }
     /**
+     * Force filled preview rendering (interpolated instances).
+     * @param {boolean} on
+     */
+    setPreviewRender(on) {
+        wasm.glypheditor_setPreviewRender(this.__wbg_ptr, on);
+    }
+    /**
      * @param {number} value
      * @returns {boolean}
      */
@@ -1721,6 +1728,36 @@ export function glyphsToUfoFiles(glyphs_text) {
 
 export function init() {
     wasm.init();
+}
+
+/**
+ * Interpolate one glyph across masters.
+ *
+ * `sources_json` is `[{ "location": { "wght": 0.0 }, "glif": "<glyph…>" }]`
+ * with locations already **normalized** to −1..1 (the caller knows the
+ * designspace axes; `normalize_value` mirrors fontTools). `location_json`
+ * is the normalized target. The result is a .glif whose points, advance
+ * width and component offsets are interpolated; everything else is copied
+ * from the source nearest the target.
+ *
+ * Errors when the masters are not point-compatible — the caller falls
+ * back to showing the nearest master rather than a mangled outline.
+ * @param {string} sources_json
+ * @param {string} location_json
+ * @returns {Uint8Array}
+ */
+export function interpolateGlif(sources_json, location_json) {
+    const ptr0 = passStringToWasm0(sources_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(location_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.interpolateGlif(ptr0, len0, ptr1, len1);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v3;
 }
 
 /**
@@ -2801,12 +2838,12 @@ function __wbg_get_imports() {
             arg0.writeTexture(arg1, arg2, arg3, arg4);
         }, arguments); },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 434, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 437, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h172fd41fa38df2df);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 476, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 479, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h61b71dc7eda4b46f);
             return ret;
         },

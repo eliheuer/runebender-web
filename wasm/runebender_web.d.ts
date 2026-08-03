@@ -261,6 +261,10 @@ export class GlyphEditor {
      */
     setMeasureOptions(colorize: boolean, handles: boolean, segments: boolean, spans: boolean, sidebearings: boolean): void;
     setOffset(x: number, y: number): void;
+    /**
+     * Force filled preview rendering (interpolated instances).
+     */
+    setPreviewRender(on: boolean): void;
     setRightSidebearing(value: number): boolean;
     setShapeShiftLocked(locked: boolean): boolean;
     setShapeTool(shape: string): boolean;
@@ -420,6 +424,21 @@ export function glyphsToUfoFiles(glyphs_text: string): string;
 
 export function init(): void;
 
+/**
+ * Interpolate one glyph across masters.
+ *
+ * `sources_json` is `[{ "location": { "wght": 0.0 }, "glif": "<glyph…>" }]`
+ * with locations already **normalized** to −1..1 (the caller knows the
+ * designspace axes; `normalize_value` mirrors fontTools). `location_json`
+ * is the normalized target. The result is a .glif whose points, advance
+ * width and component offsets are interpolated; everything else is copied
+ * from the source nearest the target.
+ *
+ * Errors when the masters are not point-compatible — the caller falls
+ * back to showing the nearest master rather than a mangled outline.
+ */
+export function interpolateGlif(sources_json: string, location_json: string): Uint8Array;
+
 export function traceImageToGlif(image_bytes: Uint8Array, config_json: string): string;
 
 export function traceImageToGlifReport(image_bytes: Uint8Array, config_json: string): string;
@@ -542,6 +561,7 @@ export interface InitOutput {
     readonly glypheditor_setLeftSidebearing: (a: number, b: number) => number;
     readonly glypheditor_setMeasureOptions: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly glypheditor_setOffset: (a: number, b: number, c: number) => void;
+    readonly glypheditor_setPreviewRender: (a: number, b: number) => void;
     readonly glypheditor_setRightSidebearing: (a: number, b: number) => number;
     readonly glypheditor_setShapeShiftLocked: (a: number, b: number) => number;
     readonly glypheditor_setShapeTool: (a: number, b: number, c: number) => number;
@@ -569,6 +589,7 @@ export interface InitOutput {
     readonly glypheditor_wheel: (a: number, b: number, c: number, d: number) => void;
     readonly glypheditor_zoom: (a: number) => number;
     readonly glyphsToUfoFiles: (a: number, b: number) => [number, number, number, number];
+    readonly interpolateGlif: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly traceImageToGlif: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly traceImageToGlifReport: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly init: () => void;

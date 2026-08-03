@@ -55,6 +55,7 @@ pub mod model;
 pub mod path;
 pub mod text;
 pub mod tool;
+pub mod var_model;
 
 #[cfg(target_arch = "wasm32")]
 mod hud_text;

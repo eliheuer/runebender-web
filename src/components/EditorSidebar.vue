@@ -28,6 +28,8 @@ export type SidebarAxis = {
   min: number;
   max: number;
   default: number;
+  /** Live slider position in design units. */
+  value: number;
 };
 
 const props = withDefaults(
@@ -62,6 +64,7 @@ const emit = defineEmits<{
   (e: "selectMaster", index: number): void;
   (e: "backToGrid"): void;
   (e: "setMark", rgba: string): void;
+  (e: "axisChange", tag: string, value: number): void;
   (e: "update:markApplyAllMasters", value: boolean): void;
 }>();
 
@@ -277,15 +280,22 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
         <div v-for="axis in axes" :key="axis.tag" class="axis">
           <div class="axis-head">
             <span>{{ axis.name }}</span>
-            <span class="axis-range">{{ axis.min }}–{{ axis.max }}</span>
+            <span class="axis-range">{{ Math.round(axis.value) }}</span>
           </div>
           <input
             type="range"
             :min="axis.min"
             :max="axis.max"
-            :value="axis.default"
-            disabled
-            :title="`${axis.tag} — live interpolation is coming; sliders unlock with it`"
+            step="1"
+            :value="axis.value"
+            :title="`${axis.tag} — ${axis.min} to ${axis.max}`"
+            @input="
+              emit(
+                'axisChange',
+                axis.tag,
+                Number(($event.target as HTMLInputElement).value),
+              )
+            "
           />
         </div>
       </template>
@@ -306,8 +316,8 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
         <span>{{ master }}</span>
       </button>
       <div class="hint">
-        Live interpolation between masters lands here next — sliders
-        preview any instance, click a master to edit it.
+        Off a master the canvas shows the interpolated instance, filled
+        and read-only. Editing snaps back to the nearest master.
       </div>
     </div>
   </div>

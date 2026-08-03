@@ -115,6 +115,7 @@ export const glypheditor_setKnifeShiftLocked: (a: number, b: number) => number;
 export const glypheditor_setLeftSidebearing: (a: number, b: number) => number;
 export const glypheditor_setMeasureOptions: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
 export const glypheditor_setOffset: (a: number, b: number, c: number) => void;
+export const glypheditor_setPreviewRender: (a: number, b: number) => void;
 export const glypheditor_setRightSidebearing: (a: number, b: number) => number;
 export const glypheditor_setShapeShiftLocked: (a: number, b: number) => number;
 export const glypheditor_setShapeTool: (a: number, b: number, c: number) => number;
@@ -142,6 +143,7 @@ export const glypheditor_updateTextGlyph: (a: number, b: number, c: number, d: n
 export const glypheditor_wheel: (a: number, b: number, c: number, d: number) => void;
 export const glypheditor_zoom: (a: number) => number;
 export const glyphsToUfoFiles: (a: number, b: number) => [number, number, number, number];
+export const interpolateGlif: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const traceImageToGlif: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const traceImageToGlifReport: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const init: () => void;

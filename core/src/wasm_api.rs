@@ -29,6 +29,160 @@ use crate::tool::{ActiveTool, ShapeKind};
 type GlifXmlMap = HashMap<String, String>;
 type CompatMasterGlyphMap = HashMap<String, Option<String>>;
 
+/// Interpolate one glyph across masters.
+///
+/// `sources_json` is `[{ "location": { "wght": 0.0 }, "glif": "<glyph…>" }]`
+/// with locations already **normalized** to −1..1 (the caller knows the
+/// designspace axes; `normalize_value` mirrors fontTools). `location_json`
+/// is the normalized target. The result is a .glif whose points, advance
+/// width and component offsets are interpolated; everything else is copied
+/// from the source nearest the target.
+///
+/// Errors when the masters are not point-compatible — the caller falls
+/// back to showing the nearest master rather than a mangled outline.
+#[wasm_bindgen(js_name = interpolateGlif)]
+pub fn interpolate_glif(sources_json: &str, location_json: &str) -> Result<Vec<u8>, JsValue> {
+    #[derive(serde::Deserialize)]
+    struct SourceIn {
+        location: HashMap<String, f64>,
+        glif: String,
+    }
+
+    let sources: Vec<SourceIn> = serde_json::from_str(sources_json)
+        .map_err(|e| JsValue::from_str(&format!("parse sources: {e}")))?;
+    let target: HashMap<String, f64> = serde_json::from_str(location_json)
+        .map_err(|e| JsValue::from_str(&format!("parse location: {e}")))?;
+    if sources.len() < 2 {
+        return Err(JsValue::from_str("interpolation needs at least two masters"));
+    }
+
+    let glyphs: Vec<norad::Glyph> = sources
+        .iter()
+        .map(|source| {
+            norad::Glyph::parse_raw(source.glif.as_bytes())
+                .map_err(|e| JsValue::from_str(&format!("parse .glif: {e}")))
+        })
+        .collect::<Result<_, _>>()?;
+
+    let vectors: Vec<Vec<f64>> = glyphs
+        .iter()
+        .map(|glyph| glyph_to_vector(glyph))
+        .collect::<Result<_, _>>()?;
+    let width = vectors[0].len();
+    if vectors.iter().any(|v| v.len() != width) {
+        return Err(JsValue::from_str(
+            "masters are not point-compatible (different point or component counts)",
+        ));
+    }
+    for glyph in &glyphs[1..] {
+        if !same_structure(&glyphs[0], glyph) {
+            return Err(JsValue::from_str(
+                "masters are not point-compatible (contour structure differs)",
+            ));
+        }
+    }
+
+    let locations: Vec<crate::var_model::Location> =
+        sources.iter().map(|s| s.location.clone()).collect();
+    let model = crate::var_model::VariationModel::new(&locations);
+    let interpolated = model.interpolate(&vectors, &target);
+
+    // The template carries everything the model does not interpolate
+    // (name, unicodes, anchors, lib, component base names).
+    let template_index = nearest_source(&locations, &target);
+    let mut glyph = glyphs[template_index].clone();
+    vector_into_glyph(&interpolated, &mut glyph);
+    glyph
+        .encode_xml()
+        .map_err(|e| JsValue::from_str(&format!("serialize .glif: {e}")))
+}
+
+/// Flatten the interpolatable numbers of a glyph: advance width, every
+/// on/off-curve point, then each component's offset.
+fn glyph_to_vector(glyph: &norad::Glyph) -> Result<Vec<f64>, JsValue> {
+    let mut out = vec![glyph.width];
+    for contour in &glyph.contours {
+        for point in &contour.points {
+            out.push(point.x);
+            out.push(point.y);
+        }
+    }
+    for component in &glyph.components {
+        out.push(component.transform.x_offset);
+        out.push(component.transform.y_offset);
+    }
+    Ok(out)
+}
+
+fn vector_into_glyph(values: &[f64], glyph: &mut norad::Glyph) {
+    let mut i = 0;
+    glyph.width = values[i];
+    i += 1;
+    for contour in &mut glyph.contours {
+        for point in &mut contour.points {
+            point.x = values[i];
+            point.y = values[i + 1];
+            i += 2;
+        }
+    }
+    for component in &mut glyph.components {
+        component.transform.x_offset = values[i];
+        component.transform.y_offset = values[i + 1];
+        i += 2;
+    }
+}
+
+/// Point-compatibility: same contours, same point counts, same point
+/// types in the same order, same component base names.
+fn same_structure(a: &norad::Glyph, b: &norad::Glyph) -> bool {
+    if a.contours.len() != b.contours.len() || a.components.len() != b.components.len() {
+        return false;
+    }
+    for (ca, cb) in a.contours.iter().zip(&b.contours) {
+        if ca.points.len() != cb.points.len() {
+            return false;
+        }
+        if ca
+            .points
+            .iter()
+            .zip(&cb.points)
+            .any(|(pa, pb)| pa.typ != pb.typ)
+        {
+            return false;
+        }
+    }
+    a.components
+        .iter()
+        .zip(&b.components)
+        .all(|(x, y)| x.base == y.base)
+}
+
+/// Index of the source closest to `target` in normalized space.
+fn nearest_source(locations: &[crate::var_model::Location], target: &HashMap<String, f64>) -> usize {
+    let distance = |location: &crate::var_model::Location| {
+        let mut sum = 0.0;
+        for (axis, value) in target {
+            let d = value - location.get(axis).copied().unwrap_or(0.0);
+            sum += d * d;
+        }
+        for (axis, value) in location {
+            if !target.contains_key(axis) {
+                sum += value * value;
+            }
+        }
+        sum
+    };
+    locations
+        .iter()
+        .enumerate()
+        .min_by(|(_, a), (_, b)| {
+            distance(a)
+                .partial_cmp(&distance(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map_or(0, |(index, _)| index)
+}
+
 /// Convert a .glyphs source (Glyphs 2 or 3) into an in-memory UFO +
 /// designspace file set, returned as JSON:
 /// `{ family_name, files: [{path, text}], warnings: [..] }`.
@@ -1045,6 +1199,10 @@ pub struct GlyphEditor {
     /// stable for the burst.
     pending_nudge_move_indices: Vec<(usize, Vec<usize>)>,
     pending_nudge_independent_move_indices: Vec<(usize, Vec<usize>)>,
+    /// Draw filled, point-free, regardless of the active tool. Set
+    /// while the canvas is showing an interpolated instance, which is
+    /// a view of the design space rather than an editable master.
+    preview_override: bool,
 }
 
 impl GlyphEditor {
@@ -1402,6 +1560,7 @@ impl GlyphEditor {
             pending_nudge_path_indices: Vec::new(),
             pending_nudge_move_indices: Vec::new(),
             pending_nudge_independent_move_indices: Vec::new(),
+            preview_override: false,
         })
     }
 
@@ -1667,9 +1826,15 @@ impl GlyphEditor {
         }
     }
 
+    /// Force filled preview rendering (interpolated instances).
+    #[wasm_bindgen(js_name = setPreviewRender)]
+    pub fn set_preview_render(&mut self, on: bool) {
+        self.preview_override = on;
+    }
+
     pub fn render(&mut self) -> Result<(), JsValue> {
         let text_mode_active = self.tool.is_text() && self.state.has_text_session;
-        let preview_mode = self.tool.is_preview();
+        let preview_mode = self.tool.is_preview() || self.preview_override;
         if self.pending_nudge_snapshot.is_some()
             && !self.pending_nudge_path_indices.is_empty()
             && !preview_mode

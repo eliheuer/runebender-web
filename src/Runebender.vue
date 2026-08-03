@@ -22,6 +22,7 @@ import init, {
   glifWithUnicode,
   glyphCategoryForCodepoint,
   glyphsToUfoFiles,
+  interpolateGlif,
   traceImageToGlifReport,
 } from "../wasm/runebender_web.js";
 import CategorySidebar, {
@@ -3306,7 +3307,20 @@ const sidebarShapes = computed<SidebarShape[]>(() => {
 
 // Axes from the loaded designspace (the .glyphs importer emits one
 // too). Read-only until the interpolation engine lands.
-const sidebarAxes = computed<SidebarAxis[]>(() => {
+// --- Designspace model: axes + where each master sits -----------------
+// Parsed once from the loaded .designspace, and the basis for live
+// interpolation: axis sliders move a point through this space and the
+// canvas shows the instance at that point.
+
+type DesignAxis = {
+  name: string;
+  tag: string;
+  min: number;
+  max: number;
+  default: number;
+};
+
+const designAxes = computed<DesignAxis[]>(() => {
   if (!designspaceText.value) return [];
   try {
     const xml = new DOMParser().parseFromString(
@@ -3315,7 +3329,7 @@ const sidebarAxes = computed<SidebarAxis[]>(() => {
     );
     return [...xml.querySelectorAll("axes > axis")].map((axis) => ({
       name: axis.getAttribute("name") ?? axis.getAttribute("tag") ?? "axis",
-      tag: axis.getAttribute("tag") ?? "",
+      tag: axis.getAttribute("tag") ?? axis.getAttribute("name") ?? "axis",
       min: Number(axis.getAttribute("minimum") ?? 0),
       max: Number(axis.getAttribute("maximum") ?? 0),
       default: Number(axis.getAttribute("default") ?? 0),
@@ -3324,6 +3338,289 @@ const sidebarAxes = computed<SidebarAxis[]>(() => {
     return [];
   }
 });
+
+/** Master style name → its design-space location, axis tag → value. */
+const masterLocations = computed<Map<string, Record<string, number>>>(() => {
+  const out = new Map<string, Record<string, number>>();
+  if (!designspaceText.value) return out;
+  try {
+    const xml = new DOMParser().parseFromString(
+      designspaceText.value,
+      "text/xml",
+    );
+    // Designspace <dimension> uses the axis *name*; the editor keys
+    // locations by tag, so map one to the other.
+    const tagByName = new Map(
+      designAxes.value.map((axis) => [axis.name, axis.tag]),
+    );
+    for (const source of xml.querySelectorAll("sources > source")) {
+      const styleName =
+        source.getAttribute("stylename") ?? source.getAttribute("name") ?? "";
+      if (!styleName) continue;
+      const location: Record<string, number> = {};
+      for (const dimension of source.querySelectorAll("location > dimension")) {
+        const axisName = dimension.getAttribute("name") ?? "";
+        const tag = tagByName.get(axisName) ?? axisName;
+        const value = Number(
+          dimension.getAttribute("xvalue") ?? dimension.getAttribute("uservalue") ?? 0,
+        );
+        if (tag) location[tag] = value;
+      }
+      out.set(styleName, location);
+    }
+  } catch {
+    return out;
+  }
+  return out;
+});
+
+/** Live axis position in design units, one entry per axis. */
+const axisValues = ref<Record<string, number>>({});
+
+function normalizeAxisValue(axis: DesignAxis, value: number): number {
+  const clamped = Math.min(Math.max(value, axis.min), axis.max);
+  if (clamped === axis.default) return 0;
+  if (clamped < axis.default) {
+    const span = axis.default - axis.min;
+    return span === 0 ? 0 : -(axis.default - clamped) / span;
+  }
+  const span = axis.max - axis.default;
+  return span === 0 ? 0 : (clamped - axis.default) / span;
+}
+
+function normalizeLocation(location: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const axis of designAxes.value) {
+    out[axis.tag] = normalizeAxisValue(axis, location[axis.tag] ?? axis.default);
+  }
+  return out;
+}
+
+const interpolationAvailable = computed(
+  () => designAxes.value.length > 0 && masterLocations.value.size > 1,
+);
+
+/** The master whose location matches the sliders exactly, if any. */
+const masterAtAxisValues = computed<string | null>(() => {
+  if (!interpolationAvailable.value) return null;
+  const here = normalizeLocation(axisValues.value);
+  for (const [name, location] of masterLocations.value) {
+    const there = normalizeLocation(location);
+    if (
+      designAxes.value.every(
+        (axis) => Math.abs((there[axis.tag] ?? 0) - (here[axis.tag] ?? 0)) < 1e-6,
+      )
+    ) {
+      return name;
+    }
+  }
+  return null;
+});
+
+/** Master nearest the sliders — where editing snaps to. */
+function nearestMasterToAxisValues(): string | null {
+  if (!interpolationAvailable.value) return null;
+  const here = normalizeLocation(axisValues.value);
+  let best: { name: string; distance: number } | null = null;
+  for (const [name, location] of masterLocations.value) {
+    if (!masterDataMap.value.has(name)) continue;
+    const there = normalizeLocation(location);
+    const distance = designAxes.value.reduce((sum, axis) => {
+      const d = (there[axis.tag] ?? 0) - (here[axis.tag] ?? 0);
+      return sum + d * d;
+    }, 0);
+    if (!best || distance < best.distance) best = { name, distance };
+  }
+  return best?.name ?? null;
+}
+
+/** True while the canvas shows an interpolated instance, not a master. */
+const interpolationPreviewActive = ref(false);
+const interpolationError = ref<string>("");
+
+/** Reset the sliders to the active master whenever the font changes. */
+watch(
+  () => [designAxes.value, masterLocations.value] as const,
+  () => {
+    const location =
+      masterLocations.value.get(activeMasterName.value) ??
+      masterLocations.value.values().next().value ??
+      {};
+    const next: Record<string, number> = {};
+    for (const axis of designAxes.value) {
+      next[axis.tag] = location[axis.tag] ?? axis.default;
+    }
+    axisValues.value = next;
+    clearInterpolationPreview();
+  },
+);
+
+function clearInterpolationPreview(reloadMaster = false) {
+  if (!interpolationPreviewActive.value) return;
+  interpolationPreviewActive.value = false;
+  interpolationError.value = "";
+  editor?.setPreviewRender(false);
+  if (reloadMaster) reloadCurrentGlyphFromActiveMaster();
+  // Put the master's own outlines back in the text buffer.
+  if (hasTextBufferSession.value) syncTextKerningModelToEditor();
+  requestRender();
+}
+
+function reloadCurrentGlyphFromActiveMaster() {
+  const data = activeMasterData.value;
+  const name = currentGlyph.value;
+  if (!editor || !data || !name) return;
+  const bytes = data.glyphBytes.get(name);
+  if (!bytes) return;
+  ensureEditorComponentGlyphs(data);
+  if (!editor.setGlyphNameWithCachedComponentsPreserveHistory(name)) {
+    editor.setGlyphGlifWithCachedComponentsPreserveHistory(bytes);
+  }
+  editorGlyphNeedsSync = false;
+}
+
+/** Recompute the interpolated outline for the current slider position. */
+function updateInterpolationPreview() {
+  if (!editor || !interpolationAvailable.value || !currentGlyph.value) return;
+
+  const onMaster = masterAtAxisValues.value;
+  if (onMaster) {
+    // Landing on a master is just a master switch: fully editable.
+    clearInterpolationPreview();
+    if (onMaster !== activeMasterName.value) activateMaster(onMaster);
+    else reloadCurrentGlyphFromActiveMaster();
+    requestRender();
+    return;
+  }
+
+  const glyphName = currentGlyph.value;
+  const sources: { location: Record<string, number>; glif: string }[] = [];
+  for (const [name, location] of masterLocations.value) {
+    const data = masterDataMap.value.get(name);
+    const bytes = data?.glyphBytes.get(glyphName);
+    if (!bytes) continue;
+    sources.push({
+      location: normalizeLocation(location),
+      glif: new TextDecoder().decode(bytes),
+    });
+  }
+  if (sources.length < 2) {
+    interpolationError.value = `${glyphName} is not in every master`;
+    return;
+  }
+
+  const location = JSON.stringify(normalizeLocation(axisValues.value));
+  try {
+    const bytes = interpolateGlif(JSON.stringify(sources), location);
+    // The instance is a view, never an edit: history is preserved and
+    // the master's own bytes in masterDataMap stay untouched.
+    editor.setGlyphGlifWithCachedComponentsPreserveHistory(bytes);
+    editorGlyphNeedsSync = false;
+    interpolationPreviewActive.value = true;
+    interpolationError.value = "";
+    editor.setPreviewRender(true);
+    // With a text session up, every sort draws from the glyph
+    // inventory — interpolate those too so the whole line shows the
+    // instance, not just the glyph under the cursor.
+    if (hasTextBufferSession.value) {
+      applyInterpolatedTextInventory(location);
+    }
+    requestRender({ refreshDerivedState: true });
+  } catch (e) {
+    // Incompatible masters: fall back to the nearest one rather than
+    // drawing a mangled outline.
+    interpolationError.value = String(e);
+    clearInterpolationPreview(true);
+  }
+}
+
+/** Interpolate one glyph at `location` (JSON, normalized). */
+function interpolatedGlifBytes(glyphName: string, location: string): Uint8Array | null {
+  const sources: { location: Record<string, number>; glif: string }[] = [];
+  for (const [name, masterLocation] of masterLocations.value) {
+    const bytes = masterDataMap.value.get(name)?.glyphBytes.get(glyphName);
+    if (!bytes) continue;
+    sources.push({
+      location: normalizeLocation(masterLocation),
+      glif: new TextDecoder().decode(bytes),
+    });
+  }
+  if (sources.length < 2) return null;
+  try {
+    return interpolateGlif(JSON.stringify(sources), location);
+  } catch {
+    return null;
+  }
+}
+
+/** Swap the text buffer's outlines/widths for interpolated ones. */
+function applyInterpolatedTextInventory(location: string) {
+  if (!editor) return;
+  const outlines: Record<string, string> = {};
+  const widths: Record<string, number> = {};
+  const names = new Set(
+    textBuffer.value.flatMap((sort) => (sort.kind === "glyph" ? [sort.glyphName] : [])),
+  );
+  for (const name of names) {
+    const bytes = interpolatedGlifBytes(name, location);
+    if (!bytes) continue;
+    const path = /<path\b[^>]*\sd="([^"]+)"/.exec(glifToSvg(bytes))?.[1];
+    if (path) outlines[name] = path;
+    try {
+      widths[name] = (JSON.parse(glifMetadata(bytes)) as GlyphMetadata).width;
+    } catch {
+      // keep the master width
+    }
+  }
+  if (Object.keys(outlines).length === 0) return;
+  try {
+    editor.setTextGlyphInventory(
+      JSON.stringify({
+        unicode: glyphUnicodeMapToRecord(glyphUnicodes.value),
+        widths: { ...glyphWidthMapToRecord(glyphMetadataMap.value), ...widths },
+        outlines: { ...glyphOutlineMapToRecord(glyphSvgs.value), ...outlines },
+      }),
+    );
+    refreshTextStateFromEditor(false);
+  } catch (e) {
+    console.warn("interpolated text inventory failed:", e);
+  }
+}
+
+function onAxisValueChange(tag: string, value: number) {
+  axisValues.value = { ...axisValues.value, [tag]: value };
+  updateInterpolationPreview();
+}
+
+/** Editing an interpolated instance snaps to the nearest master. */
+function snapToNearestMasterForEditing(): boolean {
+  if (!interpolationPreviewActive.value) return false;
+  const name = nearestMasterToAxisValues();
+  if (!name) return false;
+  const location = masterLocations.value.get(name) ?? {};
+  const next: Record<string, number> = {};
+  for (const axis of designAxes.value) {
+    next[axis.tag] = location[axis.tag] ?? axis.default;
+  }
+  axisValues.value = next;
+  clearInterpolationPreview();
+  if (name !== activeMasterName.value) activateMaster(name);
+  else reloadCurrentGlyphFromActiveMaster();
+  status.value = `snapped to ${name} — masters are what you edit`;
+  requestRender();
+  return true;
+}
+
+const sidebarAxes = computed<SidebarAxis[]>(() =>
+  designAxes.value.map((axis) => ({
+    name: axis.name,
+    tag: axis.tag,
+    min: axis.min,
+    max: axis.max,
+    default: axis.default,
+    value: axisValues.value[axis.tag] ?? axis.default,
+  })),
+);
 
 function onSidebarJumpGlyph(name: string) {
   openGridSelectionInEditor(name);
@@ -4994,6 +5291,10 @@ function onPointerDown(e: PointerEvent) {
   if (!editor) return;
   const c = canvasCoords(e);
   if (!c) return;
+  // Interpolated instances are read-only: touching the canvas snaps
+  // the sliders to the nearest master and hands back an editable
+  // outline, so this gesture starts a real edit.
+  snapToNearestMasterForEditing();
   selectIdleHoverActive = false;
   textPointerMayMutate = activeTool.value === "Text" && e.shiftKey;
   textKerningNeedsSync = false;
@@ -7129,6 +7430,11 @@ function loadGlyphIntoEditor(
     if (options.syncComfy !== false) {
       queueComfyStateSync(true);
     }
+    // Keep the design-space position when moving between glyphs: the
+    // new glyph shows at the same instance, not at its master.
+    if (interpolationPreviewActive.value) {
+      updateInterpolationPreview();
+    }
   } catch (e) {
     console.error(e);
     status.value = `failed to load ${name}: ${e}`;
@@ -8172,6 +8478,9 @@ function syncCurrentGlyphBytesFromEditor(
   } = {},
 ): boolean {
   if (!editor || !currentGlyph.value) return false;
+  // The canvas is showing an interpolated instance, not this master's
+  // outline — pulling it back would overwrite the master with it.
+  if (interpolationPreviewActive.value) return false;
   const data = activeMasterData.value;
   const originalBytes = data?.glyphBytes.get(currentGlyph.value);
   if (!data || !originalBytes) return false;
@@ -9096,6 +9405,7 @@ onBeforeUnmount(() => {
               @select-master="onSelectMaster"
               @back-to-grid="backToGrid"
               @set-mark="setMarkOnCurrentGlyph"
+              @axis-change="onAxisValueChange"
             />
             <div
               v-if="viewMode === 'editor' && editorPanelsVisible && activeGlyphPanelVisible"
