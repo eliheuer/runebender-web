@@ -10148,10 +10148,26 @@ onBeforeUnmount(() => {
   height: auto;
   box-sizing: border-box;
   width: 232px;
-  padding: 8px;
+  padding: 10px;
   background: var(--rb-panel-background, #1c1c1c);
   border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
   border-radius: var(--rb-panel-radius, 12px);
+}
+/* Inside a column tile the tool panels flatten: no tile-within-tile
+   chrome, content stretches the full width, and ruled section titles
+   do the separating. */
+.editor-side-col > .helper-overlay :deep(.select-panel),
+.editor-side-col > .helper-overlay :deep(.curve-panel) {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.editor-side-col > .helper-overlay :deep(.label) {
+  border-bottom: 1px solid rgba(96, 96, 96, 0.5);
+  padding-bottom: 5px;
 }
 
 /* Outside editor mode the pane sits inert behind the grid so the
