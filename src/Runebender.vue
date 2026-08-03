@@ -9626,17 +9626,6 @@ onBeforeUnmount(() => {
               @select-quadrant="onCoordinateQuadrant"
               @change-coordinate="onCoordinateChange"
             />
-            <div
-              v-if="viewMode === 'editor' && editorPanelsVisible && currentGlyph && activeTool !== 'Text'"
-              class="glyph-preview-overlay"
-              aria-label="Active glyph preview"
-            >
-              <span
-                v-if="activeGlyphPreviewSvg"
-                class="glyph-preview-shape"
-                v-html="activeGlyphPreviewSvg"
-              />
-            </div>
           </div>
         </div>
 
@@ -10199,14 +10188,6 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-/* The mini filled-glyph preview sits at the bottom of the right
-   column, stretched to the column width. */
-.editor-right-col > .glyph-preview-overlay {
-  position: static;
-  width: 100%;
-  box-sizing: border-box;
-  height: 120px;
-}
 /* The font-info pane lives in the left column: fields stack in one
    narrow column instead of the old wide grid rows. */
 .editor-left-col > .active-glyph-overlay {
@@ -10305,7 +10286,6 @@ onBeforeUnmount(() => {
 }
 
 .stage.editor-bottom-preview-visible .coordinate-overlay,
-.stage.editor-bottom-preview-visible .glyph-preview-overlay,
 .stage.editor-bottom-preview-visible .active-glyph-overlay {
   bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset, 8px));
 }
@@ -10317,7 +10297,6 @@ onBeforeUnmount(() => {
 /* Bento: the canvas pane already ends above the preview pane, so the
    preview-height compensation must not double-offset in-pane
    overlays. */
-.stage-bento.editor-bottom-preview-visible .glyph-preview-overlay,
 .stage-bento.editor-bottom-preview-visible .active-glyph-overlay {
   bottom: var(--rb-editor-edge-inset, 8px);
 }
@@ -10920,7 +10899,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.glyph-preview-overlay,
 .active-glyph-overlay {
   position: absolute;
   z-index: 3;
@@ -10932,33 +10910,6 @@ onBeforeUnmount(() => {
   pointer-events: auto;
 }
 
-.glyph-preview-overlay {
-  left: var(--rb-editor-edge-inset, 8px);
-  width: 235px;
-  height: 86px;
-  padding: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.glyph-preview-shape {
-  width: auto;
-  height: 100%;
-  /* Core palette yellow: the bottom-left preview reads as the current glyph
-     highlight rather than another gray panel. */
-  color: var(--rb-warning, #ffdc32);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.glyph-preview-shape :deep(svg) {
-  display: block;
-  width: auto;
-  height: 100%;
-  max-width: calc(235px - 24px);
-  max-height: 100%;
-}
 
 .active-glyph-overlay {
   left: calc(232px + var(--rb-editor-edge-inset, 8px) * 2);
