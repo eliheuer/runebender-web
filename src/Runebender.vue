@@ -10874,20 +10874,26 @@ onBeforeUnmount(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
+  /* Same type size, padding and row gap as TopBar's .file-info, so
+     the two lines here sit on the same baselines as the ones in the
+     font-info tile beside it. */
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 12px;
   background: color-mix(in srgb, var(--rb-panel-background, #1c1c1c) 94%, transparent);
   border: var(--rb-stroke-width, 1px) solid var(--rb-danger, #ff4a3d);
   border-radius: var(--rb-panel-radius, 12px);
   color: var(--rb-overlay-text, #f0f0f0);
-  font: 12px ui-sans-serif, system-ui, sans-serif;
+  font: 16px ui-sans-serif, system-ui, sans-serif;
   pointer-events: none;
 }
 .compat-badge strong {
   color: var(--rb-danger-text, #ff4a3d);
+  font: 16px ui-sans-serif, system-ui, sans-serif;
   font-weight: 700;
 }
 .compat-badge span {
+  color: var(--rb-secondary-text, #707070);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
