@@ -81,6 +81,7 @@ function setAll(value: boolean) {
       </div>
       <input
         type="range"
+        :style="{ '--rb-slider-fill': `${(props.tol / 0.4) * 100}%` }"
         min="0"
         max="0.4"
         step="0.02"
@@ -193,10 +194,6 @@ function setAll(value: boolean) {
 .slider-head .val {
   opacity: 0.9;
   font-variant-numeric: tabular-nums;
-}
-.slider input[type="range"] {
-  width: 100%;
-  accent-color: var(--rb-accent, #18b86f);
 }
 .slider-ends {
   display: flex;

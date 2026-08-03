@@ -14,6 +14,7 @@
 //      demo font.
 
 import { createApp, ref } from "vue";
+import "./styles/slider.css";
 import { readDevTestFontFiles } from "./devTestFont";
 import { runebenderHostKey } from "./host/runebenderHost";
 import { browserHost } from "./hosts/browser/browserHost";

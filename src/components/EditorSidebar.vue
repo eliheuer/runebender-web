@@ -281,6 +281,11 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
           </div>
           <input
             type="range"
+            :style="{
+              '--rb-slider-fill': `${
+                ((axis.default - axis.min) / Math.max(1, axis.max - axis.min)) * 100
+              }%`,
+            }"
             :min="axis.min"
             :max="axis.max"
             :value="axis.default"
@@ -574,7 +579,6 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 }
 .axis input[type="range"] {
   width: 100%;
-  accent-color: var(--rb-accent, #18b86f);
 }
 
 .master-row {

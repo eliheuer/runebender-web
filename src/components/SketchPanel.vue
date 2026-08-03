@@ -90,6 +90,7 @@ const MODES = [
       <input
         class="identity-slider"
         type="range"
+        :style="{ '--rb-slider-fill': `${(props.identity / 1.5) * 100}%` }"
         min="0"
         max="1.5"
         step="0.1"
@@ -189,7 +190,6 @@ const MODES = [
 .identity-slider {
   width: 100%;
   margin: 2px 0 0;
-  accent-color: var(--rb-accent, #18b86f);
 }
 .identity-scale {
   display: flex;
