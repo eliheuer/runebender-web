@@ -9165,56 +9165,6 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            <div
-              v-if="editorPanelsVisible && selectActive"
-              class="helper-overlay select-stack"
-            >
-              <SelectPanel
-                :colorize="measureColorize"
-                :handles="measureHandles"
-                :segments="measureSegments"
-                :spans="measureSpans"
-                :sidebearings="measureSidebearings"
-                @update:colorize="(v: boolean) => (measureColorize = v)"
-                @update:handles="(v: boolean) => (measureHandles = v)"
-                @update:segments="(v: boolean) => (measureSegments = v)"
-                @update:spans="(v: boolean) => (measureSpans = v)"
-                @update:sidebearings="(v: boolean) => (measureSidebearings = v)"
-              />
-              <CurvePanel
-                :comb="curveComb"
-                :continuity="curveContinuity"
-                :tol="curveTol"
-                @update:comb="(v: boolean) => (curveComb = v)"
-                @update:continuity="(v: boolean) => (curveContinuity = v)"
-                @update:tol="(v: number) => (curveTol = v)"
-                @harmonize="harmonizeCurves"
-                @balance="balanceCurves"
-                @optimize="optimizeCurves"
-              />
-            </div>
-            <SketchPanel
-              v-if="editorPanelsVisible && sketchActive"
-              class="helper-overlay"
-              :brush="sketchBrush"
-              :erase="sketchErase"
-              :trace-mode="sketchTraceMode"
-              :has-ink="sketchHasInk"
-              :tracing="sketchTracing"
-              :drafting="sketchDrafting"
-              @update:brush="(v: number) => (sketchBrush = v)"
-              @update:erase="(v: boolean) => (sketchErase = v)"
-              @update:trace-mode="(v: string) => (sketchTraceMode = v)"
-              :banking="sketchBanking"
-              :bank-count="sketchBankCount"
-              :bank-flash="sketchBankFlash"
-              :identity="sketchIdentity"
-              @update:identity="(v: number) => (sketchIdentity = v)"
-              @clear="clearSketch"
-              @trace="traceSketchToGlyph"
-              @draft="draftSketchWithVirtua"
-              @bank="bankSketchPair"
-            />
           </div>
 
         <!-- The canvas pane: a bento tile in editor mode; in grid mode
@@ -9571,6 +9521,56 @@ onBeforeUnmount(() => {
         </div>
 
           <div v-if="viewMode === 'editor'" class="editor-side-col editor-right-col">
+            <div
+              v-if="editorPanelsVisible && selectActive"
+              class="helper-overlay select-stack"
+            >
+              <SelectPanel
+                :colorize="measureColorize"
+                :handles="measureHandles"
+                :segments="measureSegments"
+                :spans="measureSpans"
+                :sidebearings="measureSidebearings"
+                @update:colorize="(v: boolean) => (measureColorize = v)"
+                @update:handles="(v: boolean) => (measureHandles = v)"
+                @update:segments="(v: boolean) => (measureSegments = v)"
+                @update:spans="(v: boolean) => (measureSpans = v)"
+                @update:sidebearings="(v: boolean) => (measureSidebearings = v)"
+              />
+              <CurvePanel
+                :comb="curveComb"
+                :continuity="curveContinuity"
+                :tol="curveTol"
+                @update:comb="(v: boolean) => (curveComb = v)"
+                @update:continuity="(v: boolean) => (curveContinuity = v)"
+                @update:tol="(v: number) => (curveTol = v)"
+                @harmonize="harmonizeCurves"
+                @balance="balanceCurves"
+                @optimize="optimizeCurves"
+              />
+            </div>
+            <SketchPanel
+              v-if="editorPanelsVisible && sketchActive"
+              class="helper-overlay"
+              :brush="sketchBrush"
+              :erase="sketchErase"
+              :trace-mode="sketchTraceMode"
+              :has-ink="sketchHasInk"
+              :tracing="sketchTracing"
+              :drafting="sketchDrafting"
+              @update:brush="(v: number) => (sketchBrush = v)"
+              @update:erase="(v: boolean) => (sketchErase = v)"
+              @update:trace-mode="(v: string) => (sketchTraceMode = v)"
+              :banking="sketchBanking"
+              :bank-count="sketchBankCount"
+              :bank-flash="sketchBankFlash"
+              :identity="sketchIdentity"
+              @update:identity="(v: number) => (sketchIdentity = v)"
+              @clear="clearSketch"
+              @trace="traceSketchToGlyph"
+              @draft="draftSketchWithVirtua"
+              @bank="bankSketchPair"
+            />
             <TransformPanel
               v-if="editorPanelsVisible"
               class="transform-overlay"
@@ -10156,6 +10156,20 @@ onBeforeUnmount(() => {
 .editor-right-col > .coordinate-overlay {
   margin-top: auto;
 }
+/* Geometry operations as a full-width bento tile: the transform grid
+   stretches to the column, four buttons per row. */
+.editor-right-col > .transform-overlay {
+  width: 232px;
+  box-sizing: border-box;
+  padding: 8px;
+}
+.editor-right-col > .transform-overlay :deep(.actions) {
+  grid-template-columns: repeat(4, 1fr);
+}
+.editor-right-col > .transform-overlay :deep(.action-btn) {
+  width: 100%;
+}
+
 /* The mini filled-glyph preview sits at the bottom of the right
    column, stretched to the column width. */
 .editor-right-col > .glyph-preview-overlay {
