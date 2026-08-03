@@ -3461,8 +3461,11 @@ function clearInterpolationPreview(reloadMaster = false) {
   interpolationError.value = "";
   editor?.setPreviewRender(false);
   if (reloadMaster) reloadCurrentGlyphFromActiveMaster();
-  // Put the master's own outlines back in the text buffer.
-  if (hasTextBufferSession.value) syncTextKerningModelToEditor();
+  // Put the master's own outlines and advances back in the text buffer.
+  if (hasTextBufferSession.value) {
+    syncTextKerningModelToEditor();
+    applyTextSortWidths((name) => glyphMetadataMap.value.get(name)?.width);
+  }
   requestRender();
 }
 
@@ -3534,6 +3537,28 @@ function updateInterpolationPreview() {
   }
 }
 
+/** Retype every sort's advance width from `widthFor`. */
+function applyTextSortWidths(widthFor: (glyphName: string) => number | undefined) {
+  if (!editor) return;
+  let changed = false;
+  for (let index = 0; index < textBuffer.value.length; index++) {
+    const sort = textBuffer.value[index];
+    if (sort.kind !== "glyph") continue;
+    const width = widthFor(sort.glyphName);
+    if (width === undefined || !Number.isFinite(width)) continue;
+    const unicode = glyphUnicodes.value.get(sort.glyphName);
+    const codepoint = unicode ? parseInt(unicode, 16) : 0;
+    changed =
+      editor.updateTextGlyph(
+        index,
+        sort.glyphName,
+        Number.isFinite(codepoint) ? codepoint : 0,
+        width,
+      ) || changed;
+  }
+  if (changed) refreshTextStateFromEditor();
+}
+
 /** Interpolate one glyph at `location` (JSON, normalized). */
 function interpolatedGlifBytes(glyphName: string, location: string): Uint8Array | null {
   const sources: { location: Record<string, number>; glif: string }[] = [];
@@ -3573,6 +3598,10 @@ function applyInterpolatedTextInventory(location: string) {
     }
   }
   if (Object.keys(outlines).length === 0) return;
+  // Sorts carry their own advance width (set when they were typed), so
+  // the line keeps master spacing unless we retype the widths too —
+  // that's what made interpolated text look mis-spaced.
+  applyTextSortWidths((name) => widths[name]);
   try {
     editor.setTextGlyphInventory(
       JSON.stringify({
