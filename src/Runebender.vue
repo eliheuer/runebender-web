@@ -8973,10 +8973,6 @@ onBeforeUnmount(() => {
             />
           </div>
           <div class="editor-tools-cluster">
-            <EditModeToolbar
-              :active="activeTool"
-              @select="onToolSelect"
-            />
             <div
               v-if="compatErrors.length"
               class="compat-badge"
@@ -8997,16 +8993,6 @@ onBeforeUnmount(() => {
                 and {{ compatErrors.length - 4 }} more
               </span>
             </div>
-            <ShapesToolbar
-              v-if="activeTool === 'Shapes'"
-              :active="activeShape"
-              @select="onShapeSelect"
-            />
-            <TextDirectionToolbar
-              v-if="activeTool === 'Text'"
-              :active="textDirection"
-              @select="onTextDirectionSelect"
-            />
           </div>
 
           <TopBar
@@ -9512,6 +9498,20 @@ onBeforeUnmount(() => {
         </div>
 
           <div v-if="viewMode === 'editor'" class="editor-side-col editor-right-col">
+            <EditModeToolbar
+              :active="activeTool"
+              @select="onToolSelect"
+            />
+            <ShapesToolbar
+              v-if="activeTool === 'Shapes'"
+              :active="activeShape"
+              @select="onShapeSelect"
+            />
+            <TextDirectionToolbar
+              v-if="activeTool === 'Text'"
+              :active="textDirection"
+              @select="onTextDirectionSelect"
+            />
             <div
               v-if="editorPanelsVisible && selectActive"
               class="helper-overlay select-stack"
@@ -10147,6 +10147,24 @@ onBeforeUnmount(() => {
 .editor-right-col > .coordinate-overlay {
   margin-top: auto;
 }
+/* The tool palette and the former attach-on toolbars (shapes, text
+   direction) live at the top of the right column as full-width tiles,
+   buttons wrapping in a grid instead of one long row. */
+.editor-right-col > .edit-mode-toolbar,
+.editor-right-col > .shapes-toolbar,
+.editor-right-col > .text-direction-toolbar {
+  width: 232px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 8px;
+  gap: 6px;
+}
+.editor-right-col > .edit-mode-toolbar :deep(.tool-btn),
+.editor-right-col > .shapes-toolbar :deep(.shape-btn) {
+  width: 100%;
+}
+
 /* Geometry operations as a full-width bento tile: the transform grid
    stretches to the column, four buttons per row. */
 .editor-right-col > .transform-overlay {
