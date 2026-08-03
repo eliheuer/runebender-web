@@ -10232,8 +10232,10 @@ onBeforeUnmount(() => {
   max-height: none;
 }
 
-/* The font-info pane lives in the left column: fields stack in one
-   narrow column instead of the old wide grid rows. */
+/* The font-info pane lives in the left column: two field columns, so
+   related pairs (Width/Unicode, LSB/Left Kern, Right Kern/RSB) read
+   as rows instead of one long stack. Name and the kerning groups
+   keep the full width — their values are the long ones. */
 .editor-left-col > .active-glyph-overlay {
   position: static;
   width: 232px;
@@ -10241,14 +10243,26 @@ onBeforeUnmount(() => {
   padding: 10px;
 }
 .editor-left-col > .active-glyph-overlay .active-glyph-header,
+.editor-left-col > .active-glyph-overlay .metrics-half {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+}
 .editor-left-col > .active-glyph-overlay .metrics-strip {
   grid-template-columns: 1fr;
 }
-.editor-left-col > .active-glyph-overlay .metrics-half {
-  grid-template-columns: 1fr;
-  width: 100%;
-}
 .editor-left-col > .active-glyph-overlay .metric-field {
+  grid-column: auto;
+  /* Half-width fields can't afford a fixed label column — let the
+     label take what it needs and give the rest to the value. */
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  gap: 4px;
+  padding: 0 7px;
+}
+.editor-left-col > .active-glyph-overlay .metric-field input {
+  font-size: 12px;
+}
+.editor-left-col > .active-glyph-overlay .glyph-name-field,
+.editor-left-col > .active-glyph-overlay .group-field {
   grid-column: 1 / -1;
 }
 /* Tool panels become real bento tiles in the columns: same width as
