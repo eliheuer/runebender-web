@@ -186,7 +186,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
           title="Apply color changes to every master"
           @click="emit('update:markApplyAllMasters', !markApplyAllMasters)"
         >
-          all masters
+          All masters
         </button>
       </div>
       <div class="swatch-row">
@@ -329,8 +329,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 
 .side-label {
   font: 11px ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: var(--rb-secondary-text, #707070);
 }
 
@@ -394,8 +393,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   border: none;
   color: var(--rb-secondary-text, #707070);
   font: 11px ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   cursor: pointer;
 }
 .all-masters.active,
@@ -404,9 +402,11 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 }
 
 .swatch-row {
+  /* Spread the eight buttons edge to edge so the row's side margins
+     match the rest of the tile instead of trailing off to the right. */
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 4px;
 }
 .swatch-row .swatch {
   appearance: none;
@@ -431,11 +431,15 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   outline-offset: 1px;
 }
 .swatch-row .swatch.clear {
-  background: var(--rb-button-background, #181818);
-  border-color: var(--rb-panel-outline, #606060);
-  color: var(--rb-secondary-text, #707070);
+  /* A filled disc like the others — an outlined one reads smaller. */
+  background: var(--rb-panel-outline, #606060);
+  border-color: transparent;
+  color: var(--rb-panel-background, #1c1c1c);
   font-size: 11px;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .swatch-row .swatch.clear:hover:not(:disabled) {
   color: var(--rb-accent, #18b86f);
