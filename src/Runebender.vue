@@ -11251,13 +11251,15 @@ onBeforeUnmount(() => {
 }
 
 .editor-bottom-preview-resizer::after {
+  /* Invisible until you reach for it — the pane already draws its own
+     top border, and a second line there read as a double-thick edge. */
   content: "";
   position: absolute;
   left: 0;
   right: 0;
   top: 6px;
   height: var(--rb-stroke-width, 1px);
-  background: var(--rb-panel-outline, #606060);
+  background: transparent;
 }
 
 .editor-bottom-preview-resizer:hover::after {
