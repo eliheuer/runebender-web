@@ -196,7 +196,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
           type="button"
           class="swatch"
           :class="{ active: color.rgba === markColor }"
-          :style="{ background: rgbaToCss(color.rgba) }"
+          :style="{ background: rgbaToCss(color.rgba), color: rgbaToCss(color.rgba) }"
           :title="color.name"
           :aria-label="`Set mark color: ${color.name}`"
           :disabled="!currentGlyph"
@@ -410,11 +410,11 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 }
 .swatch-row .swatch {
   appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border-radius: 50%;
-  border: var(--rb-stroke-width, 1px) solid transparent;
+  border: none;
   cursor: pointer;
 }
 .swatch-row .swatch:disabled {
@@ -422,13 +422,16 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   cursor: default;
 }
 .swatch-row .swatch.active {
-  border-color: var(--rb-primary-text, #909090);
-  outline: 1px solid var(--rb-primary-text, #909090);
-  outline-offset: 1px;
+  /* The selection is one solid ring in the swatch's own color,
+     separated from the disc by the tile background. */
+  box-shadow:
+    0 0 0 2px var(--rb-panel-background, #1c1c1c),
+    0 0 0 3px currentColor;
 }
 .swatch-row .swatch:hover:not(:disabled) {
-  outline: 1px solid var(--rb-mark-hover-ring, #bbbbbb);
-  outline-offset: 1px;
+  box-shadow:
+    0 0 0 2px var(--rb-panel-background, #1c1c1c),
+    0 0 0 3px var(--rb-mark-hover-ring, #bbbbbb);
 }
 .swatch-row .swatch.clear {
   /* A filled disc like the others — an outlined one reads smaller. */
