@@ -1948,12 +1948,12 @@ function openDemoBootState() {
   // typed line runs across the canvas behind it.
   requestAnimationFrame(() => {
     if (!editor || !canvas.value) return;
-    const ratio = 0.78;
+    const ratio = 1.05;
     const centerY = canvas.value.height / 2;
     const origin = editor.designToScreen(0, 0);
     editor.setZoom(editor.zoom() * ratio);
     editor.setOffset(
-      canvas.value.width * 0.08,
+      canvas.value.width * 0.06,
       centerY + (origin[1] - centerY) * ratio,
     );
     requestRender();
