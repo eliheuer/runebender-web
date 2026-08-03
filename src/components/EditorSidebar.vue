@@ -5,7 +5,15 @@
 // users, not a pixel copy (see the Glyphs 4 tab bar for reference).
 
 import { computed, ref } from "vue";
+import GlyphCell from "./GlyphCell.vue";
 
+export type SidebarGlyphItem = {
+  name: string;
+  unicode?: string;
+  svg?: string;
+  columnSpan: number;
+  markColor?: string;
+};
 export type SidebarShape = {
   label: string;
   detail: string;
@@ -23,8 +31,7 @@ export type SidebarAxis = {
 
 const props = withDefaults(
   defineProps<{
-    glyphNames?: string[];
-    glyphSvgs?: Map<string, string>;
+    glyphs?: SidebarGlyphItem[];
     currentGlyph?: string;
     shapes?: SidebarShape[];
     axes?: SidebarAxis[];
@@ -32,8 +39,7 @@ const props = withDefaults(
     activeMaster?: number;
   }>(),
   {
-    glyphNames: () => [],
-    glyphSvgs: () => new Map(),
+    glyphs: () => [],
     currentGlyph: "",
     shapes: () => [],
     axes: () => [],
@@ -46,6 +52,7 @@ const emit = defineEmits<{
   (e: "jumpGlyph", name: string): void;
   (e: "selectShape", shape: SidebarShape): void;
   (e: "selectMaster", index: number): void;
+  (e: "backToGrid"): void;
 }>();
 
 const tab = ref<"overview" | "shapes" | "axes">("overview");
@@ -53,8 +60,8 @@ const search = ref("");
 
 const filteredGlyphs = computed(() => {
   const query = search.value.trim().toLowerCase();
-  if (!query) return props.glyphNames;
-  return props.glyphNames.filter((n) => n.toLowerCase().includes(query));
+  if (!query) return props.glyphs;
+  return props.glyphs.filter((g) => g.name.toLowerCase().includes(query));
 });
 </script>
 
@@ -94,6 +101,14 @@ const filteredGlyphs = computed(() => {
     </div>
 
     <div v-if="tab === 'overview'" class="tab-body">
+      <button
+        type="button"
+        class="back-to-grid"
+        title="Open the full glyph overview"
+        @click="emit('backToGrid')"
+      >
+        ⊞ Full glyph overview
+      </button>
       <input
         v-model="search"
         class="search"
@@ -102,18 +117,17 @@ const filteredGlyphs = computed(() => {
         aria-label="Search glyphs"
       />
       <div class="mini-grid">
-        <button
-          v-for="name in filteredGlyphs"
-          :key="name"
-          type="button"
-          class="mini-cell"
-          :class="{ current: name === currentGlyph }"
-          :title="name"
-          @click="emit('jumpGlyph', name)"
-        >
-          <span v-if="glyphSvgs.get(name)" class="cell-svg" v-html="glyphSvgs.get(name)" />
-          <span v-else class="cell-name">{{ name.slice(0, 3) }}</span>
-        </button>
+        <GlyphCell
+          v-for="item in filteredGlyphs"
+          :key="item.name"
+          :name="item.name"
+          :unicode="item.unicode"
+          :svg="item.svg"
+          :selected="item.name === currentGlyph"
+          :column-span="item.columnSpan"
+          :mark-color="item.markColor"
+          @click="emit('jumpGlyph', item.name)"
+        />
       </div>
     </div>
 
@@ -240,42 +254,52 @@ const filteredGlyphs = computed(() => {
   font: 13px ui-sans-serif, system-ui, sans-serif;
 }
 
+.back-to-grid {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 9px;
+  background: var(--rb-button-background, #181818);
+  border: 1px solid var(--rb-panel-outline, #606060);
+  border-radius: var(--rb-button-radius, 8px);
+  color: var(--rb-primary-text, #909090);
+  font: 13px ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+  text-align: left;
+}
+.back-to-grid:hover {
+  color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent, #18b86f);
+}
+
+/* The mini grid reuses the main overview's GlyphCell, scaled down:
+   same mark-color outlines, name + unicode labels, wide glyphs span
+   extra columns — just smaller. */
 .mini-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 4px;
 }
-.mini-cell {
-  aspect-ratio: 3 / 4;
-  display: grid;
-  place-items: center;
-  background: var(--rb-button-background, #181818);
-  border: 1px solid rgba(96, 96, 96, 0.55);
+.mini-grid :deep(.cell) {
+  height: 82px;
   border-radius: 6px;
-  cursor: pointer;
-  padding: 3px;
+}
+.mini-grid :deep(.cell-glyph) {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 5px 4px 2px;
+}
+.mini-grid :deep(.cell-labels) {
+  min-height: auto;
+  padding: 2px 4px 4px;
+  gap: 0;
+}
+.mini-grid :deep(.cell .cell-name),
+.mini-grid :deep(.cell .cell-unicode) {
+  font-size: 9px;
+  line-height: 1.3;
   overflow: hidden;
-}
-.mini-cell.current {
-  border-color: #fff;
-}
-.mini-cell:hover {
-  border-color: var(--rb-accent, #18b86f);
-}
-.cell-svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-  color: var(--rb-glyph-preview, #808080);
-}
-.cell-svg :deep(svg) {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.cell-name {
-  font: 10px ui-monospace, monospace;
-  color: var(--rb-secondary-text, #707070);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .shape-row {

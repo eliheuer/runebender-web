@@ -50,6 +50,7 @@ import ShapesToolbar from "./components/ShapesToolbar.vue";
 import type { ShapeKind } from "./components/ShapesToolbar.vue";
 import EditorSidebar, {
   type SidebarAxis,
+  type SidebarGlyphItem,
   type SidebarShape,
 } from "./components/EditorSidebar.vue";
 import SystemMenu from "./components/SystemMenu.vue";
@@ -3197,6 +3198,24 @@ const systemMenuReopenName = computed(() => {
 const systemMenuOpen = ref(false);
 
 // ---- Editor sidebar (Glyphs-style tabs) ----
+
+// Overview tab data: the same cells as the main glyph grid (mark
+// colors, unicode, span for wide glyphs / long names), capped at the
+// sidebar's four columns.
+const sidebarOverviewItems = computed<SidebarGlyphItem[]>(() =>
+  glyphNames.value.map((name) => {
+    // Long names need extra columns just like wide glyphs, so the
+    // label stays readable at mini-cell size.
+    const nameSpan = name.length > 22 ? 3 : name.length > 9 ? 2 : 1;
+    return {
+      name,
+      unicode: glyphUnicodes.value.get(name),
+      svg: glyphSvgs.value.get(name),
+      markColor: glyphMarkColors.value.get(name),
+      columnSpan: Math.min(4, Math.max(computeGlyphColumnSpan(name), nameSpan)),
+    };
+  }),
+);
 
 // Shapes of the current glyph, parsed from its .glif for the Shapes
 // tab. Each row remembers a point on the shape so clicking it can
@@ -9022,8 +9041,7 @@ onBeforeUnmount(() => {
         <div class="editor-mid-row">
           <div v-if="viewMode === 'editor'" class="editor-side-col editor-left-col">
             <EditorSidebar
-              :glyph-names="glyphNames"
-              :glyph-svgs="glyphSvgs"
+              :glyphs="sidebarOverviewItems"
               :current-glyph="currentGlyph"
               :shapes="sidebarShapes"
               :axes="sidebarAxes"
@@ -9032,7 +9050,121 @@ onBeforeUnmount(() => {
               @jump-glyph="onSidebarJumpGlyph"
               @select-shape="onSidebarSelectShape"
               @select-master="onSelectMaster"
+              @back-to-grid="backToGrid"
             />
+            <div
+              v-if="viewMode === 'editor' && editorPanelsVisible && activeGlyphPanelVisible"
+              class="active-glyph-overlay"
+              :class="{ 'text-mode': activeTool === 'Text' }"
+              aria-label="Active glyph metrics"
+            >
+              <div class="active-glyph-header">
+                <label class="metric-field glyph-name-field">
+                  <span>Name</span>
+                  <input
+                    type="text"
+                    :value="currentGlyph"
+                    aria-label="Glyph name"
+                    @change="onActiveGlyphNameChange"
+                    @keydown.enter.prevent="onActiveGlyphNameChange"
+                  />
+                </label>
+                <label class="metric-field width-field">
+                  <span>Width</span>
+                  <input
+                    type="number"
+                    :value="Math.round(currentWidth)"
+                    aria-label="Advance width"
+                    @change="onActiveGlyphWidthChange"
+                    @keydown.enter.prevent="onActiveGlyphWidthChange"
+                  />
+                </label>
+                <label class="metric-field unicode-field">
+                  <span>Unicode</span>
+                  <input
+                    type="text"
+                    :value="activeGlyphUnicode ?? ''"
+                    aria-label="Unicode"
+                    placeholder="None"
+                    @change="onActiveGlyphUnicodeChange"
+                    @keydown.enter.prevent="onActiveGlyphUnicodeChange"
+                  />
+                </label>
+              </div>
+
+              <div class="metrics-strip">
+                <div class="metrics-half">
+                  <label class="metric-field group-field">
+                    <span>Left Group</span>
+                    <input
+                      type="text"
+                      :value="stripKerningGroupPrefix(activeGlyphKerningGroups?.left)"
+                      aria-label="Left kerning group"
+                      placeholder="None"
+                      @change="updateGlyphKerningGroup('left', ($event.target as HTMLInputElement).value)"
+                      @keydown.enter.prevent="updateGlyphKerningGroup('left', ($event.target as HTMLInputElement).value)"
+                    />
+                  </label>
+                  <label class="metric-field metric-compact">
+                    <span>LSB</span>
+                    <input
+                      type="number"
+                      :value="Math.round(currentLeftSidebearing)"
+                      aria-label="Left sidebearing"
+                      @change="onActiveGlyphSidebearingChange('left', $event)"
+                      @keydown.enter.prevent="onActiveGlyphSidebearingChange('left', $event)"
+                    />
+                  </label>
+                  <label class="metric-field kern-field">
+                    <span>Left Kern</span>
+                    <input
+                      type="number"
+                      :value="activeLeftKern ?? ''"
+                      aria-label="Left kern"
+                      placeholder="Auto"
+                      :disabled="!canEditActiveLeftKern"
+                      @change="updateActiveTextKern('left', ($event.target as HTMLInputElement).value)"
+                      @keydown.enter.prevent="updateActiveTextKern('left', ($event.target as HTMLInputElement).value)"
+                    />
+                  </label>
+                </div>
+                <div class="metrics-half">
+                  <label class="metric-field kern-field">
+                    <span>Right Kern</span>
+                    <input
+                      type="number"
+                      :value="activeRightKern ?? ''"
+                      aria-label="Right kern"
+                      placeholder="Auto"
+                      :disabled="!canEditActiveRightKern"
+                      @change="updateActiveTextKern('right', ($event.target as HTMLInputElement).value)"
+                      @keydown.enter.prevent="updateActiveTextKern('right', ($event.target as HTMLInputElement).value)"
+                    />
+                  </label>
+                  <label class="metric-field metric-compact">
+                    <span>RSB</span>
+                    <input
+                      type="number"
+                      :value="Math.round(currentRightSidebearing)"
+                      aria-label="Right sidebearing"
+                      @change="onActiveGlyphSidebearingChange('right', $event)"
+                      @keydown.enter.prevent="onActiveGlyphSidebearingChange('right', $event)"
+                    />
+                  </label>
+                  <label class="metric-field group-field">
+                    <span>Right Group</span>
+                    <input
+                      type="text"
+                      :value="stripKerningGroupPrefix(activeGlyphKerningGroups?.right)"
+                      aria-label="Right kerning group"
+                      placeholder="None"
+                      @change="updateGlyphKerningGroup('right', ($event.target as HTMLInputElement).value)"
+                      @keydown.enter.prevent="updateGlyphKerningGroup('right', ($event.target as HTMLInputElement).value)"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
             <div
               v-if="editorPanelsVisible && selectActive"
               class="helper-overlay select-stack"
@@ -9407,131 +9539,7 @@ onBeforeUnmount(() => {
           />
         </template>
 
-        <div
-          v-if="viewMode === 'editor' && editorPanelsVisible && currentGlyph && activeTool !== 'Text'"
-          class="glyph-preview-overlay"
-          aria-label="Active glyph preview"
-        >
-          <span
-            v-if="activeGlyphPreviewSvg"
-            class="glyph-preview-shape"
-            v-html="activeGlyphPreviewSvg"
-          />
-        </div>
 
-        <div
-          v-if="viewMode === 'editor' && editorPanelsVisible && activeGlyphPanelVisible"
-          class="active-glyph-overlay"
-          :class="{ 'text-mode': activeTool === 'Text' }"
-          aria-label="Active glyph metrics"
-        >
-          <div class="active-glyph-header">
-            <label class="metric-field glyph-name-field">
-              <span>Name</span>
-              <input
-                type="text"
-                :value="currentGlyph"
-                aria-label="Glyph name"
-                @change="onActiveGlyphNameChange"
-                @keydown.enter.prevent="onActiveGlyphNameChange"
-              />
-            </label>
-            <label class="metric-field width-field">
-              <span>Width</span>
-              <input
-                type="number"
-                :value="Math.round(currentWidth)"
-                aria-label="Advance width"
-                @change="onActiveGlyphWidthChange"
-                @keydown.enter.prevent="onActiveGlyphWidthChange"
-              />
-            </label>
-            <label class="metric-field unicode-field">
-              <span>Unicode</span>
-              <input
-                type="text"
-                :value="activeGlyphUnicode ?? ''"
-                aria-label="Unicode"
-                placeholder="None"
-                @change="onActiveGlyphUnicodeChange"
-                @keydown.enter.prevent="onActiveGlyphUnicodeChange"
-              />
-            </label>
-          </div>
-
-          <div class="metrics-strip">
-            <div class="metrics-half">
-              <label class="metric-field group-field">
-                <span>Left Group</span>
-                <input
-                  type="text"
-                  :value="stripKerningGroupPrefix(activeGlyphKerningGroups?.left)"
-                  aria-label="Left kerning group"
-                  placeholder="None"
-                  @change="updateGlyphKerningGroup('left', ($event.target as HTMLInputElement).value)"
-                  @keydown.enter.prevent="updateGlyphKerningGroup('left', ($event.target as HTMLInputElement).value)"
-                />
-              </label>
-              <label class="metric-field metric-compact">
-                <span>LSB</span>
-                <input
-                  type="number"
-                  :value="Math.round(currentLeftSidebearing)"
-                  aria-label="Left sidebearing"
-                  @change="onActiveGlyphSidebearingChange('left', $event)"
-                  @keydown.enter.prevent="onActiveGlyphSidebearingChange('left', $event)"
-                />
-              </label>
-              <label class="metric-field kern-field">
-                <span>Left Kern</span>
-                <input
-                  type="number"
-                  :value="activeLeftKern ?? ''"
-                  aria-label="Left kern"
-                  placeholder="Auto"
-                  :disabled="!canEditActiveLeftKern"
-                  @change="updateActiveTextKern('left', ($event.target as HTMLInputElement).value)"
-                  @keydown.enter.prevent="updateActiveTextKern('left', ($event.target as HTMLInputElement).value)"
-                />
-              </label>
-            </div>
-            <div class="metrics-half">
-              <label class="metric-field kern-field">
-                <span>Right Kern</span>
-                <input
-                  type="number"
-                  :value="activeRightKern ?? ''"
-                  aria-label="Right kern"
-                  placeholder="Auto"
-                  :disabled="!canEditActiveRightKern"
-                  @change="updateActiveTextKern('right', ($event.target as HTMLInputElement).value)"
-                  @keydown.enter.prevent="updateActiveTextKern('right', ($event.target as HTMLInputElement).value)"
-                />
-              </label>
-              <label class="metric-field metric-compact">
-                <span>RSB</span>
-                <input
-                  type="number"
-                  :value="Math.round(currentRightSidebearing)"
-                  aria-label="Right sidebearing"
-                  @change="onActiveGlyphSidebearingChange('right', $event)"
-                  @keydown.enter.prevent="onActiveGlyphSidebearingChange('right', $event)"
-                />
-              </label>
-              <label class="metric-field group-field">
-                <span>Right Group</span>
-                <input
-                  type="text"
-                  :value="stripKerningGroupPrefix(activeGlyphKerningGroups?.right)"
-                  aria-label="Right kerning group"
-                  placeholder="None"
-                  @change="updateGlyphKerningGroup('right', ($event.target as HTMLInputElement).value)"
-                  @keydown.enter.prevent="updateGlyphKerningGroup('right', ($event.target as HTMLInputElement).value)"
-                />
-              </label>
-            </div>
-          </div>
-        </div>
 
         <div
           v-if="viewMode === 'editor' && clipboardNotice"
@@ -9585,6 +9593,17 @@ onBeforeUnmount(() => {
               @select-quadrant="onCoordinateQuadrant"
               @change-coordinate="onCoordinateChange"
             />
+            <div
+              v-if="viewMode === 'editor' && editorPanelsVisible && currentGlyph && activeTool !== 'Text'"
+              class="glyph-preview-overlay"
+              aria-label="Active glyph preview"
+            >
+              <span
+                v-if="activeGlyphPreviewSvg"
+                class="glyph-preview-shape"
+                v-html="activeGlyphPreviewSvg"
+              />
+            </div>
           </div>
         </div>
 
@@ -10136,6 +10155,33 @@ onBeforeUnmount(() => {
 }
 .editor-right-col > .coordinate-overlay {
   margin-top: auto;
+}
+/* The mini filled-glyph preview sits at the bottom of the right
+   column, stretched to the column width. */
+.editor-right-col > .glyph-preview-overlay {
+  position: static;
+  width: 100%;
+  box-sizing: border-box;
+  height: 120px;
+}
+/* The font-info pane lives in the left column: fields stack in one
+   narrow column instead of the old wide grid rows. */
+.editor-left-col > .active-glyph-overlay {
+  position: static;
+  width: 232px;
+  box-sizing: border-box;
+  padding: 10px;
+}
+.editor-left-col > .active-glyph-overlay .active-glyph-header,
+.editor-left-col > .active-glyph-overlay .metrics-strip {
+  grid-template-columns: 1fr;
+}
+.editor-left-col > .active-glyph-overlay .metrics-half {
+  grid-template-columns: 1fr;
+  width: 100%;
+}
+.editor-left-col > .active-glyph-overlay .metric-field {
+  grid-column: 1 / -1;
 }
 /* Tool panels become real bento tiles in the columns: same width as
    the sidebar, panel chrome instead of floating chips. The explicit
