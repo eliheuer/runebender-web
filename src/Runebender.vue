@@ -9149,6 +9149,11 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
+        <!-- Center bento column: the canvas pane with the bottom
+             preview stacked under it, so the preview is only as wide
+             as the canvas and both side columns run full height. -->
+        <div class="editor-center-col">
+
         <!-- The canvas pane: a bento tile in editor mode; in grid mode
              it sits inert behind the grid (the WebGPU canvas must stay
              mounted). Everything positioned in canvas coordinates
@@ -9502,6 +9507,42 @@ onBeforeUnmount(() => {
 
         </div>
 
+        <div
+          v-if="editorBottomPreviewVisible"
+          class="editor-bottom-preview-panel"
+          :class="{ 'text-preview-panel': textBufferPreviewVisible }"
+          :aria-label="textBufferPreviewVisible ? 'Text preview' : 'Active glyph filled preview'"
+        >
+          <div
+            class="editor-bottom-preview-resizer"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize active glyph preview"
+            @pointerdown="onBottomPreviewResizePointerDown"
+            @pointermove="onBottomPreviewResizePointerMove"
+            @pointerup="onBottomPreviewResizePointerUp"
+            @pointercancel="onBottomPreviewResizePointerUp"
+            @mousedown="onBottomPreviewResizeMouseDown"
+          />
+          <div
+            v-if="textBufferPreviewVisible"
+            class="text-preview-surface"
+            aria-hidden="true"
+          >
+            <div
+              v-if="textBufferPreviewSvg"
+              class="text-preview-glyphs"
+              v-html="textBufferPreviewSvg"
+            />
+          </div>
+          <span
+            v-else
+            class="editor-bottom-preview-glyph"
+            v-html="activeGlyphPreviewSvg"
+          />
+        </div>
+        </div>
+
           <div v-if="viewMode === 'editor'" class="editor-side-col editor-right-col">
             <ShapesToolbar
               v-if="activeTool === 'Shapes'"
@@ -9622,40 +9663,6 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <div
-          v-if="editorBottomPreviewVisible"
-          class="editor-bottom-preview-panel"
-          :class="{ 'text-preview-panel': textBufferPreviewVisible }"
-          :aria-label="textBufferPreviewVisible ? 'Text preview' : 'Active glyph filled preview'"
-        >
-          <div
-            class="editor-bottom-preview-resizer"
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="Resize active glyph preview"
-            @pointerdown="onBottomPreviewResizePointerDown"
-            @pointermove="onBottomPreviewResizePointerMove"
-            @pointerup="onBottomPreviewResizePointerUp"
-            @pointercancel="onBottomPreviewResizePointerUp"
-            @mousedown="onBottomPreviewResizeMouseDown"
-          />
-          <div
-            v-if="textBufferPreviewVisible"
-            class="text-preview-surface"
-            aria-hidden="true"
-          >
-            <div
-              v-if="textBufferPreviewSvg"
-              class="text-preview-glyphs"
-              v-html="textBufferPreviewSvg"
-            />
-          </div>
-          <span
-            v-else
-            class="editor-bottom-preview-glyph"
-            v-html="activeGlyphPreviewSvg"
-          />
-        </div>
       </div>
 
       <div v-if="glyphNames.length > 0 && viewMode === 'grid'" class="right-col">
@@ -10123,6 +10130,20 @@ onBeforeUnmount(() => {
   min-height: 0;
   gap: 6px;
 }
+/* Same trick as the mid row: outside editor mode this collapses so
+   the canvas pane's absolute inset still resolves against the stage. */
+.editor-center-col {
+  display: contents;
+}
+.stage-bento .editor-center-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  gap: 6px;
+}
+
 .editor-side-col {
   display: flex;
   flex-direction: column;
