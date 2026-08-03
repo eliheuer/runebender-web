@@ -6,7 +6,7 @@
 
 import { computed, ref } from "vue";
 import GlyphCell from "./GlyphCell.vue";
-import MarkColorPanel from "./MarkColorPanel.vue";
+import { MARK_COLORS, rgbaToCss } from "./markColors";
 
 export type SidebarGlyphItem = {
   name: string;
@@ -174,15 +174,45 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
         </div>
       </div>
       <hr class="rule" />
-      <MarkColorPanel
-        class="sidebar-colors"
-        :active="markColor"
-        :enabled="!!currentGlyph"
-        :can-apply-all-masters="canApplyAllMasters"
-        :apply-all-masters="markApplyAllMasters"
-        @set="emit('setMark', $event)"
-        @update:apply-all-masters="emit('update:markApplyAllMasters', $event)"
-      />
+      <!-- Colors: a plain swatch row, no panel frame — the rule above
+           is the only separation it needs inside this tile. -->
+      <div class="colors-head">
+        <span class="side-label">Colors</span>
+        <button
+          v-if="canApplyAllMasters"
+          type="button"
+          class="all-masters"
+          :class="{ active: markApplyAllMasters }"
+          title="Apply color changes to every master"
+          @click="emit('update:markApplyAllMasters', !markApplyAllMasters)"
+        >
+          all masters
+        </button>
+      </div>
+      <div class="swatch-row">
+        <button
+          v-for="color in MARK_COLORS"
+          :key="color.rgba"
+          type="button"
+          class="swatch"
+          :class="{ active: color.rgba === markColor }"
+          :style="{ background: rgbaToCss(color.rgba) }"
+          :title="color.name"
+          :aria-label="`Set mark color: ${color.name}`"
+          :disabled="!currentGlyph"
+          @click="emit('setMark', color.rgba)"
+        />
+        <button
+          type="button"
+          class="swatch clear"
+          title="Clear mark color"
+          aria-label="Clear mark color"
+          :disabled="!currentGlyph"
+          @click="emit('setMark', '')"
+        >
+          ✕
+        </button>
+      </div>
       <input
         v-model="search"
         class="search"
@@ -352,26 +382,63 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   border-top: 1px solid rgba(96, 96, 96, 0.5);
 }
 
-/* Flat inside the sidebar tile — the section rule separates it, so it
-   does not need its own panel chrome. */
-.sidebar-colors {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  min-height: 0;
+.colors-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
 }
-.sidebar-colors :deep(.header-row) {
-  padding: 2px 2px 6px;
-}
-.sidebar-colors :deep(.header) {
-  font-size: 13px;
-}
-.sidebar-colors :deep(.all-masters-toggle) {
-  font-size: 12px;
-}
-.sidebar-colors :deep(.swatches) {
+.all-masters {
   padding: 0;
-  justify-content: flex-start;
+  background: none;
+  border: none;
+  color: var(--rb-secondary-text, #707070);
+  font: 11px ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.all-masters.active,
+.all-masters:hover {
+  color: var(--rb-accent, #18b86f);
+}
+
+.swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.swatch-row .swatch {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: var(--rb-stroke-width, 1px) solid transparent;
+  cursor: pointer;
+}
+.swatch-row .swatch:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.swatch-row .swatch.active {
+  border-color: var(--rb-primary-text, #909090);
+  outline: 1px solid var(--rb-primary-text, #909090);
+  outline-offset: 1px;
+}
+.swatch-row .swatch:hover:not(:disabled) {
+  outline: 1px solid var(--rb-mark-hover-ring, #bbbbbb);
+  outline-offset: 1px;
+}
+.swatch-row .swatch.clear {
+  background: var(--rb-button-background, #181818);
+  border-color: var(--rb-panel-outline, #606060);
+  color: var(--rb-secondary-text, #707070);
+  font-size: 11px;
+  line-height: 1;
+}
+.swatch-row .swatch.clear:hover:not(:disabled) {
+  color: var(--rb-accent, #18b86f);
 }
 
 /* The mini grid reuses the main overview's GlyphCell, scaled down:
