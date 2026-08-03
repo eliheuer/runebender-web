@@ -7908,7 +7908,17 @@ function handleZoomShortcut(key: string): boolean {
   return false;
 }
 
-async function onSave(): Promise<boolean> {
+/** Glyphs whose last save hit a disk conflict, so the menu can offer
+ *  an explicit overwrite. */
+const conflictedGlyphNames = ref<string[]>([]);
+
+async function onSaveOverwritingDisk() {
+  const names = conflictedGlyphNames.value.join(", ");
+  status.value = `overwriting disk for ${names}…`;
+  await onSave({ force: true });
+}
+
+async function onSave(options: { force?: boolean } = {}): Promise<boolean> {
   if (glyphsSourceReadOnly.value) {
     status.value = `${glyphsSourceLabel.value} opened read-only — saving back to .glyphs isn't supported yet`;
     return false;
@@ -7939,7 +7949,7 @@ async function onSave(): Promise<boolean> {
       const masterData = masterDataMap.value.get(masterName);
       if (!masterData) continue;
       for (const glyphName of glyphs) {
-        const outcome = await persistGlyphData(masterData, glyphName);
+        const outcome = await persistGlyphData(masterData, glyphName, options);
         if (outcome === "saved") {
           clearGlyphDirty(glyphName, masterName);
           savedGlyphs += 1;
@@ -7951,8 +7961,11 @@ async function onSave(): Promise<boolean> {
       }
     }
 
+    conflictedGlyphNames.value = conflictGlyphs;
     if (conflictGlyphs.length > 0) {
-      workspaceNotice.value = `save conflict: ${conflictGlyphs.join(", ")} changed on disk while you edited — your version is still unsaved`;
+      workspaceNotice.value =
+        `save conflict: ${conflictGlyphs.join(", ")} changed on disk while you edited — ` +
+        `your version is still unsaved (Runebender menu → Save Anyway to overwrite disk)`;
     } else if (savedGlyphs > 0) {
       workspaceNotice.value = null;
     }
@@ -8010,13 +8023,18 @@ type PersistOutcome = "saved" | "conflict" | "failed";
 async function persistGlyphData(
   data: MasterData,
   glyphName: string,
+  options: { force?: boolean } = {},
 ): Promise<PersistOutcome> {
   const bytes = data.glyphBytes.get(glyphName);
   if (!bytes) return "failed";
 
   const slotPath = data.glyphPaths.get(glyphName);
   if (currentFontPath.value && slotPath) {
-    const res = await runebenderHost.writeWorkspaceFile(slotPath, new TextDecoder().decode(bytes));
+    const res = await runebenderHost.writeWorkspaceFile(
+      slotPath,
+      new TextDecoder().decode(bytes),
+      options.force ? { force: true } : undefined,
+    );
     await recordWorkspaceWriteResult(res);
     if (res.ok) return "saved";
     // 409: the file changed on disk since we last read it (an agent or
@@ -9310,11 +9328,13 @@ onBeforeUnmount(() => {
             :close-enabled="!!props.onCloseRequested"
             :reopen-name="systemMenuReopenName"
             :recents="recentWorkspaces"
+              :conflicts="conflictedGlyphNames"
             @open-ufo="openFontDirectoryPicker"
             @open-recent="openRecentWorkspace"
             @open-folder="openSourceFolderPicker"
             @reopen="reopenStoredWorkspace"
-            @save="onSave"
+            @save="onSave()"
+              @save-overwriting="onSaveOverwritingDisk"
             @save-as="onSaveAs"
             @close-editor="props.onCloseRequested?.()"
             @dismiss="systemMenuOpen = false"
@@ -9365,11 +9385,13 @@ onBeforeUnmount(() => {
               :close-enabled="!!props.onCloseRequested"
               :reopen-name="systemMenuReopenName"
               :recents="recentWorkspaces"
+              :conflicts="conflictedGlyphNames"
               @open-ufo="openFontDirectoryPicker"
               @open-recent="openRecentWorkspace"
               @open-folder="openSourceFolderPicker"
               @reopen="reopenStoredWorkspace"
-              @save="onSave"
+              @save="onSave()"
+              @save-overwriting="onSaveOverwritingDisk"
               @save-as="onSaveAs"
               @close-editor="props.onCloseRequested?.()"
               @dismiss="systemMenuOpen = false"

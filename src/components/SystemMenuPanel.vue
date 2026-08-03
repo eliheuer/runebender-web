@@ -11,6 +11,8 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 withDefaults(
   defineProps<{
     saveEnabled?: boolean;
+    /** Glyphs whose last save hit a disk conflict. */
+    conflicts?: string[];
     saveAsEnabled?: boolean;
     closeEnabled?: boolean;
     /** Workspace remembered from a previous visit (FS Access host). */
@@ -20,6 +22,7 @@ withDefaults(
   }>(),
   {
     saveEnabled: false,
+    conflicts: () => [],
     saveAsEnabled: false,
     closeEnabled: false,
     reopenName: null,
@@ -33,6 +36,7 @@ const emit = defineEmits<{
   (e: "openRecent", index: number): void;
   (e: "reopen"): void;
   (e: "save"): void;
+  (e: "saveOverwriting"): void;
   (e: "saveAs"): void;
   (e: "closeEditor"): void;
   (e: "dismiss"): void;
@@ -46,7 +50,14 @@ function pickRecent(index: number) {
 const rootEl = ref<HTMLElement | null>(null);
 
 function pick(
-  action: "openUfo" | "openFolder" | "reopen" | "save" | "saveAs" | "closeEditor",
+  action:
+    | "openUfo"
+    | "openFolder"
+    | "reopen"
+    | "save"
+    | "saveOverwriting"
+    | "saveAs"
+    | "closeEditor",
   enabled = true,
 ) {
   if (!enabled) return;
@@ -134,6 +145,16 @@ onBeforeUnmount(() => {
       @click="pick('save', saveEnabled)"
     >
       Save
+    </button>
+    <button
+      v-if="conflicts.length"
+      type="button"
+      role="menuitem"
+      class="accent"
+      :title="`Overwrite the disk copy of ${conflicts.join(', ')} with your version`"
+      @click="pick('saveOverwriting')"
+    >
+      Save Anyway ({{ conflicts.length }})
     </button>
     <button
       type="button"

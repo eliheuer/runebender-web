@@ -603,13 +603,16 @@ export function createFsAccessHost(options: {
       return null;
     },
 
-    async writeWorkspaceFile(path, text) {
+    async writeWorkspaceFile(path, text, options) {
       if (!root) return unavailable();
       const rel = stripSlot(path);
       const known = files.get(rel);
       const onDisk = await readFile(rel);
+      const force = options?.force === true;
 
-      if (!known) {
+      if (force) {
+        // The user chose their version over the disk's; skip the guard.
+      } else if (!known) {
         if (onDisk) {
           if (onDisk.text === text) {
             // No-op write of identical content: adopt the state quietly.
@@ -627,6 +630,11 @@ export function createFsAccessHost(options: {
       } else if (onDisk && onDisk.hash !== known.hash) {
         // Changed on disk since we last read it (an agent or another
         // tool wrote it) — same conflict the server signals via If-Match.
+        console.warn(
+          `save conflict on ${rel}: last read ${known.hash.slice(0, 8)} ` +
+            `(mtime ${new Date(known.mtime).toISOString()}), on disk ` +
+            `${onDisk.hash.slice(0, 8)} (mtime ${new Date(onDisk.mtime).toISOString()})`,
+        );
         return jsonResponse(409, { error: "file changed on disk" });
       } else if (!onDisk) {
         // We had read it but it vanished; recreate rather than fail the

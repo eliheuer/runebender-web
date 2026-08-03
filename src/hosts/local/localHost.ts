@@ -158,10 +158,13 @@ export function createLocalHost(
       return null;
     },
 
-    async writeWorkspaceFile(path, text) {
+    async writeWorkspaceFile(path, text, options) {
       const rel = stripSlot(path);
       let known = etags.get(rel);
-      if (!known) {
+      // Forced saves send If-Match: * so the server takes the editor's
+      // version over whatever is on disk.
+      if (options?.force === true) known = undefined;
+      else if (!known) {
         // Never read this file, so we have no right to overwrite it.
         // If it exists on disk, refuse: writing would clobber content
         // this editor has never seen (this is how unloaded glyphs got

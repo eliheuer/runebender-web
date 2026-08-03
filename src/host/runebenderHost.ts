@@ -126,7 +126,16 @@ export type RunebenderHost = {
   clearWorkspaceSlots(): Promise<ClearWorkspaceSlotsResult>;
   workspacePreviewUrl(slot: string, params: URLSearchParams): string;
   drawBotPresetSource(name: string): Promise<string | null>;
-  writeWorkspaceFile(path: string, text: string): Promise<Response>;
+  /**
+   * `force` overwrites even when the file changed on disk since the
+   * editor last read it — the escape hatch for a save conflict the
+   * user has decided to resolve in favour of their own version.
+   */
+  writeWorkspaceFile(
+    path: string,
+    text: string,
+    options?: { force?: boolean },
+  ): Promise<Response>;
   chooseSource(mode?: "source" | "folder"): Promise<ChooseSourceResult>;
   linkSource(args: {
     sourcePath: string;
