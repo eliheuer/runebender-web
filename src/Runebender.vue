@@ -1943,6 +1943,21 @@ function openDemoBootState() {
   selectedGlyphs.value = new Set([first]);
   loadGlyphIntoEditor(first, { fitCanvas: true, seedTextBuffer: false });
   seedTextBufferWithGlyphs(names, first);
+  // fitToCanvas centers the active glyph; the boot view instead sits
+  // it near the left edge, zoomed out a touch, so the rest of the
+  // typed line runs across the canvas behind it.
+  requestAnimationFrame(() => {
+    if (!editor || !canvas.value) return;
+    const ratio = 0.78;
+    const centerY = canvas.value.height / 2;
+    const origin = editor.designToScreen(0, 0);
+    editor.setZoom(editor.zoom() * ratio);
+    editor.setOffset(
+      canvas.value.width * 0.08,
+      centerY + (origin[1] - centerY) * ratio,
+    );
+    requestRender();
+  });
   // seedTextBufferWithGlyphs switches to the Text tool; the boot state
   // hands you the Select tool with the sorts already laid out.
   activeTool.value = "Select";
