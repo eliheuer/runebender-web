@@ -1658,6 +1658,7 @@ onMounted(async () => {
         const loaded = await loadDevTestFont();
         if (loaded) {
           demoFontLoaded.value = true;
+          openDemoBootState();
         } else {
           loadWelcomeDemoGlyph();
         }
@@ -1913,6 +1914,40 @@ function scheduleCompatibilityErrorRefresh() {
     compatibilityErrorRefreshTimer = null;
     updateCompatibilityErrors();
   }, 0);
+}
+
+// First run lands in the editor with something real on the canvas:
+// the demo font's name typed out as a text session, "R" active and
+// the Select tool in hand — the same state you'd reach by opening R
+// and typing, minus the clicks.
+const DEMO_BOOT_TEXT = "Runebender.org";
+
+function openDemoBootState() {
+  if (!editor) return;
+  const byCodepoint = new Map<number, string>();
+  for (const [name, hex] of glyphUnicodes.value) {
+    const codepoint = parseInt(hex, 16);
+    if (Number.isFinite(codepoint) && !byCodepoint.has(codepoint)) {
+      byCodepoint.set(codepoint, name);
+    }
+  }
+  const names: string[] = [];
+  for (const char of DEMO_BOOT_TEXT) {
+    const name = byCodepoint.get(char.codePointAt(0) ?? -1);
+    if (name) names.push(name);
+  }
+  const first = names[0];
+  if (!first) return;
+
+  selectedGlyph.value = first;
+  selectedGlyphs.value = new Set([first]);
+  loadGlyphIntoEditor(first, { fitCanvas: true, seedTextBuffer: false });
+  seedTextBufferWithGlyphs(names, first);
+  // seedTextBufferWithGlyphs switches to the Text tool; the boot state
+  // hands you the Select tool with the sorts already laid out.
+  activeTool.value = "Select";
+  editor.setTool("Select");
+  requestRender();
 }
 
 async function loadDevTestFont(): Promise<boolean> {
