@@ -81,7 +81,6 @@ function setAll(value: boolean) {
       </div>
       <input
         type="range"
-        :style="{ '--rb-slider-fill': `${(props.tol / 0.4) * 100}%` }"
         min="0"
         max="0.4"
         step="0.02"
