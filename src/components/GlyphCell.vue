@@ -24,6 +24,9 @@ const props = defineProps<{
   columnSpan?: number;
   /** UFO `public.markColor` "r,g,b,a" with 0–1 floats. */
   markColor?: string;
+  /** Drop the "U+" prefix — the sidebar's mini cells are too narrow
+   *  for it and the codepoint reads fine without. */
+  bareUnicode?: boolean;
 }>();
 
 defineEmits<{
@@ -56,7 +59,7 @@ const cellStyle = computed(() => {
     <div class="cell-glyph" v-html="svg ?? ''" />
     <div class="cell-labels">
       <div class="cell-name">{{ name }}</div>
-      <div class="cell-unicode">{{ unicode ? `U+${unicode}` : "" }}</div>
+      <div class="cell-unicode">{{ unicode ? (bareUnicode ? unicode : `U+${unicode}`) : "" }}</div>
     </div>
   </button>
 </template>

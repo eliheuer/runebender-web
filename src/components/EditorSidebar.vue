@@ -169,6 +169,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
             :selected="item.name === currentGlyph"
             :column-span="item.columnSpan"
             :mark-color="item.markColor"
+            bare-unicode
             @click="emit('jumpGlyph', item.name)"
           />
         </div>
@@ -373,6 +374,9 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Same rule as the main grid: rows snap so a cell is never left
+     sliced in half at the top or bottom edge. */
+  scroll-snap-type: y mandatory;
 }
 
 .rule {
