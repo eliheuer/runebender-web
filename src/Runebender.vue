@@ -244,7 +244,9 @@ let selectIdleHoverActive = false;
 let traceMenuLastPointerUpAt = 0;
 const coordinateQuadrant = ref<CoordinateQuadrant>("cc");
 const editorPanelsVisible = ref<boolean>(true);
-const editorBottomPreviewHeight = ref<number>(124);
+// Same height as the top file-info bar, so the editor reads as one
+// grid. Still draggable from the pane's top edge.
+const editorBottomPreviewHeight = ref<number>(64);
 const editorBottomPreviewDragStart = ref<{ y: number; height: number } | null>(null);
 const backgroundImage = ref<BackgroundImageState | null>(null);
 const backgroundImageFrame = ref<Record<string, string>>({});
@@ -1949,13 +1951,17 @@ function openDemoBootState() {
   // typed line runs across the canvas behind it.
   requestAnimationFrame(() => {
     if (!editor || !canvas.value) return;
-    const ratio = 1.05;
-    const centerY = canvas.value.height / 2;
-    const origin = editor.designToScreen(0, 0);
-    editor.setZoom(editor.zoom() * ratio);
+    editor.setZoom(editor.zoom() * 1.05);
+    const zoom = editor.zoom();
+    // Centre the glyph's own ink, not the em box: the empty descender
+    // band would otherwise push the caps above centre.
+    const bounds = editor.glyphBounds();
+    const inkCenterY =
+      bounds.length >= 4 && bounds[3] > 0 ? bounds[1] + bounds[3] / 2 : 0;
+    // screen.y = -design.y * zoom + offset.y
     editor.setOffset(
       canvas.value.width * 0.06,
-      centerY + (origin[1] - centerY) * ratio,
+      canvas.value.height / 2 + inkCenterY * zoom,
     );
     requestRender();
   });
