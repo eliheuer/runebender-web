@@ -9007,9 +9007,14 @@ onBeforeUnmount(() => {
             file-only
           />
 
-          <!-- Master switching lives in the sidebar's Variations tab
-               and grid return in its overview tab, so the old corner
-               button clusters are gone. -->
+          <!-- Tool palette on the RIGHT side of the top row (it
+               swapped sides with the file-info tile). Master
+               switching lives in the sidebar's Variations tab and
+               grid return in its overview tab. -->
+          <EditModeToolbar
+            :active="activeTool"
+            @select="onToolSelect"
+          />
         </div>
 
         <!-- Middle bento row: left panel column, canvas pane, right
@@ -9498,10 +9503,6 @@ onBeforeUnmount(() => {
         </div>
 
           <div v-if="viewMode === 'editor'" class="editor-side-col editor-right-col">
-            <EditModeToolbar
-              :active="activeTool"
-              @select="onToolSelect"
-            />
             <ShapesToolbar
               v-if="activeTool === 'Shapes'"
               :active="activeShape"
@@ -10150,7 +10151,6 @@ onBeforeUnmount(() => {
 /* The tool palette and the former attach-on toolbars (shapes, text
    direction) live at the top of the right column as full-width tiles,
    buttons wrapping in a grid instead of one long row. */
-.editor-right-col > .edit-mode-toolbar,
 .editor-right-col > .shapes-toolbar,
 .editor-right-col > .text-direction-toolbar {
   width: 232px;
@@ -10160,7 +10160,6 @@ onBeforeUnmount(() => {
   padding: 8px;
   gap: 6px;
 }
-.editor-right-col > .edit-mode-toolbar :deep(.tool-btn),
 .editor-right-col > .shapes-toolbar :deep(.shape-btn) {
   width: 100%;
 }
@@ -10361,16 +10360,18 @@ onBeforeUnmount(() => {
 }
 
 .editor-tools-cluster {
+  /* Now only hosts the compat badge — the tool palette moved to the
+     right end of the top row. */
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
   flex: 0 0 auto;
-  /* size to the toolbar (was a fixed 440px sized for exactly 8 tool
-     buttons — a 9th overflowed under the status TopBar) */
   width: fit-content;
-  min-width: 440px;
   max-width: calc(100vw - 16px);
+}
+.editor-tools-cluster:empty {
+  display: none;
 }
 
 .editor-status-topbar {
