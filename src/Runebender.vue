@@ -10369,6 +10369,9 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   width: fit-content;
   max-width: calc(100vw - 16px);
+  /* Bottom-align with the rest of the top row instead of hanging
+     short of it. */
+  align-self: stretch;
 }
 .editor-tools-cluster:empty {
   display: none;
@@ -10865,6 +10868,8 @@ onBeforeUnmount(() => {
 .compat-badge {
   box-sizing: border-box;
   width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: 160px;
   overflow: hidden;
   display: flex;

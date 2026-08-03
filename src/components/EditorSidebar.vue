@@ -63,6 +63,42 @@ const filteredGlyphs = computed(() => {
   if (!query) return props.glyphs;
   return props.glyphs.filter((g) => g.name.toLowerCase().includes(query));
 });
+
+const MINI_COLUMNS = 4;
+
+// Every row fills all four columns: pack greedily, then hand any
+// leftover columns back to the cells in that row (widest first) so
+// the grid never leaves a ragged gap at the end of a line.
+const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
+  const out: SidebarGlyphItem[] = [];
+  let row: SidebarGlyphItem[] = [];
+  let used = 0;
+
+  const flushRow = () => {
+    if (!row.length) return;
+    let left = MINI_COLUMNS - used;
+    // Round-robin from the widest cell down, so growth lands where a
+    // glyph or its name actually needs the room.
+    const order = [...row].sort((a, b) => b.columnSpan - a.columnSpan);
+    for (let i = 0; left > 0; i = (i + 1) % order.length) {
+      order[i].columnSpan += 1;
+      left -= 1;
+    }
+    out.push(...row);
+    row = [];
+    used = 0;
+  };
+
+  for (const glyph of filteredGlyphs.value) {
+    const span = Math.min(MINI_COLUMNS, Math.max(1, glyph.columnSpan));
+    if (used + span > MINI_COLUMNS) flushRow();
+    row.push({ ...glyph, columnSpan: span });
+    used += span;
+    if (used === MINI_COLUMNS) flushRow();
+  }
+  flushRow();
+  return out;
+});
 </script>
 
 <template>
@@ -118,7 +154,7 @@ const filteredGlyphs = computed(() => {
       />
       <div class="mini-grid">
         <GlyphCell
-          v-for="item in filteredGlyphs"
+          v-for="item in packedGlyphs"
           :key="item.name"
           :name="item.name"
           :unicode="item.unicode"
