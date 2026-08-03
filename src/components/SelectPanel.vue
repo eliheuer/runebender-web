@@ -18,59 +18,64 @@ const emit = defineEmits<{
   (e: "update:sidebearings", v: boolean): void;
 }>();
 
-function allOff() {
-  emit("update:colorize", false);
-  emit("update:handles", false);
-  emit("update:segments", false);
-  emit("update:spans", false);
-  emit("update:sidebearings", false);
+function setAll(value: boolean) {
+  emit("update:colorize", value);
+  emit("update:handles", value);
+  emit("update:segments", value);
+  emit("update:spans", value);
+  emit("update:sidebearings", value);
 }
 </script>
 
 <template>
   <section class="select-panel">
     <div class="label title">Measure</div>
-    <button
-      class="row-btn"
-      :class="{ on: props.colorize }"
-      title="Tint outline segments, curves, and handles by popcount"
-      @click="emit('update:colorize', !props.colorize)"
-    >
-      colorize outline
-    </button>
-    <button
-      class="row-btn"
-      :class="{ on: props.handles }"
-      title="Label Bézier handle lengths"
-      @click="emit('update:handles', !props.handles)"
-    >
-      handle lengths
-    </button>
-    <button
-      class="row-btn"
-      :class="{ on: props.segments }"
-      title="Label straight segment lengths"
-      @click="emit('update:segments', !props.segments)"
-    >
-      segment lengths
-    </button>
-    <button
-      class="row-btn"
-      :class="{ on: props.spans }"
-      title="Scan-line stem/counter/thickness spans with arrows"
-      @click="emit('update:spans', !props.spans)"
-    >
-      stems &amp; counters
-    </button>
-    <button
-      class="row-btn"
-      :class="{ on: props.sidebearings }"
-      title="Left/right side bearings + furthest-point columns"
-      @click="emit('update:sidebearings', !props.sidebearings)"
-    >
-      side bearings
-    </button>
-    <button class="row-btn small" @click="allOff">all off</button>
+    <!-- Two columns: these are short toggles, one per line wasted a
+         lot of vertical space in the side column. -->
+    <div class="grid">
+      <button
+        class="row-btn"
+        :class="{ on: props.colorize }"
+        title="Tint outline segments, curves, and handles by popcount"
+        @click="emit('update:colorize', !props.colorize)"
+      >
+        colorize outline
+      </button>
+      <button
+        class="row-btn"
+        :class="{ on: props.handles }"
+        title="Label Bézier handle lengths"
+        @click="emit('update:handles', !props.handles)"
+      >
+        handle lengths
+      </button>
+      <button
+        class="row-btn"
+        :class="{ on: props.segments }"
+        title="Label straight segment lengths"
+        @click="emit('update:segments', !props.segments)"
+      >
+        segment lengths
+      </button>
+      <button
+        class="row-btn"
+        :class="{ on: props.spans }"
+        title="Scan-line stem/counter/thickness spans with arrows"
+        @click="emit('update:spans', !props.spans)"
+      >
+        stems &amp; counters
+      </button>
+      <button
+        class="row-btn wide"
+        :class="{ on: props.sidebearings }"
+        title="Left/right side bearings + furthest-point columns"
+        @click="emit('update:sidebearings', !props.sidebearings)"
+      >
+        side bearings
+      </button>
+      <button class="row-btn small" @click="setAll(true)">all on</button>
+      <button class="row-btn small" @click="setAll(false)">all off</button>
+    </div>
   </section>
 </template>
 
@@ -106,6 +111,14 @@ function allOff() {
   padding: 6px 8px;
   cursor: pointer;
   text-align: left;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.grid .wide {
+  grid-column: 1 / -1;
 }
 .row-btn.small {
   padding: 4px 8px;
