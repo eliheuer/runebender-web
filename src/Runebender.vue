@@ -64,13 +64,11 @@ import SketchPanel from "./components/SketchPanel.vue";
 import SelectPanel from "./components/SelectPanel.vue";
 import CurvePanel from "./components/CurvePanel.vue";
 import MarkColorPanel from "./components/MarkColorPanel.vue";
-import MasterToolbar from "./components/MasterToolbar.vue";
 import TopBar from "./components/TopBar.vue";
 import TransformPanel, {
   type TransformActionId,
 } from "./components/TransformPanel.vue";
 import WelcomePanel from "./components/WelcomePanel.vue";
-import WorkspaceToolbar from "./components/WorkspaceToolbar.vue";
 import { runebenderHostKey } from "./host/runebenderHost";
 import type {
   WorkspaceExternalChange,
@@ -9023,16 +9021,9 @@ onBeforeUnmount(() => {
             file-only
           />
 
-          <div class="workspace-overlay">
-            <MasterToolbar
-              v-if="masters.length > 1"
-              :masters="masters"
-              :active-master="activeMasterIndex"
-              :previews="masterPreviewSvgs"
-              @select-master="onSelectMaster"
-            />
-            <WorkspaceToolbar @glyph-grid="backToGrid" />
-          </div>
+          <!-- Master switching lives in the sidebar's Variations tab
+               and grid return in its overview tab, so the old corner
+               button clusters are gone. -->
         </div>
 
         <!-- Middle bento row: left panel column, canvas pane, right
