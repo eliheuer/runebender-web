@@ -373,7 +373,9 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   box-sizing: border-box;
   width: 100%;
   padding: 7px 9px;
-  background: var(--rb-button-background, #181818);
+  /* Typed-into fields sit darker than the panel; buttons sit lighter
+     (see .back-to-grid). Same split as the font-info fields. */
+  background: var(--rb-app-background, #0c0c0c);
   border: 1px solid var(--rb-panel-outline, #606060);
   border-radius: var(--rb-button-radius, 8px);
   color: var(--rb-primary-text, #909090);

@@ -156,8 +156,10 @@ const MODES = [
   font: inherit;
   font-size: 11px;
   color: inherit;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  /* Buttons sit lighter than the panel they're on; typed-into fields
+     sit darker. Same tokens as the rest of the editor chrome. */
+  background: var(--rb-button-background, #1d1d1d);
+  border: 1px solid var(--rb-panel-outline, #404040);
   border-radius: 6px;
   padding: 6px 4px;
   cursor: pointer;
