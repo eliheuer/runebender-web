@@ -642,7 +642,6 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   font: 12px ui-sans-serif, system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: 0;
-  text-transform: uppercase;
 }
 
 .with-action {

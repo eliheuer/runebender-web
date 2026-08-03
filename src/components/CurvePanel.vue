@@ -25,7 +25,7 @@ function allOff() {
 
 <template>
   <section class="curve-panel">
-    <div class="label title">curves</div>
+    <div class="label title">Curves</div>
     <button
       class="row-btn"
       :class="{ on: props.comb }"
@@ -49,7 +49,7 @@ function allOff() {
       <div class="key"><span class="ring kink"></span>kink</div>
     </div>
     <button class="row-btn small" @click="allOff">all off</button>
-    <div class="label">tools</div>
+    <div class="label">Tools</div>
     <button
       class="row-btn"
       title="Harmonize selected smooth nodes (or all) to G2 curvature continuity"
@@ -85,7 +85,7 @@ function allOff() {
         title="How much local smoothness the optimizer may trade for cleaner popcount. Lower = stricter curves, fewer snaps. Higher = chases clean numbers harder."
         @input="emit('update:tol', Number(($event.target as HTMLInputElement).value))"
       />
-      <div class="slider-ends"><span>smooth</span><span>clean</span></div>
+      <div class="slider-ends"><span>Smooth</span><span>Clean</span></div>
     </div>
   </section>
 </template>
@@ -104,8 +104,7 @@ function allOff() {
 }
 .label {
   font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   opacity: 0.5;
   margin-top: 2px;
 }
@@ -190,7 +189,6 @@ function allOff() {
   justify-content: space-between;
   font-size: 9px;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
   opacity: 0.4;
 }
 </style>

@@ -39,7 +39,7 @@ const MODES = [
 <template>
   <section class="sketch-panel">
     <div class="label title">sketch</div>
-    <div class="label">brush</div>
+    <div class="label">Brush</div>
       <div class="brush-grid">
         <button
           v-for="b in BRUSHES"
@@ -66,7 +66,7 @@ const MODES = [
         clear
       </button>
 
-      <div class="label">autotrace · no model</div>
+      <div class="label">Autotrace · No Model</div>
       <div class="brush-grid two">
         <button
           v-for="[m, label] in MODES"
@@ -86,7 +86,7 @@ const MODES = [
       >
         {{ props.tracing ? "tracing…" : "Trace → draft" }}
       </button>
-      <div class="label">Virtua-12M · model</div>
+      <div class="label">Virtua-12M · Model</div>
       <input
         class="identity-slider"
         type="range"
@@ -142,8 +142,7 @@ const MODES = [
 }
 .label {
   font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   opacity: 0.5;
   margin-top: 2px;
 }

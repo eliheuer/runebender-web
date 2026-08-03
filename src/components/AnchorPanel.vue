@@ -109,7 +109,6 @@ function blurOnEnter(event: KeyboardEvent) {
   color: var(--rb-muted-text, #808080);
   font: 10px ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0;
-  text-transform: uppercase;
 }
 
 .anchor-field input {

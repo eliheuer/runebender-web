@@ -29,7 +29,7 @@ function allOff() {
 
 <template>
   <section class="select-panel">
-    <div class="label title">measure</div>
+    <div class="label title">Measure</div>
     <button
       class="row-btn"
       :class="{ on: props.colorize }"
@@ -88,8 +88,7 @@ function allOff() {
 }
 .label {
   font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   opacity: 0.5;
   margin-top: 2px;
 }

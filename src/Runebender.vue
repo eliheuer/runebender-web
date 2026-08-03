@@ -9235,7 +9235,7 @@ onBeforeUnmount(() => {
                 </button>
               </template>
               <template v-if="pendingSourceChoice.ufos.length">
-                <div class="source-choice-group">Single UFO masters</div>
+                <div class="source-choice-group">Single UFO Masters</div>
                 <button
                   v-for="path in pendingSourceChoice.ufos"
                   :key="`ufo-${path}`"
@@ -10479,8 +10479,7 @@ onBeforeUnmount(() => {
 .source-choice-group {
   margin: 6px 0 2px;
   font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: var(--rb-secondary-text, #707070);
 }
 .source-choice-list button {
@@ -11037,7 +11036,6 @@ onBeforeUnmount(() => {
   color: var(--rb-muted-text, #808080);
   font: 10px ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0;
-  text-transform: uppercase;
   white-space: nowrap;
   min-width: 0;
   overflow: hidden;
