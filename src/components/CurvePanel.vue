@@ -26,25 +26,23 @@ function setAll(value: boolean) {
 <template>
   <section class="curve-panel">
     <div class="label title">Curves</div>
-    <!-- Two columns like the Measure panel above: short toggles, and
-         each group's all-off gets a matching all-on. -->
+    <button
+      class="row-btn"
+      :class="{ on: props.comb }"
+      title="Speedpunk-style curvature comb"
+      @click="emit('update:comb', !props.comb)"
+    >
+      curvature comb
+    </button>
+    <button
+      class="row-btn"
+      :class="{ on: props.continuity }"
+      title="Continuity dot per smooth node: green G2, yellow G1 (harmonize), blue line↔curve, red kink"
+      @click="emit('update:continuity', !props.continuity)"
+    >
+      continuity G0–G3
+    </button>
     <div class="grid">
-      <button
-        class="row-btn"
-        :class="{ on: props.comb }"
-        title="Speedpunk-style curvature comb"
-        @click="emit('update:comb', !props.comb)"
-      >
-        curvature comb
-      </button>
-      <button
-        class="row-btn"
-        :class="{ on: props.continuity }"
-        title="Continuity dot per smooth node: green G2, yellow G1 (harmonize), blue line↔curve, red kink"
-        @click="emit('update:continuity', !props.continuity)"
-      >
-        continuity G0–G3
-      </button>
       <button class="row-btn small" @click="setAll(true)">all on</button>
       <button class="row-btn small" @click="setAll(false)">all off</button>
     </div>
@@ -55,29 +53,27 @@ function setAll(value: boolean) {
       <div class="key"><span class="ring kink"></span>kink</div>
     </div>
     <div class="label">Tools</div>
-    <div class="grid">
-      <button
-        class="row-btn"
-        title="Harmonize selected smooth nodes (or all) to G2 curvature continuity"
-        @click="emit('harmonize')"
-      >
-        harmonize → G2
-      </button>
-      <button
-        class="row-btn"
-        title="Balance selected segment handles (Tunni)"
-        @click="emit('balance')"
-      >
-        balance handles
-      </button>
-      <button
-        class="row-btn optimize wide"
-        title="Auto-fair: optimize continuity, even curvature, and low popcount together"
-        @click="emit('optimize')"
-      >
-        ✦ optimize
-      </button>
-    </div>
+    <button
+      class="row-btn"
+      title="Harmonize selected smooth nodes (or all) to G2 curvature continuity"
+      @click="emit('harmonize')"
+    >
+      harmonize → G2
+    </button>
+    <button
+      class="row-btn"
+      title="Balance selected segment handles (Tunni)"
+      @click="emit('balance')"
+    >
+      balance handles
+    </button>
+    <button
+      class="row-btn optimize"
+      title="Auto-fair: optimize continuity, even curvature, and low popcount together"
+      @click="emit('optimize')"
+    >
+      ✦ optimize
+    </button>
     <div class="slider">
       <div class="slider-head">
         <span>tolerance</span>
@@ -121,6 +117,7 @@ function setAll(value: boolean) {
 }
 .row-btn {
   font: inherit;
+  white-space: nowrap;
   font-size: 11px;
   color: inherit;
   /* Buttons sit lighter than the panel they're on; typed-into fields

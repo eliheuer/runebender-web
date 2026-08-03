@@ -30,8 +30,8 @@ function setAll(value: boolean) {
 <template>
   <section class="select-panel">
     <div class="label title">Measure</div>
-    <!-- Two columns: these are short toggles, one per line wasted a
-         lot of vertical space in the side column. -->
+    <!-- Two columns where both labels fit on one line; anything that
+         would wrap takes the full width instead. -->
     <div class="grid">
       <button
         class="row-btn"
@@ -50,7 +50,7 @@ function setAll(value: boolean) {
         handle lengths
       </button>
       <button
-        class="row-btn"
+        class="row-btn wide"
         :class="{ on: props.segments }"
         title="Label straight segment lengths"
         @click="emit('update:segments', !props.segments)"
@@ -58,7 +58,7 @@ function setAll(value: boolean) {
         segment lengths
       </button>
       <button
-        class="row-btn"
+        class="row-btn wide"
         :class="{ on: props.spans }"
         title="Scan-line stem/counter/thickness spans with arrows"
         @click="emit('update:spans', !props.spans)"
@@ -103,6 +103,7 @@ function setAll(value: boolean) {
 }
 .row-btn {
   font: inherit;
+  white-space: nowrap;
   font-size: 11px;
   color: inherit;
   /* Buttons sit lighter than the panel they're on; typed-into fields
