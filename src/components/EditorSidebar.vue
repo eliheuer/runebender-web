@@ -153,7 +153,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
         title="Open the full glyph overview"
         @click="emit('backToGrid')"
       >
-        ⊞ Full glyph overview
+        ⊞ Full Glyph Overview
       </button>
       <!-- The grid takes all the height the fixed rows leave and
            scrolls on its own; search sits at the bottom, next to the
@@ -186,7 +186,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
           title="Apply color changes to every master"
           @click="emit('update:markApplyAllMasters', !markApplyAllMasters)"
         >
-          All masters
+          All Masters
         </button>
       </div>
       <div class="swatch-row">
@@ -217,7 +217,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
         v-model="search"
         class="search"
         type="search"
-        placeholder="Search glyphs…"
+        placeholder="Search Glyphs…"
         aria-label="Search glyphs"
       />
     </div>
@@ -239,7 +239,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
     </div>
 
     <div v-else class="tab-body">
-      <div class="side-label">Font axes</div>
+      <div class="side-label">Font Axes</div>
       <template v-if="axes.length">
         <div v-for="axis in axes" :key="axis.tag" class="axis">
           <div class="axis-head">
@@ -334,6 +334,9 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 }
 
 .search {
+  /* Extra air above: the swatch row is visually dense, so the search
+     field needs more separation than the tile's default gap. */
+  margin-top: 6px;
   box-sizing: border-box;
   width: 100%;
   padding: 7px 9px;
