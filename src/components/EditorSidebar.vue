@@ -4,7 +4,7 @@
 // the variation axes. Parity target is easy app-switching for Glyphs
 // users, not a pixel copy (see the Glyphs 4 tab bar for reference).
 
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import GlyphCell from "./GlyphCell.vue";
 import { MARK_COLORS, rgbaToCss } from "./markColors";
 
@@ -75,6 +75,35 @@ const filteredGlyphs = computed(() => {
 });
 
 const MINI_COLUMNS = 4;
+const MINI_GAP = 4;
+const MINI_ROW_TARGET = 82;
+
+// Rows are sized to divide the visible height evenly, the same trick
+// the main grid uses (glyphGridRowHeight in Runebender.vue), so a row
+// is never left half-showing at the bottom of the pane.
+const scrollEl = ref<HTMLElement | null>(null);
+const scrollHeight = ref(0);
+let observer: ResizeObserver | undefined;
+
+onMounted(() => {
+  if (!scrollEl.value) return;
+  observer = new ResizeObserver(([entry]) => {
+    scrollHeight.value = entry.contentRect.height;
+  });
+  observer.observe(scrollEl.value);
+  scrollHeight.value = scrollEl.value.clientHeight;
+});
+onBeforeUnmount(() => observer?.disconnect());
+
+const miniRowHeight = computed(() => {
+  const height = scrollHeight.value;
+  if (height <= 0) return MINI_ROW_TARGET;
+  const rows = Math.max(
+    1,
+    Math.round((height + MINI_GAP) / (MINI_ROW_TARGET + MINI_GAP)),
+  );
+  return (height - MINI_GAP * (rows - 1)) / rows;
+});
 
 // Every row fills all four columns: pack greedily, then hand any
 // leftover columns back to the cells in that row (widest first) so
@@ -158,8 +187,11 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
       <!-- The grid takes all the height the fixed rows leave and
            scrolls on its own; search sits at the bottom, next to the
            colors it filters against. -->
-      <div class="mini-grid-scroll">
-        <div class="mini-grid">
+      <div ref="scrollEl" class="mini-grid-scroll">
+        <div
+          class="mini-grid"
+          :style="{ gridAutoRows: `${miniRowHeight}px` }"
+        >
           <GlyphCell
             v-for="item in packedGlyphs"
             :key="item.name"
@@ -369,6 +401,10 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
    back button, colors and search stay pinned. */
 .tab-body.overview {
   overflow: hidden;
+  /* The overview button sits on the grid: same side padding, same
+     4px gap as the rows below it. Sections further down add their
+     own breathing room. */
+  gap: 4px;
 }
 .mini-grid-scroll {
   flex: 1 1 auto;
@@ -377,10 +413,17 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   /* Same rule as the main grid: rows snap so a cell is never left
      sliced in half at the top or bottom edge. */
   scroll-snap-type: y mandatory;
+  /* No scrollbar track — it would eat into the right margin only and
+     leave the grid visibly off-center in the tile. */
+  scrollbar-width: none;
+}
+.mini-grid-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .rule {
   flex: 0 0 auto;
+  margin-top: 6px;
   width: 100%;
   height: 0;
   margin: 0;
@@ -464,7 +507,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   gap: 4px;
 }
 .mini-grid :deep(.cell) {
-  height: 82px;
+  height: 100%;
   border-radius: 6px;
 }
 .mini-grid :deep(.cell-glyph) {

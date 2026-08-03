@@ -9123,17 +9123,18 @@ onBeforeUnmount(() => {
                     />
                   </label>
                 </div>
+                <!-- Same order as the left half: group first, then
+                     sidebearing and kern side by side. -->
                 <div class="metrics-half">
-                  <label class="metric-field kern-field">
-                    <span>Right Kern</span>
+                  <label class="metric-field group-field">
+                    <span>Right Group</span>
                     <input
-                      type="number"
-                      :value="activeRightKern ?? ''"
-                      aria-label="Right kern"
-                      placeholder="Auto"
-                      :disabled="!canEditActiveRightKern"
-                      @change="updateActiveTextKern('right', ($event.target as HTMLInputElement).value)"
-                      @keydown.enter.prevent="updateActiveTextKern('right', ($event.target as HTMLInputElement).value)"
+                      type="text"
+                      :value="stripKerningGroupPrefix(activeGlyphKerningGroups?.right)"
+                      aria-label="Right kerning group"
+                      placeholder="None"
+                      @change="updateGlyphKerningGroup('right', ($event.target as HTMLInputElement).value)"
+                      @keydown.enter.prevent="updateGlyphKerningGroup('right', ($event.target as HTMLInputElement).value)"
                     />
                   </label>
                   <label class="metric-field metric-compact">
@@ -9146,15 +9147,16 @@ onBeforeUnmount(() => {
                       @keydown.enter.prevent="onActiveGlyphSidebearingChange('right', $event)"
                     />
                   </label>
-                  <label class="metric-field group-field">
-                    <span>Right Group</span>
+                  <label class="metric-field kern-field">
+                    <span>Right Kern</span>
                     <input
-                      type="text"
-                      :value="stripKerningGroupPrefix(activeGlyphKerningGroups?.right)"
-                      aria-label="Right kerning group"
-                      placeholder="None"
-                      @change="updateGlyphKerningGroup('right', ($event.target as HTMLInputElement).value)"
-                      @keydown.enter.prevent="updateGlyphKerningGroup('right', ($event.target as HTMLInputElement).value)"
+                      type="number"
+                      :value="activeRightKern ?? ''"
+                      aria-label="Right kern"
+                      placeholder="Auto"
+                      :disabled="!canEditActiveRightKern"
+                      @change="updateActiveTextKern('right', ($event.target as HTMLInputElement).value)"
+                      @keydown.enter.prevent="updateActiveTextKern('right', ($event.target as HTMLInputElement).value)"
                     />
                   </label>
                 </div>
