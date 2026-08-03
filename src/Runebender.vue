@@ -10199,13 +10199,18 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-/* The mini filled-glyph preview sits at the bottom of the right
-   column, stretched to the column width. */
+/* The filled-glyph preview is the elastic tile of the right column:
+   it stretches to the column width and eats whatever vertical space
+   the fixed-height tiles above it leave over. */
 .editor-right-col > .glyph-preview-overlay {
   position: static;
   width: 100%;
   box-sizing: border-box;
-  height: 120px;
+  height: auto;
+  flex: 1 1 auto;
+  /* Never taller than the leftover space, never shorter than the old
+     fixed tile when the column is already full. */
+  min-height: 86px;
 }
 /* The font-info pane lives in the left column: fields stack in one
    narrow column instead of the old wide grid rows. */
@@ -10956,7 +10961,7 @@ onBeforeUnmount(() => {
   display: block;
   width: auto;
   height: 100%;
-  max-width: calc(235px - 24px);
+  max-width: 100%;
   max-height: 100%;
 }
 
