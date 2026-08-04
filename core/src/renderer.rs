@@ -100,10 +100,10 @@ const TEXT_PREVIEW_FILL: Srgb = srgb(theme::grid::GLYPH);
 /// Ghost fill under the glyph being edited: the same grey the inactive
 /// sorts use, at a tenth strength, so counters read as counters without
 /// competing with the outline.
-const ACTIVE_GLYPH_FILL_ALPHA: f32 = 0.10;
+const ACTIVE_GLYPH_FILL_ALPHA: f32 = 0.16;
 /// Inactive sorts stay solid while zoomed out, and thin to this once the
 /// design grid appears — at that zoom you are drawing, not reading.
-const INACTIVE_GLYPH_FILL_ALPHA: f32 = 0.3;
+const INACTIVE_GLYPH_FILL_ALPHA: f32 = 0.34;
 const TEXT_CURSOR: Srgb = srgb(theme::selection::RECT_STROKE);
 const TEXT_KERN_ACTIVE: Srgb = srgb(theme::kerning::ACTIVE_GLYPH);
 const TEXT_KERN_PREVIOUS: Srgb = srgb(theme::kerning::PREVIOUS_GLYPH);
@@ -866,6 +866,20 @@ impl Renderer {
             // to the run origin and the editor would render whatever glyph
             // was last open as a ghost over the start of the text.
             if !preview_mode && !text_mode_active && state.text_buffer.active_sort().is_some() {
+                // Ghost fill for the sort being edited, lighter than the
+                // neighbours around it.
+                let outline = self.editable_outline_path(state);
+                if !outline.elements().is_empty() {
+                    self.scene.fill(
+                        Fill::NonZero,
+                        glyph_view,
+                        self.theme
+                            .text_preview_fill
+                            .with_alpha(ACTIVE_GLYPH_FILL_ALPHA),
+                        None,
+                        outline.as_ref(),
+                    );
+                }
                 self.draw_edit_controls(state, glyph_view, changed_path_indices);
             }
             return;
@@ -938,6 +952,56 @@ impl Renderer {
             );
         }
         self.draw_edit_controls(state, glyph_view, changed_path_indices);
+    }
+
+    /// Grey markers on every point of a screen-space path: on-curve
+    /// points as circles, off-curve control points slightly smaller.
+    /// Used for the sorts around the one being edited, which have no
+    /// editable point structure of their own (they come from the text
+    /// inventory as outlines).
+    fn draw_readonly_points(&mut self, screen_path: &BezPath, zoom: f64) {
+        let scale = self.point_scale(zoom);
+        let on_radius = SMOOTH_POINT_RADIUS_PX * scale * 0.85;
+        let off_radius = OFFCURVE_POINT_RADIUS_PX * scale * 0.6;
+        let mut on_curve = BezPath::new();
+        let mut off_curve = BezPath::new();
+        for element in screen_path.elements() {
+            match *element {
+                PathEl::MoveTo(p) | PathEl::LineTo(p) => {
+                    append_circle_path(&mut on_curve, p, on_radius);
+                }
+                PathEl::QuadTo(c, p) => {
+                    append_circle_path(&mut off_curve, c, off_radius);
+                    append_circle_path(&mut on_curve, p, on_radius);
+                }
+                PathEl::CurveTo(c1, c2, p) => {
+                    append_circle_path(&mut off_curve, c1, off_radius);
+                    append_circle_path(&mut off_curve, c2, off_radius);
+                    append_circle_path(&mut on_curve, p, on_radius);
+                }
+                PathEl::ClosePath => {}
+            }
+        }
+        let stroke = Stroke::new(LINE_PX * scale);
+        for path in [&off_curve, &on_curve] {
+            if path.elements().is_empty() {
+                continue;
+            }
+            self.scene.fill(
+                Fill::NonZero,
+                Affine::IDENTITY,
+                POINT_READONLY_INNER,
+                None,
+                path,
+            );
+            self.scene.stroke(
+                &stroke,
+                Affine::IDENTITY,
+                POINT_READONLY_OUTER,
+                None,
+                path,
+            );
+        }
     }
 
     /// True once the design grid has faded in — the zoom where the user
@@ -1494,7 +1558,9 @@ impl Renderer {
                     .fill(Fill::NonZero, transform, fill, None, path.as_ref());
                 if zoomed_in {
                     // Same grey, drawn as an outline so the neighbours
-                    // read as structure next to the glyph being edited.
+                    // read as structure next to the glyph being edited,
+                    // with their points shown greyed out — the same
+                    // read-only treatment an interpolated instance gets.
                     let screen_path = transform * path.as_ref();
                     self.scene.stroke(
                         &Stroke::new(self.px(LINE_PX)),
@@ -1503,6 +1569,7 @@ impl Renderer {
                         None,
                         &screen_path,
                     );
+                    self.draw_readonly_points(&screen_path, state.viewport.zoom);
                 }
             }
         }
