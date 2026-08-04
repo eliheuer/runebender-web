@@ -256,7 +256,10 @@ const POINT_OUTLINE_PX: f64 = 1.1 * STROKE_SCALE;
 /// dark casing the same way).
 const HALO_PX: f64 = 2.0;
 const HALO_COLOR: Srgb = AlphaColor::from_rgba8(0x0c, 0x0c, 0x0c, 0xd8);
-const PATH_STROKE_PX: f64 = 1.0 * STROKE_SCALE;
+const PATH_STROKE_PX: f64 = 1.2 * STROKE_SCALE;
+/// The comb's fin edges sit a little under the contour weight: the two
+/// used to be identical, and the ribs read heavier than the outline.
+const COMB_FIN_PX: f64 = 0.85 * STROKE_SCALE;
 const COMPONENT_SELECTION_STROKE_PX: f64 = 2.0;
 const HANDLE_LINE_PX: f64 = 0.75 * STROKE_SCALE;
 const MARQUEE_STROKE_PX: f64 = 1.0 * STROKE_SCALE;
@@ -1001,7 +1004,7 @@ impl Renderer {
                 // Every rib edge (outer, base, and the fins between ribs) is
                 // stroked in the background colour at the contour's weight, so
                 // the ribbon reads as separated fins that blend into the page.
-                let fin = Stroke::new(self.px(PATH_STROKE_PX));
+                let fin = Stroke::new(self.px(COMB_FIN_PX));
                 let bg = self.theme.bg;
                 for strip in &strips {
                     for w in strip.windows(2) {
