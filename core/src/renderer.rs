@@ -97,6 +97,13 @@ const METRIC_GUIDE: Srgb = srgb(theme::metrics::GUIDE);
 const DESIGN_GRID_FINE: Srgb = srgb(theme::design_grid::FINE);
 const DESIGN_GRID_COARSE: Srgb = srgb(theme::design_grid::COARSE);
 const TEXT_PREVIEW_FILL: Srgb = srgb(theme::grid::GLYPH);
+/// Ghost fill under the glyph being edited: the same grey the inactive
+/// sorts use, at a tenth strength, so counters read as counters without
+/// competing with the outline.
+const ACTIVE_GLYPH_FILL_ALPHA: f32 = 0.10;
+/// Inactive sorts stay solid while zoomed out, and thin to this once the
+/// design grid appears — at that zoom you are drawing, not reading.
+const INACTIVE_GLYPH_FILL_ALPHA: f32 = 0.3;
 const TEXT_CURSOR: Srgb = srgb(theme::selection::RECT_STROKE);
 const TEXT_KERN_ACTIVE: Srgb = srgb(theme::kerning::ACTIVE_GLYPH);
 const TEXT_KERN_PREVIOUS: Srgb = srgb(theme::kerning::PREVIOUS_GLYPH);
@@ -919,7 +926,24 @@ impl Renderer {
                 );
             }
         }
+        if !outline.elements().is_empty() {
+            self.scene.fill(
+                Fill::NonZero,
+                glyph_view,
+                self.theme
+                    .text_preview_fill
+                    .with_alpha(ACTIVE_GLYPH_FILL_ALPHA),
+                None,
+                outline.as_ref(),
+            );
+        }
         self.draw_edit_controls(state, glyph_view, changed_path_indices);
+    }
+
+    /// True once the design grid has faded in — the zoom where the user
+    /// is drawing rather than reading.
+    fn design_grid_visible(&self, state: &EditorState) -> bool {
+        state.viewport.zoom > DESIGN_GRID_MID_MIN_ZOOM
     }
 
     fn draw_edit_controls(
@@ -1457,13 +1481,29 @@ impl Renderer {
                 if path.elements().is_empty() {
                     continue;
                 }
-                self.scene.fill(
-                    Fill::NonZero,
-                    view * Affine::translate((item.x, item.y)),
-                    self.theme.text_preview_fill,
-                    None,
-                    path.as_ref(),
-                );
+                let transform = view * Affine::translate((item.x, item.y));
+                let zoomed_in = !preview_mode && self.design_grid_visible(state);
+                let fill = if zoomed_in {
+                    self.theme
+                        .text_preview_fill
+                        .with_alpha(INACTIVE_GLYPH_FILL_ALPHA)
+                } else {
+                    self.theme.text_preview_fill
+                };
+                self.scene
+                    .fill(Fill::NonZero, transform, fill, None, path.as_ref());
+                if zoomed_in {
+                    // Same grey, drawn as an outline so the neighbours
+                    // read as structure next to the glyph being edited.
+                    let screen_path = transform * path.as_ref();
+                    self.scene.stroke(
+                        &Stroke::new(self.px(LINE_PX)),
+                        Affine::IDENTITY,
+                        self.theme.text_preview_fill,
+                        None,
+                        &screen_path,
+                    );
+                }
             }
         }
 
