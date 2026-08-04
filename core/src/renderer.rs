@@ -965,24 +965,56 @@ impl Renderer {
         let off_radius = OFFCURVE_POINT_RADIUS_PX * scale * 0.6;
         let mut on_curve = BezPath::new();
         let mut off_curve = BezPath::new();
+        // Handle lines join each control point to the on-curve point it
+        // belongs to, the same pairing the editable glyph shows.
+        let mut handles = BezPath::new();
+        let mut current = Point::ZERO;
+        let mut subpath_start = Point::ZERO;
         for element in screen_path.elements() {
             match *element {
-                PathEl::MoveTo(p) | PathEl::LineTo(p) => {
+                PathEl::MoveTo(p) => {
                     append_circle_path(&mut on_curve, p, on_radius);
+                    current = p;
+                    subpath_start = p;
+                }
+                PathEl::LineTo(p) => {
+                    append_circle_path(&mut on_curve, p, on_radius);
+                    current = p;
                 }
                 PathEl::QuadTo(c, p) => {
                     append_circle_path(&mut off_curve, c, off_radius);
                     append_circle_path(&mut on_curve, p, on_radius);
+                    handles.move_to(current);
+                    handles.line_to(c);
+                    handles.move_to(c);
+                    handles.line_to(p);
+                    current = p;
                 }
                 PathEl::CurveTo(c1, c2, p) => {
                     append_circle_path(&mut off_curve, c1, off_radius);
                     append_circle_path(&mut off_curve, c2, off_radius);
                     append_circle_path(&mut on_curve, p, on_radius);
+                    handles.move_to(current);
+                    handles.line_to(c1);
+                    handles.move_to(c2);
+                    handles.line_to(p);
+                    current = p;
                 }
-                PathEl::ClosePath => {}
+                PathEl::ClosePath => {
+                    current = subpath_start;
+                }
             }
         }
         let stroke = Stroke::new(LINE_PX * scale);
+        if !handles.elements().is_empty() {
+            self.scene.stroke(
+                &stroke,
+                Affine::IDENTITY,
+                POINT_READONLY_OUTER,
+                None,
+                &handles,
+            );
+        }
         for path in [&off_curve, &on_curve] {
             if path.elements().is_empty() {
                 continue;
