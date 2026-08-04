@@ -1398,7 +1398,11 @@ const selectedAnatomySvg = computed(() => {
 /** Anatomy (outline + nodes) SVG of the glyph open in the editor. */
 const currentGlyphAnatomySvg = computed(() => {
   const data = activeMasterData.value;
-  const bytes = currentGlyph.value ? data?.glyphBytes.get(currentGlyph.value) : undefined;
+  // Off a master this follows the slider: the instance's own outline,
+  // redrawn on every axis change.
+  const bytes =
+    interpolatedGlyphBytes.value ??
+    (currentGlyph.value ? data?.glyphBytes.get(currentGlyph.value) : undefined);
   if (!bytes) return "";
   try {
     return glifAnatomySvgWithComponents(bytes, glyphXmlByName.value) || glifAnatomySvg(bytes);
@@ -3505,6 +3509,8 @@ function nearestMasterToAxisValues(): string | null {
 
 /** True while the canvas shows an interpolated instance, not a master. */
 const interpolationPreviewActive = ref(false);
+/** The instance's .glif bytes, so panels can draw it as it changes. */
+const interpolatedGlyphBytes = ref<Uint8Array | null>(null);
 const interpolationError = ref<string>("");
 
 /** Reset the sliders to the active master whenever the font changes. */
@@ -3527,6 +3533,7 @@ watch(
 function clearInterpolationPreview(reloadMaster = false) {
   if (!interpolationPreviewActive.value) return;
   interpolationPreviewActive.value = false;
+  interpolatedGlyphBytes.value = null;
   interpolationError.value = "";
   editor?.setPreviewRender(false);
   if (reloadMaster) reloadCurrentGlyphFromActiveMaster();
@@ -3588,6 +3595,7 @@ function updateInterpolationPreview() {
     // the master's own bytes in masterDataMap stay untouched.
     editor.setGlyphGlifWithCachedComponentsPreserveHistory(bytes);
     editorGlyphNeedsSync = false;
+    interpolatedGlyphBytes.value = bytes;
     interpolationPreviewActive.value = true;
     interpolationError.value = "";
     editor.setPreviewRender(true);
