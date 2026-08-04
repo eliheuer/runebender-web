@@ -10712,6 +10712,12 @@ onBeforeUnmount(() => {
   padding: 8px;
   gap: 6px;
 }
+/* Two buttons in a four-column tile: centre them rather than leaving
+   the pair hanging off the left edge. */
+.editor-right-col > .text-direction-toolbar {
+  display: flex;
+  justify-content: center;
+}
 .editor-right-col > .shapes-toolbar :deep(.shape-btn) {
   width: 100%;
 }
