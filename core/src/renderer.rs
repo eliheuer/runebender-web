@@ -255,9 +255,9 @@ const START_NODE_OFFSET_PX: f64 = 8.0;
 const LINE_PX: f64 = 1.0 * STROKE_SCALE;
 const POINT_OUTLINE_PX: f64 = LINE_PX;
 /// Dark casing drawn under the outline, handle lines and points, so
-/// they stay readable on top of the curvature comb (which draws its own
-/// dark casing the same way).
-const HALO_PX: f64 = 2.0;
+/// they stay readable on top of the curvature comb. Two pixels a side,
+/// which matches the weight of the comb's own black rib lines.
+const HALO_PX: f64 = 4.0;
 const HALO_COLOR: Srgb = AlphaColor::from_rgba8(0x0c, 0x0c, 0x0c, 0xd8);
 const PATH_STROKE_PX: f64 = LINE_PX;
 const COMB_FIN_PX: f64 = LINE_PX;
