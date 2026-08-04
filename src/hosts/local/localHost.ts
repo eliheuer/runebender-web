@@ -161,10 +161,15 @@ export function createLocalHost(
     async writeWorkspaceFile(path, text, options) {
       const rel = stripSlot(path);
       let known = etags.get(rel);
-      // Forced saves send If-Match: * so the server takes the editor's
-      // version over whatever is on disk.
-      if (options?.force === true) known = undefined;
-      else if (!known) {
+      if (options?.force === true) {
+        // Overwrite on purpose: present the ETag the file has *now*,
+        // which is what the server's If-Match guard wants. ("*" means
+        // create-only there, so it would refuse.)
+        const current = await fetch(fileUrl(rel));
+        known = current.ok
+          ? (current.headers.get("etag")?.replaceAll('"', "") ?? undefined)
+          : undefined;
+      } else if (!known) {
         // Never read this file, so we have no right to overwrite it.
         // If it exists on disk, refuse: writing would clobber content
         // this editor has never seen (this is how unloaded glyphs got
