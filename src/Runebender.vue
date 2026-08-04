@@ -9453,25 +9453,6 @@ onBeforeUnmount(() => {
               :open="systemMenuOpen"
               @toggle="systemMenuOpen = !systemMenuOpen"
             />
-            <SystemMenuPanel
-              v-if="systemMenuOpen"
-              class="editor-system-menu-panel"
-              :save-enabled="glyphNames.length > 0"
-              :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
-              :close-enabled="!!props.onCloseRequested"
-              :reopen-name="systemMenuReopenName"
-              :recents="recentWorkspaces"
-              :conflicts="conflictedGlyphNames"
-              @open-ufo="openFontDirectoryPicker"
-              @open-recent="openRecentWorkspace"
-              @open-folder="openSourceFolderPicker"
-              @reopen="reopenStoredWorkspace"
-              @save="onSave()"
-              @save-overwriting="onSaveOverwritingDisk"
-              @save-as="onSaveAs"
-              @close-editor="props.onCloseRequested?.()"
-              @dismiss="systemMenuOpen = false"
-            />
           </div>
           <div class="editor-tools-cluster">
             <div
@@ -9523,6 +9504,28 @@ onBeforeUnmount(() => {
              pane's absolute positioning still targets the stage. -->
         <div class="editor-mid-row">
           <div v-if="viewMode === 'editor'" class="editor-side-col editor-left-col">
+            <!-- The system menu is a tile in this column, not a popover:
+                 opening it pushes the glyph sidebar down instead of
+                 covering it. -->
+            <SystemMenuPanel
+              v-if="systemMenuOpen"
+              class="editor-system-menu-panel"
+              :save-enabled="glyphNames.length > 0"
+              :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
+              :close-enabled="!!props.onCloseRequested"
+              :reopen-name="systemMenuReopenName"
+              :recents="recentWorkspaces"
+              :conflicts="conflictedGlyphNames"
+              @open-ufo="openFontDirectoryPicker"
+              @open-recent="openRecentWorkspace"
+              @open-folder="openSourceFolderPicker"
+              @reopen="reopenStoredWorkspace"
+              @save="onSave()"
+              @save-overwriting="onSaveOverwritingDisk"
+              @save-as="onSaveAs"
+              @close-editor="props.onCloseRequested?.()"
+              @dismiss="systemMenuOpen = false"
+            />
             <EditorSidebar
               :glyphs="sidebarOverviewItems"
               :current-glyph="currentGlyph"
@@ -11056,11 +11059,11 @@ onBeforeUnmount(() => {
   border-color: var(--rb-accent, #18b86f);
 }
 .editor-system-menu-panel {
-  position: absolute;
-  top: calc(100% + 6px); /* one bento gap below the button tile */
-  left: 0;
-  min-width: 220px;
-  z-index: 100;
+  /* A regular tile in the left column: same width as its neighbours,
+     no floating, no overlap. */
+  width: 232px;
+  box-sizing: border-box;
+  flex: 0 0 auto;
 }
 
 .background-image {
