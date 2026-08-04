@@ -371,7 +371,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 .tab-body {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden auto;
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -621,24 +621,28 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 }
 
 .axis-preview {
+  /* Shrinks with the tile: when the system menu opens above it, the
+     outline scales down instead of spilling past the panel. */
   flex: 1 1 auto;
-  min-height: 80px;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 6px 2px 2px;
 }
 .axis-preview-canvas {
+  position: relative;
   flex: 1;
   min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  align-self: stretch;
 }
 .axis-preview-canvas :deep(svg) {
+  /* Pinned to the box so the outline can never paint outside the tile,
+     however little room is left. */
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  max-height: 100%;
   display: block;
 }
 
