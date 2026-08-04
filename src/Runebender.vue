@@ -279,6 +279,9 @@ watch(
 );
 // Same height as the top file-info bar, so the editor reads as one
 // grid. Still draggable from the pane's top edge.
+/** The bottom text-preview pane can be toggled off (eye button in the
+ *  geometry panel) when the canvas needs the height. */
+const bottomPreviewEnabled = ref<boolean>(true);
 const editorBottomPreviewHeight = ref<number>(64);
 const editorBottomPreviewDragStart = ref<{ y: number; height: number } | null>(null);
 const backgroundImage = ref<BackgroundImageState | null>(null);
@@ -1368,6 +1371,7 @@ const activeGlyphPanelVisible = computed(
 const textBufferPreviewVisible = computed(() => hasTextBufferSession.value);
 const editorBottomPreviewVisible = computed(
   () =>
+    bottomPreviewEnabled.value &&
     viewMode.value === "editor" &&
     (textBufferPreviewVisible.value || (!!currentGlyph.value && !!activeGlyphPreviewSvg.value)),
 );
@@ -10124,7 +10128,9 @@ onBeforeUnmount(() => {
               class="transform-overlay"
               :bounds="selectedBounds"
               :contour-count="currentContours"
+              :preview-pane-visible="bottomPreviewEnabled"
               @transform="onTransform"
+              @toggle-preview-pane="bottomPreviewEnabled = !bottomPreviewEnabled"
             />
             <AnchorPanel
               v-if="editorPanelsVisible && selectedAnchor"

@@ -30,10 +30,13 @@ export type TransformActionId =
 defineProps<{
   bounds?: SelectionBounds;
   contourCount: number;
+  /** Whether the bottom text-preview pane is showing. */
+  previewPaneVisible?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "transform", action: TransformActionId): void;
+  (e: "togglePreviewPane"): void;
 }>();
 
 const actions = [
@@ -121,6 +124,39 @@ function runAction(
       >
         <GeneratedIcon :name="ACTION_ICONS[id]" />
       </button>
+      <!-- The grid's spare cell: show/hide the bottom text preview.
+           Parked here until it finds a better home. -->
+      <button
+        type="button"
+        class="action-btn preview-toggle"
+        :class="{ on: previewPaneVisible }"
+        :title="previewPaneVisible ? 'Hide text preview' : 'Show text preview'"
+        :aria-label="previewPaneVisible ? 'Hide text preview' : 'Show text preview'"
+        :aria-pressed="!!previewPaneVisible"
+        @click="emit('togglePreviewPane')"
+      >
+        <!-- Eye / eye-off drawn inline: the generated icon set (from
+             the icons UFO) has no eye yet, and this control is a
+             temporary home anyway. -->
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="eye">
+          <path
+            d="M12 5C5 5 1.5 12 1.5 12S5 19 12 19s10.5-7 10.5-7S19 5 12 5Z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linejoin="round"
+          />
+          <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6" />
+          <path
+            v-if="!previewPaneVisible"
+            d="M4 20 20 4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
     </div>
   </section>
 </template>
@@ -140,6 +176,17 @@ function runAction(
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 6px;
+}
+
+.action-btn .eye {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.action-btn.preview-toggle.on {
+  color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent, #18b86f);
 }
 
 .action-btn {
