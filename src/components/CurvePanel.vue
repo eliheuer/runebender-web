@@ -106,7 +106,7 @@ function setAll(value: boolean) {
   pointer-events: auto;
 }
 .label {
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-label-size, 11px);
   letter-spacing: 0.02em;
   opacity: 0.5;
   margin-top: 2px;
@@ -118,7 +118,7 @@ function setAll(value: boolean) {
 .row-btn {
   font: inherit;
   white-space: nowrap;
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-label-size, 11px);
   color: inherit;
   /* Buttons sit lighter than the panel they're on; typed-into fields
      sit darker. Same tokens as the rest of the editor chrome. */
@@ -156,7 +156,7 @@ function setAll(value: boolean) {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-label-size, 11px);
   opacity: 0.85;
 }
 .ring {
@@ -187,7 +187,7 @@ function setAll(value: boolean) {
 .slider-head {
   display: flex;
   justify-content: space-between;
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-label-size, 11px);
   opacity: 0.7;
 }
 .slider-head .val {

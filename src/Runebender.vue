@@ -10349,10 +10349,12 @@ onBeforeUnmount(() => {
   --rb-panel-radius:       12px;
   --rb-button-radius:      8px;
 
-  /* One UI type size across every panel, label, field and button.
-     (The glyph-cell labels keep their own smaller size so long names
-     still fit a mini grid cell.) */
+  /* Two type sizes, and only two: body for controls, fields, buttons
+     and menu items; label for section headings, captions and units.
+     (Glyph-cell labels keep their own smaller size so long names still
+     fit a mini grid cell.) */
   --rb-ui-font-size:       13px;
+  --rb-ui-label-size:      11px;
 
   /* Text */
   --rb-primary-text:       #909090;
@@ -11076,7 +11078,7 @@ onBeforeUnmount(() => {
 }
 .source-choice-group {
   margin: 6px 0 2px;
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-label-size, 11px);
   letter-spacing: 0.02em;
   color: var(--rb-secondary-text, #707070);
 }
@@ -11353,7 +11355,7 @@ onBeforeUnmount(() => {
 }
 
 .trace-mode-label {
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
   color: color-mix(in srgb, var(--rb-overlay-text, #f0f0f0) 55%, transparent);
 }
 
@@ -11374,7 +11376,7 @@ onBeforeUnmount(() => {
   padding: 0;
   text-align: center;
   border-radius: 0;
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-label-size, 11px);
   /* Unselected: dimmed, so the selected one reads by text + outline. */
   color: color-mix(in srgb, var(--rb-overlay-text, #f0f0f0) 60%, transparent);
 }
@@ -11401,7 +11403,7 @@ onBeforeUnmount(() => {
   border-radius: 5px;
   background-color: var(--rb-control-background, #303030);
   color: var(--rb-overlay-text, #f0f0f0);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
   appearance: none;
   background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="%23bbbbbb" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
@@ -11492,7 +11494,7 @@ onBeforeUnmount(() => {
 
 .background-image-menu-copy small {
   color: var(--rb-primary-text, #909090);
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-label-size, 11px);
   font-weight: 500;
 }
 
@@ -11632,7 +11634,7 @@ onBeforeUnmount(() => {
 
 .metric-field span {
   color: var(--rb-muted-text, #808080);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0;
   white-space: nowrap;
   min-width: 0;
@@ -11716,7 +11718,7 @@ onBeforeUnmount(() => {
   border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
   border-radius: 6px;
   color: var(--rb-accent, #18b86f);
-  font: var(--rb-ui-font-size, 13px) ui-monospace, monospace;
+  font: var(--rb-ui-label-size, 11px) ui-monospace, monospace;
   white-space: nowrap;
 }
 

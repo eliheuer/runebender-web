@@ -76,7 +76,7 @@ const DIRECTION_ICONS: Record<TextDirection, string> = {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
   line-height: 1;
 }
 .auto-resolved {

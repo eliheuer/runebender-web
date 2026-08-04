@@ -379,7 +379,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 }
 
 .side-label {
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.02em;
   color: var(--rb-secondary-text, #707070);
 }
@@ -462,7 +462,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   background: none;
   border: none;
   color: var(--rb-secondary-text, #707070);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.02em;
   cursor: pointer;
 }
@@ -508,7 +508,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   background: var(--rb-panel-outline, #606060);
   border-color: transparent;
   color: var(--rb-panel-background, #1c1c1c);
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-label-size, 11px);
   line-height: 1;
   display: flex;
   align-items: center;

@@ -214,7 +214,7 @@ onBeforeUnmount(() => {
 
 .group-label {
   margin: 4px 10px 2px;
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.02em;
   color: var(--rb-secondary-text, #707070);
 }
