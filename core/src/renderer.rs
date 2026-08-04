@@ -251,6 +251,11 @@ const START_NODE_HALF_PX: f64 = 5.5;
 const START_NODE_SELECTED_HALF_PX: f64 = 6.5;
 const START_NODE_OFFSET_PX: f64 = 8.0;
 const POINT_OUTLINE_PX: f64 = 1.1 * STROKE_SCALE;
+/// Dark casing drawn under the outline, handle lines and points, so
+/// they stay readable on top of the curvature comb (which draws its own
+/// dark casing the same way).
+const HALO_PX: f64 = 2.0;
+const HALO_COLOR: Srgb = AlphaColor::from_rgba8(0x0c, 0x0c, 0x0c, 0xd8);
 const PATH_STROKE_PX: f64 = 1.0 * STROKE_SCALE;
 const COMPONENT_SELECTION_STROKE_PX: f64 = 2.0;
 const HANDLE_LINE_PX: f64 = 0.75 * STROKE_SCALE;
@@ -1769,6 +1774,13 @@ impl Renderer {
         if !self.measure_options.colorize {
             if !controls.handle_lines.elements().is_empty() {
                 self.scene.stroke(
+                    &Stroke::new(self.px(HANDLE_LINE_PX) + HALO_PX),
+                    Affine::IDENTITY,
+                    HALO_COLOR,
+                    None,
+                    &controls.handle_lines,
+                );
+                self.scene.stroke(
                     &Stroke::new(self.px(HANDLE_LINE_PX)),
                     Affine::IDENTITY,
                     self.theme.handle_line,
@@ -1777,6 +1789,13 @@ impl Renderer {
                 );
             }
             if !controls.outline.elements().is_empty() {
+                self.scene.stroke(
+                    &Stroke::new(self.px(PATH_STROKE_PX) + HALO_PX),
+                    Affine::IDENTITY,
+                    HALO_COLOR,
+                    None,
+                    &controls.outline,
+                );
                 self.scene.stroke(
                     &Stroke::new(self.px(PATH_STROKE_PX)),
                     Affine::IDENTITY,
@@ -2051,6 +2070,15 @@ impl Renderer {
         if path.elements().is_empty() {
             return;
         }
+        // Dark casing first, so a point on top of the comb keeps its
+        // edge.
+        self.scene.stroke(
+            &Stroke::new(stroke.width + HALO_PX),
+            Affine::IDENTITY,
+            HALO_COLOR,
+            None,
+            path,
+        );
         if self.readonly_points {
             // Fill and stroke one point at a time so overlapping points
             // stack, each masking the one under it, instead of showing
