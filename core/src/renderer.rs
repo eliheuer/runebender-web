@@ -250,10 +250,11 @@ const HYPER_POINT_SELECTED_RADIUS_PX: f64 = 5.0;
 const START_NODE_HALF_PX: f64 = 5.5;
 const START_NODE_SELECTED_HALF_PX: f64 = 6.5;
 const START_NODE_OFFSET_PX: f64 = 8.0;
-/// One weight for every editor line: contour, handles, point rings and
-/// the comb's fin edges. They used to differ by up to 60%, which read
-/// as sloppy where they meet.
-const LINE_PX: f64 = 1.0 * STROKE_SCALE;
+/// One weight for every editor line: contour, handles and point rings.
+/// The comb's fins stay thinner (COMB_FIN_PX) because they are pure
+/// black against saturated fills, which reads heavier than a grey line
+/// of the same width on the dark canvas.
+const LINE_PX: f64 = 2.0 * STROKE_SCALE;
 const POINT_OUTLINE_PX: f64 = LINE_PX;
 /// Dark casing drawn under the outline, handle lines and points, so
 /// they stay readable on top of the curvature comb (which draws its own
@@ -261,7 +262,7 @@ const POINT_OUTLINE_PX: f64 = LINE_PX;
 const HALO_PX: f64 = 2.0;
 const HALO_COLOR: Srgb = AlphaColor::from_rgba8(0x0c, 0x0c, 0x0c, 0xd8);
 const PATH_STROKE_PX: f64 = LINE_PX;
-const COMB_FIN_PX: f64 = LINE_PX;
+const COMB_FIN_PX: f64 = 1.0 * STROKE_SCALE;
 const COMPONENT_SELECTION_STROKE_PX: f64 = 2.0;
 const HANDLE_LINE_PX: f64 = LINE_PX;
 const MARQUEE_STROKE_PX: f64 = 1.0 * STROKE_SCALE;
@@ -1009,6 +1010,10 @@ impl Renderer {
                 let fin = Stroke::new(self.px(COMB_FIN_PX));
                 let bg = self.theme.bg;
                 for strip in &strips {
+                    // Fills first, then the separators once each. Stroking
+                    // every quad (as this used to) painted each shared edge
+                    // twice and painted over the contour itself, which is
+                    // why the ribs read heavier than every other line.
                     for w in strip.windows(2) {
                         let (s0, s1) = (w[0], w[1]);
                         let mut quad = BezPath::new();
@@ -1020,9 +1025,20 @@ impl Renderer {
                         let k = (s0.kappa.abs() + s1.kappa.abs()) * 0.5 / maxk;
                         self.scene
                             .fill(Fill::NonZero, Affine::IDENTITY, curve_gradient(k), None, &quad);
-                        self.scene
-                            .stroke(&fin, Affine::IDENTITY, bg, None, &quad);
                     }
+
+                    let mut edges = BezPath::new();
+                    for sample in strip.iter() {
+                        edges.move_to(glyph_view * sample.on);
+                        edges.line_to(glyph_view * sample.outer);
+                    }
+                    if let Some(first) = strip.first() {
+                        edges.move_to(glyph_view * first.outer);
+                        for sample in &strip[1..] {
+                            edges.line_to(glyph_view * sample.outer);
+                        }
+                    }
+                    self.scene.stroke(&fin, Affine::IDENTITY, bg, None, &edges);
                 }
             }
         }
