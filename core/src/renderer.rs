@@ -1171,8 +1171,12 @@ impl Renderer {
             let g1: Srgb = AlphaColor::new([1.0, 0.82, 0.25, 1.0]); // yellow
             let line: Srgb = AlphaColor::new([0.50, 0.55, 0.64, 0.9]); // slate
             let kink: Srgb = AlphaColor::new([1.0, 0.27, 0.23, 1.0]); // red
-            let r = self.px(9.0);
-            let ring = Stroke::new(self.px(1.75));
+            // Ring geometry follows the same zoom curve the points do,
+            // so the gap between a ring and the point inside it stays
+            // constant however far you zoom.
+            let scale = self.point_scale(state.viewport.zoom);
+            let r = SMOOTH_POINT_RADIUS_PX * scale * 1.9;
+            let ring = Stroke::new(LINE_PX * scale);
             for nc in crate::curve::node_continuity(&state.paths) {
                 use crate::curve::GLevel;
                 let color = match nc.level {
@@ -1183,8 +1187,18 @@ impl Renderer {
                     GLevel::Kink => kink,
                 };
                 let c = glyph_view * nc.at;
+                let circle = Circle::new(c, r);
+                // Same dark casing the points and handles get, so the
+                // ring stays legible over the curvature comb.
+                self.scene.stroke(
+                    &Stroke::new(ring.width + HALO_PX),
+                    Affine::IDENTITY,
+                    HALO_COLOR,
+                    None,
+                    &circle,
+                );
                 self.scene
-                    .stroke(&ring, Affine::IDENTITY, color, None, &Circle::new(c, r));
+                    .stroke(&ring, Affine::IDENTITY, color, None, &circle);
             }
         }
     }

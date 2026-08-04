@@ -147,9 +147,11 @@ function setAll(value: boolean) {
   border-color: color-mix(in srgb, var(--rb-accent, #18b86f) 65%, transparent);
 }
 .legend {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  /* Two columns: four one-line keys stacked was a lot of height for a
+     legend. */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
   padding: 2px 2px 4px;
 }
 .key {
