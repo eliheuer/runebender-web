@@ -9649,7 +9649,7 @@ onBeforeUnmount(() => {
                     />
                   </label>
                   <label class="metric-field kern-field">
-                    <span>Left Kern</span>
+                    <span>L Kern</span>
                     <input
                       type="number"
                       :value="activeLeftKern ?? ''"
@@ -9686,7 +9686,7 @@ onBeforeUnmount(() => {
                     />
                   </label>
                   <label class="metric-field kern-field">
-                    <span>Right Kern</span>
+                    <span>R Kern</span>
                     <input
                       type="number"
                       :value="activeRightKern ?? ''"
@@ -10349,6 +10349,11 @@ onBeforeUnmount(() => {
   --rb-panel-radius:       12px;
   --rb-button-radius:      8px;
 
+  /* One UI type size across every panel, label, field and button.
+     (The glyph-cell labels keep their own smaller size so long names
+     still fit a mini grid cell.) */
+  --rb-ui-font-size:       13px;
+
   /* Text */
   --rb-primary-text:       #909090;
   --rb-secondary-text:     #808080;
@@ -10465,7 +10470,7 @@ onBeforeUnmount(() => {
 .missing-glyph-subtitle {
   padding: 0 16px 10px;
   color: var(--rb-secondary-text, #808080);
-  font-size: 13px;
+  font-size: var(--rb-ui-font-size, 13px);
 }
 
 .missing-glyph-list {
@@ -10509,7 +10514,7 @@ onBeforeUnmount(() => {
 .missing-glyph-unicode {
   color: var(--rb-secondary-text, #808080);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--rb-ui-font-size, 13px);
 }
 
 .missing-glyph-char {
@@ -10621,18 +10626,18 @@ onBeforeUnmount(() => {
 
 .designspace-title {
   color: var(--rb-primary-text, #909090);
-  font: 13px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
 }
 
 .designspace-status {
   color: var(--rb-muted-text, #808080);
-  font: 12px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
 }
 
 .designspace-path,
 .designspace-summary {
   color: var(--rb-secondary-text, #707070);
-  font: 12px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -10649,7 +10654,7 @@ onBeforeUnmount(() => {
   background: var(--rb-app-background, #101010);
   color: var(--rb-primary-text, #909090);
   padding: 8px;
-  font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font: var(--rb-ui-font-size, 13px) ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   line-height: 1.35;
   outline: none;
 }
@@ -10830,12 +10835,15 @@ onBeforeUnmount(() => {
   grid-column: auto;
   /* Half-width fields can't afford a fixed label column — let the
      label take what it needs and give the rest to the value. */
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-  gap: 4px;
-  padding: 0 7px;
+  /* Reserve enough for the value ("Auto", four digits) and let the
+     label ellipsis instead — the shared 13px type is wider than the
+     12px this pane used to use. */
+  grid-template-columns: minmax(0, auto) minmax(34px, 1fr);
+  gap: 3px;
+  padding: 0 5px;
 }
 .editor-left-col > .active-glyph-overlay .metric-field input {
-  font-size: 12px;
+  font-size: var(--rb-ui-font-size, 13px);
 }
 .editor-left-col > .active-glyph-overlay .glyph-name-field,
 .editor-left-col > .active-glyph-overlay .group-field {
@@ -11048,11 +11056,11 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  font: 14px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   color: var(--rb-primary-text, #909090);
 }
 .grant-title {
-  font-size: 16px;
+  font-size: var(--rb-ui-font-size, 13px);
   font-weight: 700;
   color: var(--rb-accent, #18b86f);
 }
@@ -11068,7 +11076,7 @@ onBeforeUnmount(() => {
 }
 .source-choice-group {
   margin: 6px 0 2px;
-  font-size: 11px;
+  font-size: var(--rb-ui-font-size, 13px);
   letter-spacing: 0.02em;
   color: var(--rb-secondary-text, #707070);
 }
@@ -11080,7 +11088,7 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: var(--rb-button-radius, 8px);
   color: var(--rb-primary-text, #909090);
-  font: 14px ui-monospace, monospace;
+  font: var(--rb-ui-font-size, 13px) ui-monospace, monospace;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -11104,7 +11112,7 @@ onBeforeUnmount(() => {
   border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
   border-radius: var(--rb-button-radius, 8px);
   color: var(--rb-primary-text, #909090);
-  font: 14px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
 }
 .grant-actions button:hover {
@@ -11277,7 +11285,7 @@ onBeforeUnmount(() => {
   background: transparent;
   border: 0;
   border-radius: 4px;
-  font: 12px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   text-align: left;
   cursor: pointer;
 }
@@ -11345,7 +11353,7 @@ onBeforeUnmount(() => {
 }
 
 .trace-mode-label {
-  font: 11px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   color: color-mix(in srgb, var(--rb-overlay-text, #f0f0f0) 55%, transparent);
 }
 
@@ -11366,7 +11374,7 @@ onBeforeUnmount(() => {
   padding: 0;
   text-align: center;
   border-radius: 0;
-  font-size: 11px;
+  font-size: var(--rb-ui-font-size, 13px);
   /* Unselected: dimmed, so the selected one reads by text + outline. */
   color: color-mix(in srgb, var(--rb-overlay-text, #f0f0f0) 60%, transparent);
 }
@@ -11393,7 +11401,7 @@ onBeforeUnmount(() => {
   border-radius: 5px;
   background-color: var(--rb-control-background, #303030);
   color: var(--rb-overlay-text, #f0f0f0);
-  font: 11px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
   appearance: none;
   background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="%23bbbbbb" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
@@ -11474,7 +11482,7 @@ onBeforeUnmount(() => {
 
 .background-image-menu-copy span {
   color: var(--rb-overlay-text, #f0f0f0);
-  font-size: 12px;
+  font-size: var(--rb-ui-font-size, 13px);
   font-weight: 650;
 }
 
@@ -11484,7 +11492,7 @@ onBeforeUnmount(() => {
 
 .background-image-menu-copy small {
   color: var(--rb-primary-text, #909090);
-  font-size: 11px;
+  font-size: var(--rb-ui-font-size, 13px);
   font-weight: 500;
 }
 
@@ -11519,12 +11527,12 @@ onBeforeUnmount(() => {
   border: var(--rb-stroke-width, 1px) solid var(--rb-danger, #ff4a3d);
   border-radius: var(--rb-panel-radius, 12px);
   color: var(--rb-overlay-text, #f0f0f0);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   pointer-events: none;
 }
 .compat-badge strong {
   color: var(--rb-danger-text, #ff4a3d);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   font-weight: 700;
 }
 .compat-badge span {
@@ -11624,7 +11632,7 @@ onBeforeUnmount(() => {
 
 .metric-field span {
   color: var(--rb-muted-text, #808080);
-  font: 10px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0;
   white-space: nowrap;
   min-width: 0;
@@ -11646,7 +11654,7 @@ onBeforeUnmount(() => {
   background: transparent;
   border: 0;
   color: var(--rb-primary-text, #909090);
-  font: 13px ui-monospace, monospace;
+  font: var(--rb-ui-font-size, 13px) ui-monospace, monospace;
   text-align: right;
   outline: none;
 }
@@ -11669,7 +11677,7 @@ onBeforeUnmount(() => {
 
 .unicode-field input {
   text-align: right;
-  font-size: 12px;
+  font-size: var(--rb-ui-font-size, 13px);
 }
 
 .width-field {
@@ -11708,7 +11716,7 @@ onBeforeUnmount(() => {
   border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
   border-radius: 6px;
   color: var(--rb-accent, #18b86f);
-  font: 11px ui-monospace, monospace;
+  font: var(--rb-ui-font-size, 13px) ui-monospace, monospace;
   white-space: nowrap;
 }
 
@@ -11732,7 +11740,7 @@ onBeforeUnmount(() => {
   border: var(--rb-stroke-width, 1px) solid var(--rb-accent, #18b86f);
   border-radius: 6px;
   color: var(--rb-overlay-text, #f0f0f0);
-  font: 12px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;

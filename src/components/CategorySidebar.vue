@@ -411,7 +411,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   background: transparent;
   color: var(--rb-primary-text, #909090);
   cursor: pointer;
-  font: 13px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
 }
 
 .sort-btn.active {
@@ -501,7 +501,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   outline: 0;
   background: transparent;
   color: var(--rb-primary-text, #e8e8e8);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
 }
 
 .search-input::placeholder {
@@ -540,7 +540,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   background: transparent;
   color: var(--rb-primary-text, #e8e8e8);
   cursor: pointer;
-  font: 15px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
 }
 
 .search-menu-separator {
@@ -581,7 +581,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   background: var(--rb-canvas-background, #0c0c0c);
   color: var(--rb-primary-text, #e8e8e8);
   cursor: pointer;
-  font: 14px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   text-align: left;
 }
 
@@ -607,7 +607,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 .copy-icon {
   flex: 0 0 20px;
   color: var(--rb-accent, #18b86f);
-  font-size: 16px;
+  font-size: var(--rb-ui-font-size, 13px);
   line-height: 1;
   text-align: center;
 }
@@ -639,7 +639,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 .section-title {
   margin: 12px 0 5px;
   color: var(--rb-muted-text, #808080);
-  font: 12px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: 0;
 }
@@ -719,7 +719,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   background: transparent;
   color: var(--rb-primary-text, #e8e8e8);
   cursor: pointer;
-  font: 15px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   text-align: left;
 }
 
@@ -767,7 +767,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   height: 18px;
   padding: 0 6px;
   color: inherit;
-  font-size: 13px;
+  font-size: var(--rb-ui-font-size, 13px);
   line-height: 18px;
   text-align: center;
 }
@@ -779,6 +779,6 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 .subrow {
   height: 22px;
   padding-left: 34px;
-  font-size: 14px;
+  font-size: var(--rb-ui-font-size, 13px);
 }
 </style>

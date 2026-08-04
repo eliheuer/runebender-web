@@ -263,7 +263,7 @@ function blurOnEnter(event: KeyboardEvent) {
 }
 .coord-field span {
   color: var(--rb-muted-text, #808080);
-  font: 10px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0;
 }
 
@@ -278,7 +278,7 @@ function blurOnEnter(event: KeyboardEvent) {
   background: transparent;
   border: 0;
   color: var(--rb-primary-text, #909090);
-  font: 13px ui-monospace, monospace;
+  font: var(--rb-ui-font-size, 13px) ui-monospace, monospace;
   text-align: right;
   outline: none;
 }

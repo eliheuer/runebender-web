@@ -92,7 +92,7 @@ function setAll(value: boolean) {
   pointer-events: auto;
 }
 .label {
-  font-size: 10px;
+  font-size: var(--rb-ui-font-size, 13px);
   letter-spacing: 0.02em;
   opacity: 0.5;
   margin-top: 2px;
@@ -104,7 +104,7 @@ function setAll(value: boolean) {
 .row-btn {
   font: inherit;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--rb-ui-font-size, 13px);
   color: inherit;
   /* Buttons sit lighter than the panel they're on; typed-into fields
      sit darker. Same tokens as the rest of the editor chrome. */

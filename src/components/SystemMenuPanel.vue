@@ -194,7 +194,7 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: var(--rb-button-radius, 8px);
   color: var(--rb-primary-text, #909090);
-  font: 14px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -214,7 +214,7 @@ onBeforeUnmount(() => {
 
 .group-label {
   margin: 4px 10px 2px;
-  font: 11px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.02em;
   color: var(--rb-secondary-text, #707070);
 }

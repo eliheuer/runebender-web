@@ -136,7 +136,7 @@ defineEmits<{
 }
 .file-path {
   color: var(--rb-muted-text, #808080);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -150,12 +150,12 @@ defineEmits<{
   border: var(--rb-stroke-width, 1px) solid var(--rb-accent, #18b86f);
   border-radius: 999px;
   color: var(--rb-accent, #18b86f);
-  font: 12px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   vertical-align: 2px;
 }
 .demo-note {
   color: var(--rb-secondary-text, #707070);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -164,7 +164,7 @@ defineEmits<{
 
 .save-status {
   color: var(--rb-warning, #ffdc32);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   display: flex;
   flex-shrink: 1;
   max-width: 100%;
@@ -204,7 +204,7 @@ defineEmits<{
   width: 48px;
   height: 48px;
   cursor: pointer;
-  font: 14px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   display: flex;
   align-items: center;
   justify-content: center;

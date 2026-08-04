@@ -120,17 +120,17 @@ function displayGroup(group: string | undefined, prefix: string): string {
 
 .label {
   color: var(--rb-accent, #18b86f);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
 }
 .value {
   color: var(--rb-primary-text, #909090);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .value.mono {
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
 }
 
 .kerning-row {
@@ -140,10 +140,10 @@ function displayGroup(group: string | undefined, prefix: string): string {
 }
 .kerning-side {
   color: var(--rb-secondary-text, #707070);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
 }
 .kerning-val {
   color: var(--rb-primary-text, #909090);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
 }
 </style>

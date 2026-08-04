@@ -68,7 +68,7 @@ function labelFor(name: string): string {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font: 14px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
 }
 
 .master-btn:hover {

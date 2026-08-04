@@ -118,7 +118,7 @@ defineEmits<{
 
 .header {
   color: var(--rb-accent, #18b86f);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   font-weight: 400;
   line-height: 16px;
 }
@@ -128,7 +128,7 @@ defineEmits<{
   align-items: center;
   gap: 6px;
   color: var(--rb-muted-text, #808080);
-  font: 16px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   line-height: 18px;
   cursor: pointer;
   user-select: none;

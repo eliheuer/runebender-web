@@ -53,11 +53,11 @@ defineEmits<{
   line-height: 1;
 }
 .subtitle {
-  font: 13px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   color: var(--rb-panel-outline, #606060);
 }
 .prompt {
-  font: 14px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   color: var(--rb-primary-text, #909090);
   line-height: 1.4;
 }
@@ -70,7 +70,7 @@ button {
   background: var(--rb-panel-background, #1c1c1c);
   border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
   border-radius: var(--rb-button-radius, 8px);
-  font: 14px ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   text-align: center;
   cursor: pointer;
 }
@@ -83,7 +83,7 @@ button.reopen {
   margin-top: 0;
 }
 code {
-  font: 12px ui-monospace, monospace;
+  font: var(--rb-ui-font-size, 13px) ui-monospace, monospace;
   color: var(--rb-accent, #18b86f);
   background: color-mix(in srgb, var(--rb-panel-background, #1c1c1c) 70%, transparent);
   padding: 1px 5px;
