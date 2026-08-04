@@ -9,6 +9,30 @@ use runebender_core::{model::kerning::lookup_kerning as lookup_xilem_kerning, sh
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// The direction a character forces on its line, if any. Neutrals
+/// (digits, punctuation, spaces) return `None` so they never decide a
+/// line's direction on their own.
+pub fn strong_direction(char: char) -> Option<TextDirection> {
+    let code = char as u32;
+    let rtl = matches!(code,
+        0x0590..=0x05FF   // Hebrew
+        | 0x0600..=0x06FF // Arabic
+        | 0x0700..=0x074F // Syriac
+        | 0x0750..=0x077F // Arabic Supplement
+        | 0x0780..=0x07BF // Thaana
+        | 0x08A0..=0x08FF // Arabic Extended-A
+        | 0xFB1D..=0xFDFF // Hebrew / Arabic presentation forms
+        | 0xFE70..=0xFEFF // Arabic presentation forms-B
+    );
+    if rtl {
+        return Some(TextDirection::RightToLeft);
+    }
+    if char.is_alphabetic() {
+        return Some(TextDirection::LeftToRight);
+    }
+    None
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextDirection {
     #[default]
@@ -123,15 +147,36 @@ impl TextSort {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TextBuffer {
     sorts: Vec<TextSort>,
     cursor: usize,
     active_sort: Option<usize>,
+    /// Base direction when the user has picked one explicitly.
     direction: TextDirection,
+    /// True until the toolbar sets a direction: each line then follows
+    /// its own first strong character, which is what lets a Latin line
+    /// and an Arabic line share a buffer.
+    auto_direction: bool,
     kerning: TextKerningModel,
     glyph_inventory: TextGlyphInventory,
     manual_kerning: Option<ManualKerningSession>,
+}
+
+impl Default for TextBuffer {
+    fn default() -> Self {
+        Self {
+            sorts: Vec::new(),
+            cursor: 0,
+            active_sort: None,
+            direction: TextDirection::default(),
+            // Detect per line until the toolbar pins a direction.
+            auto_direction: true,
+            kerning: TextKerningModel::default(),
+            glyph_inventory: TextGlyphInventory::default(),
+            manual_kerning: None,
+        }
+    }
 }
 
 impl TextBuffer {
@@ -198,8 +243,61 @@ impl TextBuffer {
         self.direction
     }
 
+    /// Direction of the line the cursor is on: what the toolbar shows.
+    pub fn cursor_direction(&self) -> TextDirection {
+        self.resolved_line_direction(self.line_number_for_sort(self.cursor))
+    }
+
+    /// True while each line picks its own direction from its content.
+    pub fn direction_is_auto(&self) -> bool {
+        self.auto_direction
+    }
+
+    /// Pin every line to one direction (the toolbar's LTR / RTL).
     pub fn set_direction(&mut self, direction: TextDirection) {
         self.direction = direction;
+        self.auto_direction = false;
+    }
+
+    /// Go back to per-line detection.
+    pub fn set_auto_direction(&mut self) {
+        self.auto_direction = true;
+    }
+
+    /// In auto mode a line reads right-to-left when its first strong
+    /// character does; otherwise every line follows the pinned
+    /// direction.
+    pub fn resolved_line_direction(&self, line: usize) -> TextDirection {
+        if !self.auto_direction {
+            return self.direction;
+        }
+        let (start, end) = self.line_range_for_number(line);
+        for index in start..end.min(self.sorts.len()) {
+            if let TextSortKind::Glyph {
+                codepoint: Some(char),
+                ..
+            } = &self.sorts[index].kind
+                && let Some(direction) = strong_direction(*char)
+            {
+                return direction;
+            }
+        }
+        self.direction
+    }
+
+    fn line_number_for_sort(&self, sort_index: usize) -> usize {
+        self.sorts[..sort_index.min(self.sorts.len())]
+            .iter()
+            .filter(|sort| matches!(sort.kind, TextSortKind::LineBreak))
+            .count()
+    }
+
+    fn line_count(&self) -> usize {
+        1 + self
+            .sorts
+            .iter()
+            .filter(|sort| matches!(sort.kind, TextSortKind::LineBreak))
+            .count()
     }
 
     pub fn set_kerning_model(&mut self, kerning: TextKerningModel) {
@@ -231,7 +329,7 @@ impl TextBuffer {
             return false;
         };
         let use_active_advance =
-            self.direction != TextDirection::RightToLeft || !shaping::is_arabic(char);
+            self.cursor_direction() != TextDirection::RightToLeft || !shaping::is_arabic(char);
         let advance_width = active_advance_width
             .filter(|_| use_active_advance)
             .or_else(|| self.glyph_inventory.widths.get(&glyph_name).copied())
@@ -248,16 +346,15 @@ impl TextBuffer {
         let mut cursor_y = 0.0;
         let mut line_start = 0;
         let mut line_number = 0;
+        // RTL lines share one right edge so a paragraph stays aligned,
+        // the way xilem lines them up; LTR lines start at the origin.
         let rtl_line_start_x = self.rtl_line_start_x();
 
         while line_start <= self.sorts.len() {
             let line_end = self.next_line_end(line_start);
-            let mut x = match self.direction {
+            let direction = self.resolved_line_direction(line_number);
+            let mut x = match direction {
                 TextDirection::LeftToRight => 0.0,
-                // Match xilem: every RTL line starts from the full buffer's
-                // sum of advances, not the current line's width.
-                // Kerning is applied as each following sort is positioned,
-                // but it does not shift the whole run before layout begins.
                 TextDirection::RightToLeft => rtl_line_start_x,
             };
             let mut previous_glyph_name: Option<&str> = None;
@@ -275,7 +372,7 @@ impl TextBuffer {
                     .zip(glyph_name)
                     .map(|(left, right)| self.lookup_kerning(left, right))
                     .unwrap_or(0.0);
-                match self.direction {
+                match direction {
                     TextDirection::LeftToRight => {
                         x += kern;
                         items.push(TextLayoutItem {
@@ -310,7 +407,7 @@ impl TextBuffer {
 
             // Skip the line-break sort.
             if self.cursor == line_end + 1 {
-                cursor_x = match self.direction {
+                cursor_x = match self.resolved_line_direction(line_number + 1) {
                     TextDirection::LeftToRight => 0.0,
                     TextDirection::RightToLeft => rtl_line_start_x,
                 };
@@ -333,58 +430,91 @@ impl TextBuffer {
     /// text layout. Line breaks only break kerning context there; they do not
     /// create stacked preview lines or reset the strip position.
     pub fn preview_layout(&self) -> Vec<TextLayoutItem> {
-        let total_width = match self.direction {
-            TextDirection::LeftToRight => 0.0,
-            TextDirection::RightToLeft => (0..self.sorts.len())
-                .filter(|index| !matches!(self.sorts[*index].kind, TextSortKind::LineBreak))
-                .map(|index| self.sort_advance(index))
-                .sum(),
-        };
-        let mut items = Vec::with_capacity(self.sorts.len());
-        let mut x = total_width;
-        let mut previous_glyph_name: Option<&str> = None;
+        // The strip is one visual line, so runs are ordered left to
+        // right and each run is filled in its own direction: an Arabic
+        // run reads right-to-left inside the space it occupies, while
+        // the strip as a whole still advances rightwards.
+        #[derive(Clone, Copy)]
+        struct Entry {
+            index: usize,
+            advance: f64,
+            direction: TextDirection,
+            line: usize,
+        }
 
+        let mut entries: Vec<Entry> = Vec::with_capacity(self.sorts.len());
+        let mut line = 0;
         for index in 0..self.sorts.len() {
-            let advance_width = self.sort_advance(index);
-            let Some(glyph_name) = self.sort_glyph_name(index) else {
-                previous_glyph_name = None;
+            if matches!(self.sorts[index].kind, TextSortKind::LineBreak) {
+                line += 1;
                 continue;
+            }
+            entries.push(Entry {
+                index,
+                advance: self.sort_advance(index),
+                direction: self.resolved_line_direction(line),
+                line,
+            });
+        }
+
+        let mut items = Vec::with_capacity(entries.len());
+        let mut x = 0.0;
+        let mut run_start = 0;
+        while run_start < entries.len() {
+            let direction = entries[run_start].direction;
+            let mut run_end = run_start;
+            while run_end < entries.len() && entries[run_end].direction == direction {
+                run_end += 1;
+            }
+
+            // Kerning only applies between neighbours on the same line.
+            let kern_at = |i: usize| -> f64 {
+                if i == run_start || entries[i].line != entries[i - 1].line {
+                    return 0.0;
+                }
+                match (
+                    self.sort_glyph_name(entries[i - 1].index),
+                    self.sort_glyph_name(entries[i].index),
+                ) {
+                    (Some(left), Some(right)) => self.lookup_kerning(left, right),
+                    _ => 0.0,
+                }
             };
 
-            match self.direction {
+            let run_width: f64 = (run_start..run_end)
+                .map(|i| entries[i].advance + kern_at(i))
+                .sum();
+
+            match direction {
                 TextDirection::LeftToRight => {
-                    if let Some(kern) = previous_glyph_name
-                        .zip(Some(glyph_name))
-                        .map(|(left, right)| self.lookup_kerning(left, right))
-                    {
-                        x += kern;
+                    let mut pen = x;
+                    for i in run_start..run_end {
+                        pen += kern_at(i);
+                        items.push(TextLayoutItem {
+                            index: entries[i].index,
+                            x: pen,
+                            y: 0.0,
+                            advance_width: entries[i].advance,
+                        });
+                        pen += entries[i].advance;
                     }
-                    items.push(TextLayoutItem {
-                        index,
-                        x,
-                        y: 0.0,
-                        advance_width,
-                    });
-                    x += advance_width;
                 }
                 TextDirection::RightToLeft => {
-                    x -= advance_width;
-                    if let Some(kern) = previous_glyph_name
-                        .zip(Some(glyph_name))
-                        .map(|(left, right)| self.lookup_kerning(left, right))
-                    {
-                        x -= kern;
+                    let mut pen = x + run_width;
+                    for i in run_start..run_end {
+                        pen -= entries[i].advance + kern_at(i);
+                        items.push(TextLayoutItem {
+                            index: entries[i].index,
+                            x: pen,
+                            y: 0.0,
+                            advance_width: entries[i].advance,
+                        });
                     }
-                    items.push(TextLayoutItem {
-                        index,
-                        x,
-                        y: 0.0,
-                        advance_width,
-                    });
                 }
             }
 
-            previous_glyph_name = Some(glyph_name);
+            x += run_width;
+            run_start = run_end;
         }
 
         items
@@ -452,6 +582,7 @@ impl TextBuffer {
         self.active_sort = None;
         self.manual_kerning = None;
         self.direction = TextDirection::default();
+        self.auto_direction = true;
     }
 
     pub fn insert_glyph(
@@ -526,14 +657,14 @@ impl TextBuffer {
     }
 
     pub fn move_cursor_visual_left(&mut self) {
-        match self.direction {
+        match self.cursor_direction() {
             TextDirection::LeftToRight => self.move_cursor_left(),
             TextDirection::RightToLeft => self.move_cursor_right(),
         }
     }
 
     pub fn move_cursor_visual_right(&mut self) {
-        match self.direction {
+        match self.cursor_direction() {
             TextDirection::LeftToRight => self.move_cursor_right(),
             TextDirection::RightToLeft => self.move_cursor_left(),
         }
@@ -637,15 +768,22 @@ impl TextBuffer {
         self.apply_shape_updates(updates)
     }
 
+    /// Shape when any line in the buffer reads RTL — a Latin line next
+    /// to an Arabic one must not stop the Arabic from joining.
     pub fn shape_arabic_if_rtl(&mut self) -> bool {
-        if self.direction != TextDirection::RightToLeft {
+        let has_rtl_line =
+            (0..self.line_count()).any(|line| {
+                self.resolved_line_direction(line) == TextDirection::RightToLeft
+            });
+        if !has_rtl_line {
             return false;
         }
         self.shape_arabic()
     }
 
     pub fn shape_arabic_around_if_rtl(&mut self, position: usize) -> bool {
-        if self.direction != TextDirection::RightToLeft {
+        let line = self.line_number_for_sort(position);
+        if self.resolved_line_direction(line) != TextDirection::RightToLeft {
             return false;
         }
         self.shape_arabic_around(position)
@@ -984,11 +1122,23 @@ impl TextBuffer {
         nearest_cursor
     }
 
+    /// Where an RTL line begins: the widest line in the buffer, so
+    /// every RTL line ends up sharing the same right edge. (Xilem summed
+    /// the whole buffer, which is the same number for the single-line
+    /// case and too wide once lines stack.)
     fn rtl_line_start_x(&self) -> f64 {
-        (0..self.sorts.len())
-            .filter(|index| !matches!(self.sorts[*index].kind, TextSortKind::LineBreak))
-            .map(|index| self.sort_advance(index))
-            .sum()
+        let mut widest: f64 = 0.0;
+        let mut line_start = 0;
+        while line_start <= self.sorts.len() {
+            let line_end = self.next_line_end(line_start);
+            let width: f64 = (line_start..line_end).map(|i| self.sort_advance(i)).sum();
+            widest = widest.max(width);
+            if line_end >= self.sorts.len() {
+                break;
+            }
+            line_start = line_end + 1;
+        }
+        widest
     }
 
     fn sort_advance(&self, index: usize) -> f64 {
@@ -1837,7 +1987,7 @@ mod tests {
         buffer.insert_line_break();
         buffer.insert_glyph("B", Some('B'), 500.0);
 
-        let hit = buffer.hit_test(750.0, -300.0, 1000.0, 800.0, -200.0);
+        let hit = buffer.hit_test(250.0, -300.0, 1000.0, 800.0, -200.0);
 
         assert_eq!(hit.active_sort, Some(2));
         assert_eq!(hit.cursor, 3);
@@ -1853,11 +2003,11 @@ mod tests {
         buffer.set_cursor(0);
 
         let activation = buffer
-            .activate_sort_at(750.0, -300.0, 1000.0, 800.0, -200.0)
+            .activate_sort_at(300.0, -300.0, 1000.0, 800.0, -200.0)
             .expect("sort activates");
 
         assert_eq!(activation.index, 2);
-        assert_eq!(activation.x, 500.0);
+        assert_eq!(activation.x, 200.0);
         assert_eq!(activation.y, -1000.0);
         assert_eq!(buffer.active_sort(), Some(2));
         assert_eq!(buffer.cursor(), 0);
@@ -2331,7 +2481,81 @@ mod tests {
     }
 
     #[test]
-    fn layout_positions_rtl_lines_from_buffer_width() {
+    fn auto_direction_reads_each_line_from_its_own_script() {
+        let mut buffer = TextBuffer::new();
+        // Line 1 Latin, line 2 Arabic — the case a single buffer
+        // direction could never get right.
+        buffer.insert_glyph("A", Some('A'), 500.0);
+        buffer.insert_line_break();
+        buffer.insert_glyph("alef-ar", Some('\u{0627}'), 300.0);
+
+        assert!(buffer.direction_is_auto());
+        assert_eq!(buffer.resolved_line_direction(0), TextDirection::LeftToRight);
+        assert_eq!(buffer.resolved_line_direction(1), TextDirection::RightToLeft);
+    }
+
+    #[test]
+    fn auto_direction_ignores_neutral_characters() {
+        let mut buffer = TextBuffer::new();
+        buffer.insert_glyph("one", Some('1'), 500.0);
+        buffer.insert_glyph("period", Some('.'), 200.0);
+        buffer.insert_glyph("alef-ar", Some('\u{0627}'), 300.0);
+
+        // Digits and punctuation don't decide; the Arabic letter does.
+        assert_eq!(buffer.resolved_line_direction(0), TextDirection::RightToLeft);
+    }
+
+    #[test]
+    fn pinning_a_direction_overrides_detection() {
+        let mut buffer = TextBuffer::new();
+        buffer.insert_glyph("alef-ar", Some('\u{0627}'), 300.0);
+        assert_eq!(buffer.cursor_direction(), TextDirection::RightToLeft);
+
+        buffer.set_direction(TextDirection::LeftToRight);
+        assert!(!buffer.direction_is_auto());
+        assert_eq!(buffer.cursor_direction(), TextDirection::LeftToRight);
+
+        buffer.set_auto_direction();
+        assert_eq!(buffer.cursor_direction(), TextDirection::RightToLeft);
+    }
+
+    #[test]
+    fn mixed_lines_lay_out_in_their_own_directions() {
+        let mut buffer = TextBuffer::new();
+        buffer.insert_glyph("A", Some('A'), 500.0);
+        buffer.insert_line_break();
+        buffer.insert_glyph("alef-ar", Some('\u{0627}'), 300.0);
+        buffer.insert_glyph("beh-ar", Some('\u{0628}'), 400.0);
+
+        let layout = buffer.layout(1000.0);
+
+        // Latin line runs rightwards from the origin.
+        assert_eq!(layout.items[0].x, 0.0);
+        // Arabic line right-aligns on the widest line (700) and reads
+        // right to left: first letter nearest the right edge.
+        assert_eq!(layout.items[1].x, 400.0);
+        assert_eq!(layout.items[2].x, 0.0);
+    }
+
+    #[test]
+    fn preview_orders_runs_left_to_right_but_fills_each_run_by_direction() {
+        let mut buffer = TextBuffer::new();
+        buffer.insert_glyph("A", Some('A'), 500.0);
+        buffer.insert_line_break();
+        buffer.insert_glyph("alef-ar", Some('\u{0627}'), 300.0);
+        buffer.insert_glyph("beh-ar", Some('\u{0628}'), 400.0);
+
+        let preview = buffer.preview_layout();
+
+        // Latin run first, then the Arabic run occupying [500, 1200]
+        // with its first letter on the right.
+        assert_eq!(preview[0].x, 0.0);
+        assert_eq!(preview[1].x, 900.0);
+        assert_eq!(preview[2].x, 500.0);
+    }
+
+    #[test]
+    fn layout_right_aligns_rtl_lines_on_the_widest_line() {
         let mut buffer = TextBuffer::new();
         buffer.set_direction(TextDirection::RightToLeft);
         buffer.insert_glyph("A", Some('A'), 500.0);
@@ -2340,12 +2564,14 @@ mod tests {
 
         let layout = buffer.layout(1000.0);
 
+        // Both lines share the right edge at x = 500 (the widest line),
+        // so the 300-wide second line starts 200 units further left.
         assert_eq!(layout.items.len(), 2);
-        assert_eq!(layout.items[0].x, 300.0);
+        assert_eq!(layout.items[0].x, 0.0);
         assert_eq!(layout.items[0].y, 0.0);
-        assert_eq!(layout.items[1].x, 500.0);
+        assert_eq!(layout.items[1].x, 200.0);
         assert_eq!(layout.items[1].y, -1000.0);
-        assert_eq!(layout.cursor_x, 500.0);
+        assert_eq!(layout.cursor_x, 200.0);
         assert_eq!(layout.cursor_y, -1000.0);
     }
 
@@ -2374,7 +2600,7 @@ mod tests {
     }
 
     #[test]
-    fn rtl_multiline_layout_resets_kerning_but_keeps_raw_buffer_width_like_xilem() {
+    fn rtl_multiline_layout_resets_kerning_between_lines() {
         let mut buffer = TextBuffer::new();
         buffer.set_direction(TextDirection::RightToLeft);
         buffer.insert_glyph("A", Some('A'), 500.0);
@@ -2394,14 +2620,17 @@ mod tests {
 
         let layout = buffer.layout(1000.0);
 
+        // Right edge is the widest line: 500 + 500 = 1000 advance
+        // units (kerning does not shift the line's start).
         assert_eq!(layout.items.len(), 3);
-        assert_eq!(layout.items[0].x, 1000.0);
+        assert_eq!(layout.items[0].x, 500.0);
         assert_eq!(layout.items[0].y, 0.0);
-        assert_eq!(layout.items[1].x, 580.0);
+        assert_eq!(layout.items[1].x, 80.0);
         assert_eq!(layout.items[1].y, 0.0);
-        assert_eq!(layout.items[2].x, 1000.0);
+        // The second line kerns from scratch and right-aligns.
+        assert_eq!(layout.items[2].x, 500.0);
         assert_eq!(layout.items[2].y, -1000.0);
-        assert_eq!(layout.cursor_x, 1000.0);
+        assert_eq!(layout.cursor_x, 500.0);
         assert_eq!(layout.cursor_y, -1000.0);
     }
 
@@ -2448,7 +2677,7 @@ mod tests {
     }
 
     #[test]
-    fn rtl_preview_layout_keeps_line_breaks_in_one_strip_like_xilem() {
+    fn rtl_preview_layout_keeps_line_breaks_in_one_strip() {
         let mut buffer = TextBuffer::new();
         buffer.set_direction(TextDirection::RightToLeft);
         buffer.insert_glyph("A", Some('A'), 500.0);
@@ -2457,6 +2686,7 @@ mod tests {
 
         let preview = buffer.preview_layout();
 
+        // One RTL run of 800 units: first glyph on the right.
         assert_eq!(preview.len(), 2);
         assert_eq!(preview[0].x, 300.0);
         assert_eq!(preview[0].y, 0.0);
@@ -2464,9 +2694,9 @@ mod tests {
         assert_eq!(preview[1].y, 0.0);
 
         let canvas = buffer.layout(1000.0);
-        assert_eq!(canvas.items[0].x, 300.0);
+        assert_eq!(canvas.items[0].x, 0.0);
         assert_eq!(canvas.items[0].y, 0.0);
-        assert_eq!(canvas.items[1].x, 500.0);
+        assert_eq!(canvas.items[1].x, 200.0);
         assert_eq!(canvas.items[1].y, -1000.0);
     }
 

@@ -236,6 +236,7 @@ struct TextBufferSnapshot {
     cursor: usize,
     active_sort: Option<usize>,
     direction: &'static str,
+    cursor_direction: &'static str,
     sorts: Vec<TextSortSnapshot>,
 }
 
@@ -1309,7 +1310,18 @@ impl GlyphEditor {
             has_text_session: self.state.has_text_session,
             cursor: self.state.text_buffer.cursor(),
             active_sort: self.state.text_buffer.active_sort(),
-            direction: match self.state.text_buffer.direction() {
+            // What the toolbar should highlight: "auto" while each
+            // line follows its own script, otherwise the pinned mode.
+            direction: if self.state.text_buffer.direction_is_auto() {
+                "auto"
+            } else {
+                match self.state.text_buffer.direction() {
+                    TextDirection::LeftToRight => "ltr",
+                    TextDirection::RightToLeft => "rtl",
+                }
+            },
+            // Direction of the line the cursor sits on, resolved.
+            cursor_direction: match self.state.text_buffer.cursor_direction() {
                 TextDirection::LeftToRight => "ltr",
                 TextDirection::RightToLeft => "rtl",
             },
@@ -1892,13 +1904,21 @@ impl GlyphEditor {
         }
     }
 
+    /// `"auto"` lets every line follow its own first strong character;
+    /// `"ltr"` / `"rtl"` pin the whole buffer.
     #[wasm_bindgen(js_name = setTextDirection)]
     pub fn set_text_direction(&mut self, direction: &str) {
-        let direction = match direction {
-            "rtl" => TextDirection::RightToLeft,
-            _ => TextDirection::LeftToRight,
-        };
-        self.state.text_buffer.set_direction(direction);
+        match direction {
+            "auto" => self.state.text_buffer.set_auto_direction(),
+            "rtl" => self
+                .state
+                .text_buffer
+                .set_direction(TextDirection::RightToLeft),
+            _ => self
+                .state
+                .text_buffer
+                .set_direction(TextDirection::LeftToRight),
+        }
     }
 
     #[wasm_bindgen(js_name = setTextKerningModel)]

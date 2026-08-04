@@ -57,7 +57,10 @@ import EditorSidebar, {
 import SystemMenu from "./components/SystemMenu.vue";
 import SystemMenuPanel from "./components/SystemMenuPanel.vue";
 import TextDirectionToolbar from "./components/TextDirectionToolbar.vue";
-import type { TextDirection } from "./components/TextDirectionToolbar.vue";
+import type {
+  TextDirection,
+  TextDirectionMode,
+} from "./components/TextDirectionToolbar.vue";
 import GlyphAnatomyPanel from "./components/GlyphAnatomyPanel.vue";
 import GlyphCell from "./components/GlyphCell.vue";
 import GlyphInfoSidebar from "./components/GlyphInfoSidebar.vue";
@@ -234,7 +237,10 @@ const curveComb = ref(false);
 const curveContinuity = ref(false);
 const curveTol = ref(0.12);
 const activeShape = ref<ShapeKind>("rectangle");
-const textDirection = ref<TextDirection>("ltr");
+// Toolbar mode: "auto" (each line follows its script) or a pinned
+// direction. The resolved value below is what the cursor's line is.
+const textDirection = ref<TextDirectionMode>("auto");
+const textCursorDirection = ref<TextDirection>("ltr");
 const hasTextBufferSession = ref<boolean>(false);
 const textBuffer = ref<TextSort[]>([]);
 const textCursor = ref<number>(0);
@@ -515,7 +521,8 @@ type TextBufferSnapshot = {
   hasTextSession: boolean;
   cursor: number;
   activeSort: number | null;
-  direction: TextDirection;
+  direction: TextDirectionMode;
+  cursorDirection: TextDirection;
   sorts: Array<{
     kind: "glyph" | "lineBreak";
     glyphName?: string;
@@ -1426,7 +1433,7 @@ type Editor = {
   setShapeTool(shape: ShapeKind): boolean;
   setShapeShiftLocked(locked: boolean): boolean;
   setKnifeShiftLocked(locked: boolean): boolean;
-  setTextDirection(direction: TextDirection): void;
+  setTextDirection(direction: TextDirectionMode): void;
   setTextKerningModel(json: string): void;
   textKerningModel(): string;
   setTextGlyphInventory(json: string): void;
@@ -4860,7 +4867,7 @@ function onShapeSelect(shape: ShapeKind) {
   requestRender();
 }
 
-function onTextDirectionSelect(direction: TextDirection) {
+function onTextDirectionSelect(direction: TextDirectionMode) {
   textDirection.value = direction;
   editor?.setTextDirection(direction);
   refreshTextStateFromEditor();
@@ -4911,6 +4918,7 @@ function refreshTextStateFromEditor(
       }
     }
     textDirection.value = snapshot.direction;
+    textCursorDirection.value = snapshot.cursorDirection ?? "ltr";
     setTextLayoutSnapshot(state.layout);
     bumpTextPreviewRevision();
     requestRender(renderOptions);
@@ -10071,6 +10079,7 @@ onBeforeUnmount(() => {
             <TextDirectionToolbar
               v-if="activeTool === 'Text'"
               :active="textDirection"
+              :resolved="textCursorDirection"
               @select="onTextDirectionSelect"
             />
             <div

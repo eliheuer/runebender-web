@@ -271,6 +271,10 @@ export class GlyphEditor {
     setShapeShiftLocked(locked: boolean): boolean;
     setShapeTool(shape: string): boolean;
     setStartPointAt(x: number, y: number): boolean;
+    /**
+     * `"auto"` lets every line follow its own first strong character;
+     * `"ltr"` / `"rtl"` pin the whole buffer.
+     */
     setTextDirection(direction: string): void;
     setTextGlyphInventory(json: string): void;
     setTextKerningModel(json: string): void;

@@ -1046,6 +1046,8 @@ export class GlyphEditor {
         return ret !== 0;
     }
     /**
+     * `"auto"` lets every line follow its own first strong character;
+     * `"ltr"` / `"rtl"` pin the whole buffer.
      * @param {string} direction
      */
     setTextDirection(direction) {

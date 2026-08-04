@@ -6,18 +6,23 @@ import GeneratedIcon from "./GeneratedIcon.vue";
 // and chooses the direction used by active Text entry.
 
 export type TextDirection = "ltr" | "rtl";
+/** "auto" lets every line follow its own script. */
+export type TextDirectionMode = "auto" | TextDirection;
 
 defineProps<{
-  active: TextDirection;
+  active: TextDirectionMode;
+  /** Direction the cursor's line resolves to while in auto mode. */
+  resolved?: TextDirection;
 }>();
 
 defineEmits<{
-  (e: "select", direction: TextDirection): void;
+  (e: "select", direction: TextDirectionMode): void;
 }>();
 
 const directions = [
-  ["ltr", "Left to Right"],
-  ["rtl", "Right to Left"],
+  ["auto", "Auto (per line, from the script you type)"],
+  ["ltr", "Left to Right (whole buffer)"],
+  ["rtl", "Right to Left (whole buffer)"],
 ] as const;
 
 const DIRECTION_ICONS: Record<TextDirection, string> = {
@@ -43,7 +48,12 @@ const DIRECTION_ICONS: Record<TextDirection, string> = {
       :aria-pressed="id === active"
       @click="$emit('select', id)"
     >
-      <GeneratedIcon :name="DIRECTION_ICONS[id]" />
+      <!-- Auto shows which way the current line came out. -->
+      <span v-if="id === 'auto'" class="auto-label">
+        Auto
+        <span class="auto-resolved">{{ (resolved ?? "ltr").toUpperCase() }}</span>
+      </span>
+      <GeneratedIcon v-else :name="DIRECTION_ICONS[id]" />
     </button>
   </div>
 </template>
@@ -59,6 +69,20 @@ const DIRECTION_ICONS: Record<TextDirection, string> = {
   gap: 6px;
   width: fit-content;
   flex-shrink: 0;
+}
+
+.auto-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font: 11px ui-sans-serif, system-ui, sans-serif;
+  line-height: 1;
+}
+.auto-resolved {
+  font-size: 9px;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
 }
 
 .direction-btn {
