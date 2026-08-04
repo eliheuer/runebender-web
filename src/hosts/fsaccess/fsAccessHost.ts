@@ -650,9 +650,13 @@ export function createFsAccessHost(options: {
       } catch (e) {
         return jsonResponse(500, { error: String(e) });
       }
-      const file = await handle.getFile();
-      const hash = await sha256Hex(text);
-      files.set(rel, { hash, mtime: file.lastModified });
+      // Re-read what actually landed rather than trusting the text we
+      // sent: the baseline must describe the file on disk, or the next
+      // save conflicts against our own write.
+      const written = await readFile(rel);
+      const hash = written?.hash ?? (await sha256Hex(text));
+      const mtime = written?.mtime ?? (await handle.getFile()).lastModified;
+      files.set(rel, { hash, mtime });
       return jsonResponse(200, { etag: hash });
     },
 

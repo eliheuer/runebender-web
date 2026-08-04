@@ -6592,7 +6592,16 @@ async function applyExternalWorkspaceChanges(
           markGlyphDirty(name, masterName);
         }
         if (dirtyGlyphsByMaster.value.get(masterName)?.has(name)) {
-          workspaceNotice.value = `${name} changed on disk — held back (you have unsaved edits)`;
+          // Held back on purpose, but remember it: the file's on-disk
+          // state has moved on, so every later save of this glyph will
+          // conflict until the user picks a side. Surfacing it now puts
+          // "Save Anyway" in the menu before they hit that wall.
+          if (!conflictedGlyphNames.value.includes(name)) {
+            conflictedGlyphNames.value = [...conflictedGlyphNames.value, name];
+          }
+          workspaceNotice.value =
+            `${name} changed on disk — held back (you have unsaved edits; ` +
+            `Runebender menu → Save Anyway keeps yours)`;
           status.value = `external change to ${name} held back — you have unsaved edits`;
           break;
         }
