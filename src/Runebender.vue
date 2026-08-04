@@ -10157,7 +10157,7 @@ onBeforeUnmount(() => {
               @change-coordinate="onCoordinateChange"
             />
             <div
-              v-if="viewMode === 'editor' && editorPanelsVisible && currentGlyph && activeTool !== 'Text' && glyphPreviewFits"
+              v-if="viewMode === 'editor' && editorPanelsVisible && currentGlyph && glyphPreviewFits"
               class="glyph-preview-overlay"
               aria-label="Active glyph preview"
             >
