@@ -6,7 +6,7 @@
 // path. The path/model/editing modules build on both native and
 // wasm32 so unit tests still run on `cargo test`. (Gating lives in lib.rs.)
 
-use kurbo::{Affine, BezPath, Circle, Ellipse, Line, Point, Rect, Stroke};
+use kurbo::{Affine, BezPath, Circle, Ellipse, Line, PathEl, Point, Rect, Stroke};
 use runebender_core::theme;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet, hash_map::DefaultHasher};
@@ -2056,6 +2056,18 @@ impl Renderer {
         if path.elements().is_empty() {
             return;
         }
+        if self.readonly_points {
+            // Fill and stroke one point at a time so overlapping points
+            // stack, each masking the one under it, instead of showing
+            // both outlines through each other.
+            for point in split_subpaths(path) {
+                self.scene
+                    .fill(Fill::NonZero, Affine::IDENTITY, inner, None, &point);
+                self.scene
+                    .stroke(stroke, Affine::IDENTITY, outer, None, &point);
+            }
+            return;
+        }
         // The point is a WINDOW: the inner fill masks the outline and
         // handle lines, then the grid is re-stroked clipped to the point
         // interiors, so only the grid shows through (Eli's design).
@@ -2895,4 +2907,19 @@ fn append_bezpath(target: &mut BezPath, source: &BezPath) {
     for element in source.elements() {
         target.push(*element);
     }
+}
+
+/// Split a batched path into one `BezPath` per point, so each can be
+/// painted separately.
+fn split_subpaths(path: &BezPath) -> Vec<BezPath> {
+    let mut out: Vec<BezPath> = Vec::new();
+    for element in path.elements() {
+        if matches!(element, PathEl::MoveTo(_)) {
+            out.push(BezPath::new());
+        }
+        if let Some(current) = out.last_mut() {
+            current.push(*element);
+        }
+    }
+    out
 }
