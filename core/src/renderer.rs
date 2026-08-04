@@ -2032,13 +2032,14 @@ impl Renderer {
         }
     }
 
+    /// The grid inside a point window is tinted to match that point's
+    /// own ring, so each point reads as one object.
     fn draw_point_batch(&mut self, path: &BezPath, inner: Srgb, outer: Srgb, stroke: &Stroke) {
-        self.draw_point_batch_tinted(path, inner, outer, stroke, None);
+        self.draw_point_batch_tinted(path, inner, outer, stroke, Some(outer));
     }
 
     /// `grid_tint` paints the grid inside the point window in that
-    /// colour instead of the canvas grid greys — selected points show
-    /// their grid in the same orange as their ring.
+    /// colour instead of the canvas grid greys.
     fn draw_point_batch_tinted(
         &mut self,
         path: &BezPath,

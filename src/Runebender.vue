@@ -1353,7 +1353,11 @@ const activeGlyphSvg = computed(() =>
 );
 const activeGlyphPreviewSvg = computed(() => {
   if (!currentGlyph.value || !activeMasterData.value) return undefined;
-  const bytes = activeMasterData.value.glyphBytes.get(currentGlyph.value);
+  // Follows the axis sliders: off a master this is the instance, so the
+  // filled preview moves with the design space like the canvas does.
+  const bytes =
+    interpolatedGlyphBytes.value ??
+    activeMasterData.value.glyphBytes.get(currentGlyph.value);
   if (!bytes) return activeGlyphSvg.value;
   try {
     return glifToSvgWithComponents(bytes, glyphXmlByName.value) || glifToSvg(bytes);
