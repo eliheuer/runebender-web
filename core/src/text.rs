@@ -974,7 +974,13 @@ impl TextBuffer {
             .cloned()
             .or_else(|| self.sort_glyph_name(sort_index).map(ToOwned::to_owned))
             .unwrap_or_else(|| ".notdef".to_string());
-        if self.direction != TextDirection::RightToLeft || !shaping::is_arabic(char) {
+        // Shape by the *line's* direction, not the buffer's: in Auto
+        // mode an Arabic line joins even when the buffer default (or
+        // another line) is left-to-right.
+        let line = self.line_number_for_sort(sort_index);
+        if self.resolved_line_direction(line) != TextDirection::RightToLeft
+            || !shaping::is_arabic(char)
+        {
             return base_name;
         }
 
@@ -1348,6 +1354,41 @@ mod tests {
         assert_eq!(buffer.len(), 0);
         assert_eq!(buffer.cursor(), 0);
         assert_eq!(buffer.active_sort(), None);
+    }
+
+    #[test]
+    fn auto_direction_shapes_arabic_without_pinning_rtl() {
+        let mut buffer = TextBuffer::new();
+        // No set_direction call: Auto mode must shape Arabic on its own.
+        buffer.set_glyph_inventory(
+            serde_json::from_str(
+                r#"{
+                    "unicode": {
+                        "1576": "beh-ar",
+                        "1605": "meem-ar"
+                    },
+                    "widths": {
+                        "beh-ar": 500,
+                        "beh-ar.init": 480,
+                        "meem-ar": 520,
+                        "meem-ar.fina": 500
+                    }
+                }"#,
+            )
+            .expect("valid glyph inventory"),
+        );
+
+        assert!(buffer.insert_character('\u{0628}'));
+        assert!(buffer.insert_character('\u{0645}'));
+
+        assert_eq!(
+            buffer.sort(0).and_then(TextSort::glyph_name),
+            Some("beh-ar.init")
+        );
+        assert_eq!(
+            buffer.sort(1).and_then(TextSort::glyph_name),
+            Some("meem-ar.fina")
+        );
     }
 
     #[test]

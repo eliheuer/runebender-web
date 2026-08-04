@@ -4919,6 +4919,14 @@ function refreshTextStateFromEditor(
     }
     textDirection.value = snapshot.direction;
     textCursorDirection.value = snapshot.cursorDirection ?? "ltr";
+    if (import.meta.env.DEV) {
+      // Dev-only peek at the shaped glyph names, handy when checking
+      // Arabic joining from a headless browser.
+      (window as unknown as { __rbTextNames?: unknown }).__rbTextNames =
+        snapshot.sorts.map((sort) =>
+          sort.kind === "glyph" ? sort.glyphName : "\\n",
+        );
+    }
     setTextLayoutSnapshot(state.layout);
     bumpTextPreviewRevision();
     requestRender(renderOptions);
