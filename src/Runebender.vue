@@ -249,7 +249,8 @@ const editorPanelsVisible = ref<boolean>(true);
 // it hang off the bottom, it disappears when the tiles above leave it
 // less than its full height. Watched by a ResizeObserver plus a
 // re-measure whenever the set of panels changes (tool switches).
-const GLYPH_PREVIEW_HEIGHT = 120;
+/** Smallest useful preview; below this the tile hides instead. */
+const GLYPH_PREVIEW_HEIGHT = 72;
 const glyphPreviewFits = ref<boolean>(true);
 let stageObserver: ResizeObserver | undefined;
 
@@ -10725,15 +10726,16 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
 }
 
-/* The filled-glyph preview keeps a fixed height; the column hides it
-   outright when there isn't room (glyphPreviewFits), so it is never
-   shown sliced. */
+/* The preview fills whatever the tiles above leave: it is the only
+   elastic tile in the column. Below its minimum it hides outright
+   (glyphPreviewFits) rather than showing a sliver. */
 .editor-right-col > .glyph-preview-overlay {
   position: static;
   width: 100%;
   box-sizing: border-box;
-  flex: 0 0 auto;
-  height: 120px;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 72px;
 }
 /* The sidebar is the elastic tile of the left column: the glyph grid
    inside it stretches into whatever the font-info pane leaves. */
