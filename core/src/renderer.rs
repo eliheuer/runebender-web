@@ -250,11 +250,9 @@ const HYPER_POINT_SELECTED_RADIUS_PX: f64 = 5.0;
 const START_NODE_HALF_PX: f64 = 5.5;
 const START_NODE_SELECTED_HALF_PX: f64 = 6.5;
 const START_NODE_OFFSET_PX: f64 = 8.0;
-/// One weight for every editor line: contour, handles and point rings.
-/// The comb's fins stay thinner (COMB_FIN_PX) because they are pure
-/// black against saturated fills, which reads heavier than a grey line
-/// of the same width on the dark canvas.
-const LINE_PX: f64 = 2.0 * STROKE_SCALE;
+/// One weight for every editor line: contour, handles, point rings and
+/// the comb's fins.
+const LINE_PX: f64 = 1.0 * STROKE_SCALE;
 const POINT_OUTLINE_PX: f64 = LINE_PX;
 /// Dark casing drawn under the outline, handle lines and points, so
 /// they stay readable on top of the curvature comb (which draws its own
@@ -262,7 +260,7 @@ const POINT_OUTLINE_PX: f64 = LINE_PX;
 const HALO_PX: f64 = 2.0;
 const HALO_COLOR: Srgb = AlphaColor::from_rgba8(0x0c, 0x0c, 0x0c, 0xd8);
 const PATH_STROKE_PX: f64 = LINE_PX;
-const COMB_FIN_PX: f64 = 1.0 * STROKE_SCALE;
+const COMB_FIN_PX: f64 = LINE_PX;
 const COMPONENT_SELECTION_STROKE_PX: f64 = 2.0;
 const HANDLE_LINE_PX: f64 = LINE_PX;
 const MARQUEE_STROKE_PX: f64 = 1.0 * STROKE_SCALE;
