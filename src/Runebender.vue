@@ -262,9 +262,13 @@ function measureGlyphPreviewFit() {
   let used = 0;
   for (const child of Array.from(el.children)) {
     if (child.classList.contains("glyph-preview-overlay")) continue;
-    // Every tile above the preview sizes to its content, so their
-    // rendered heights are stable whether or not the preview shows.
-    used += child.getBoundingClientRect().height + gap;
+    // Measure what each tile *wants*, not what it got: the tool panel
+    // shrinks under pressure, and using its squeezed height here would
+    // make the preview's visibility depend on its own presence.
+    const wanted = child.classList.contains("helper-overlay")
+      ? Math.max(child.scrollHeight, child.getBoundingClientRect().height)
+      : child.getBoundingClientRect().height;
+    used += wanted + gap;
   }
   glyphPreviewFits.value = el.clientHeight - used >= GLYPH_PREVIEW_HEIGHT;
 }
@@ -10720,11 +10724,14 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-/* The tool panel takes the height its content needs — it is the one
-   tile that must never be clipped. Whatever is left over decides
-   whether the glyph preview fits (measureGlyphPreviewFit). */
+/* The tool panel takes the height its content needs, and gives it back
+   first when the column runs short: it scrolls inside itself so the
+   tiles below (geometry ops, Coordinates) stay on screen instead of
+   being pushed off the bottom. */
 .editor-right-col > .helper-overlay {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-height: 120px;
+  overflow-y: auto;
 }
 
 /* The preview fills whatever the tiles above leave: it is the only
