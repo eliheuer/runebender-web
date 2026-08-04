@@ -244,6 +244,44 @@ let selectIdleHoverActive = false;
 let traceMenuLastPointerUpAt = 0;
 const coordinateQuadrant = ref<CoordinateQuadrant>("cc");
 const editorPanelsVisible = ref<boolean>(true);
+
+// The right column's glyph preview is all-or-nothing: rather than let
+// it hang off the bottom, it disappears when the tiles above leave it
+// less than its full height. Watched by a ResizeObserver plus a
+// re-measure whenever the set of panels changes (tool switches).
+const GLYPH_PREVIEW_HEIGHT = 120;
+const rightColEl = ref<HTMLElement | null>(null);
+const glyphPreviewFits = ref<boolean>(true);
+let rightColObserver: ResizeObserver | undefined;
+
+function measureGlyphPreviewFit() {
+  const el = rightColEl.value;
+  if (!el) return;
+  const gap = 6;
+  let used = 0;
+  for (const child of Array.from(el.children)) {
+    if (child.classList.contains("glyph-preview-overlay")) continue;
+    used += child.getBoundingClientRect().height + gap;
+  }
+  glyphPreviewFits.value = el.clientHeight - used >= GLYPH_PREVIEW_HEIGHT;
+}
+
+watch(
+  () => rightColEl.value,
+  (el) => {
+    rightColObserver?.disconnect();
+    if (!el) return;
+    rightColObserver ??= new ResizeObserver(() => measureGlyphPreviewFit());
+    rightColObserver.observe(el);
+    void nextTick(measureGlyphPreviewFit);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [activeTool.value, editorPanelsVisible.value, selectActive.value] as const,
+  () => void nextTick(measureGlyphPreviewFit),
+);
 // Same height as the top file-info bar, so the editor reads as one
 // grid. Still draggable from the pane's top edge.
 const editorBottomPreviewHeight = ref<number>(64);
@@ -9270,6 +9308,7 @@ onBeforeUnmount(() => {
     clipboardNoticeTimer = null;
   }
   resizeObserver?.disconnect();
+  rightColObserver?.disconnect();
   themeObserver?.disconnect();
   stopBottomPreviewResize();
   clearBackgroundImage();
@@ -9984,7 +10023,11 @@ onBeforeUnmount(() => {
         </div>
         </div>
 
-          <div v-if="viewMode === 'editor'" class="editor-side-col editor-right-col">
+          <div
+            v-if="viewMode === 'editor'"
+            ref="rightColEl"
+            class="editor-side-col editor-right-col"
+          >
             <ShapesToolbar
               v-if="activeTool === 'Shapes'"
               :active="activeShape"
@@ -10068,7 +10111,7 @@ onBeforeUnmount(() => {
               @change-coordinate="onCoordinateChange"
             />
             <div
-              v-if="viewMode === 'editor' && editorPanelsVisible && currentGlyph && activeTool !== 'Text'"
+              v-if="viewMode === 'editor' && editorPanelsVisible && currentGlyph && activeTool !== 'Text' && glyphPreviewFits"
               class="glyph-preview-overlay"
               aria-label="Active glyph preview"
             >
@@ -10592,7 +10635,17 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Scroll without a scrollbar: a gutter here would eat into the tile
+     margin and make the column look off-centre. */
+  scrollbar-width: none;
   pointer-events: auto;
+}
+.editor-side-col::-webkit-scrollbar,
+.editor-side-col > .helper-overlay::-webkit-scrollbar {
+  display: none;
+}
+.editor-side-col > .helper-overlay {
+  scrollbar-width: none;
 }
 .editor-side-col:empty {
   display: none;
@@ -10640,18 +10693,24 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-/* The filled-glyph preview is the elastic tile of the right column:
-   it stretches to the column width and eats whatever vertical space
-   the fixed-height tiles above it leave over. */
+/* The tool panel is the elastic tile of the right column (same role
+   the mini glyph grid plays on the left): it takes the leftover height
+   and pushes the fixed tiles to the bottom. */
+.editor-right-col > .helper-overlay {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* The filled-glyph preview keeps a fixed height; the column hides it
+   outright when there isn't room (glyphPreviewFits), so it is never
+   shown sliced. */
 .editor-right-col > .glyph-preview-overlay {
   position: static;
   width: 100%;
   box-sizing: border-box;
-  height: auto;
-  flex: 1 1 auto;
-  /* Never taller than the leftover space, never shorter than the old
-     fixed tile when the column is already full. */
-  min-height: 86px;
+  flex: 0 0 auto;
+  height: 120px;
 }
 /* The sidebar is the elastic tile of the left column: the glyph grid
    inside it stretches into whatever the font-info pane leaves. */
