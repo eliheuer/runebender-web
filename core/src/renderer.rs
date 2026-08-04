@@ -250,7 +250,7 @@ const HYPER_POINT_SELECTED_RADIUS_PX: f64 = 5.0;
 const START_NODE_HALF_PX: f64 = 5.5;
 const START_NODE_SELECTED_HALF_PX: f64 = 6.5;
 const START_NODE_OFFSET_PX: f64 = 8.0;
-const POINT_OUTLINE_PX: f64 = 1.25 * STROKE_SCALE;
+const POINT_OUTLINE_PX: f64 = 1.1 * STROKE_SCALE;
 const PATH_STROKE_PX: f64 = 1.0 * STROKE_SCALE;
 const COMPONENT_SELECTION_STROKE_PX: f64 = 2.0;
 const HANDLE_LINE_PX: f64 = 0.75 * STROKE_SCALE;
@@ -2077,7 +2077,7 @@ impl Renderer {
             // full-strength, wider strokes than the canvas grid
             let coarse = grid_tint.unwrap_or(self.theme.design_grid_coarse);
             self.scene.stroke(
-                &Stroke::new(1.5),
+                &Stroke::new(1.9),
                 Affine::IDENTITY,
                 coarse.with_alpha(overlay.accent_alpha),
                 None,
@@ -2086,7 +2086,7 @@ impl Renderer {
             if let Some((fine, fine_alpha)) = &overlay.fine {
                 let fine_color = grid_tint.unwrap_or(self.theme.design_grid_fine);
                 self.scene.stroke(
-                    &Stroke::new(1.0),
+                    &Stroke::new(1.3),
                     Affine::IDENTITY,
                     fine_color.with_alpha(*fine_alpha),
                     None,
