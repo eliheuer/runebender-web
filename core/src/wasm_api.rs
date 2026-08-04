@@ -1199,10 +1199,6 @@ pub struct GlyphEditor {
     /// stable for the burst.
     pending_nudge_move_indices: Vec<(usize, Vec<usize>)>,
     pending_nudge_independent_move_indices: Vec<(usize, Vec<usize>)>,
-    /// Draw filled, point-free, regardless of the active tool. Set
-    /// while the canvas is showing an interpolated instance, which is
-    /// a view of the design space rather than an editable master.
-    preview_override: bool,
 }
 
 impl GlyphEditor {
@@ -1560,7 +1556,6 @@ impl GlyphEditor {
             pending_nudge_path_indices: Vec::new(),
             pending_nudge_move_indices: Vec::new(),
             pending_nudge_independent_move_indices: Vec::new(),
-            preview_override: false,
         })
     }
 
@@ -1826,15 +1821,17 @@ impl GlyphEditor {
         }
     }
 
-    /// Force filled preview rendering (interpolated instances).
+    /// Show the glyph as a read-only interpolated instance: the
+    /// outline and its points still draw, but every point goes grey
+    /// because nothing here is editable (Glyphs does the same).
     #[wasm_bindgen(js_name = setPreviewRender)]
     pub fn set_preview_render(&mut self, on: bool) {
-        self.preview_override = on;
+        self.renderer.set_readonly_points(on);
     }
 
     pub fn render(&mut self) -> Result<(), JsValue> {
         let text_mode_active = self.tool.is_text() && self.state.has_text_session;
-        let preview_mode = self.tool.is_preview() || self.preview_override;
+        let preview_mode = self.tool.is_preview();
         if self.pending_nudge_snapshot.is_some()
             && !self.pending_nudge_path_indices.is_empty()
             && !preview_mode

@@ -1002,7 +1002,9 @@ export class GlyphEditor {
         wasm.glypheditor_setOffset(this.__wbg_ptr, x, y);
     }
     /**
-     * Force filled preview rendering (interpolated instances).
+     * Show the glyph as a read-only interpolated instance: the
+     * outline and its points still draw, but every point goes grey
+     * because nothing here is editable (Glyphs does the same).
      * @param {boolean} on
      */
     setPreviewRender(on) {

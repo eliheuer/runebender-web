@@ -72,6 +72,10 @@ const POINT_MARK_GREEN: Srgb = AlphaColor::from_rgba8(0x18, 0xb8, 0x6f, 0xff);
 const POINT_MARK_PURPLE: Srgb = AlphaColor::from_rgba8(0x8c, 0x6c, 0xff, 0xff);
 const POINT_MARK_YELLOW: Srgb = AlphaColor::from_rgba8(0xff, 0xdc, 0x32, 0xff);
 const POINT_MARK_ORANGE: Srgb = AlphaColor::from_rgba8(0xff, 0x98, 0x0f, 0xff);
+/// Points of an interpolated instance: uniform grey, no on/off-curve
+/// colour coding, because nothing here can be dragged.
+const POINT_READONLY_INNER: Srgb = POINT_INNER;
+const POINT_READONLY_OUTER: Srgb = AlphaColor::from_rgba8(0x8a, 0x8a, 0x8a, 0xff);
 const POINT_SMOOTH_INNER: Srgb = POINT_INNER;
 const POINT_SMOOTH_OUTER: Srgb = POINT_MARK_GREEN;
 const POINT_CORNER_INNER: Srgb = POINT_INNER;
@@ -334,6 +338,8 @@ pub struct Renderer {
     text_outline_cache: HashMap<String, TextOutlineCacheEntry>,
     hud_text: crate::hud_text::HudText,
     measure_options: MeasureOptions,
+    /// Draw points in the read-only grey style (interpolated instance).
+    readonly_points: bool,
     curve_options: CurveOptions,
     device_scale: f64,
     width: u32,
@@ -630,6 +636,7 @@ impl Renderer {
             text_outline_cache: HashMap::new(),
             hud_text: crate::hud_text::HudText::new(),
             measure_options: MeasureOptions::default(),
+            readonly_points: false,
             curve_options: CurveOptions::default(),
             device_scale: 1.0,
             width,
@@ -672,6 +679,10 @@ impl Renderer {
             self.device_scale = next;
             self.design_grid_cache.clear();
         }
+    }
+
+    pub fn set_readonly_points(&mut self, on: bool) {
+        self.readonly_points = on;
     }
 
     pub fn set_measure_options(
@@ -1776,28 +1787,53 @@ impl Renderer {
             }
         }
         let outline_stroke = Stroke::new(POINT_OUTLINE_PX * point_scale);
+        // An interpolated instance shows its structure but nothing is
+        // editable, so every point drops to the same grey.
+        let (smooth_inner, smooth_outer) = if self.readonly_points {
+            (POINT_READONLY_INNER, POINT_READONLY_OUTER)
+        } else {
+            (self.theme.point_smooth_inner, self.theme.point_smooth_outer)
+        };
+        let (corner_inner, corner_outer) = if self.readonly_points {
+            (POINT_READONLY_INNER, POINT_READONLY_OUTER)
+        } else {
+            (self.theme.point_corner_inner, self.theme.point_corner_outer)
+        };
+        let (offcurve_inner, offcurve_outer) = if self.readonly_points {
+            (POINT_READONLY_INNER, POINT_READONLY_OUTER)
+        } else {
+            (
+                self.theme.point_offcurve_inner,
+                self.theme.point_offcurve_outer,
+            )
+        };
+        let (hyper_inner, hyper_outer) = if self.readonly_points {
+            (POINT_READONLY_INNER, POINT_READONLY_OUTER)
+        } else {
+            (self.theme.point_hyper_inner, self.theme.point_hyper_outer)
+        };
         self.draw_point_batch(
             &controls.smooth_circles,
-            self.theme.point_smooth_inner,
-            self.theme.point_smooth_outer,
+            smooth_inner,
+            smooth_outer,
             &outline_stroke,
         );
         self.draw_point_batch(
             &controls.corner_squares,
-            self.theme.point_corner_inner,
-            self.theme.point_corner_outer,
+            corner_inner,
+            corner_outer,
             &outline_stroke,
         );
         self.draw_point_batch(
             &controls.offcurve_circles,
-            self.theme.point_offcurve_inner,
-            self.theme.point_offcurve_outer,
+            offcurve_inner,
+            offcurve_outer,
             &outline_stroke,
         );
         self.draw_point_batch(
             &controls.hyper_circles,
-            self.theme.point_hyper_inner,
-            self.theme.point_hyper_outer,
+            hyper_inner,
+            hyper_outer,
             &outline_stroke,
         );
         self.draw_point_batch(

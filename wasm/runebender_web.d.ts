@@ -262,7 +262,9 @@ export class GlyphEditor {
     setMeasureOptions(colorize: boolean, handles: boolean, segments: boolean, spans: boolean, sidebearings: boolean): void;
     setOffset(x: number, y: number): void;
     /**
-     * Force filled preview rendering (interpolated instances).
+     * Show the glyph as a read-only interpolated instance: the
+     * outline and its points still draw, but every point goes grey
+     * because nothing here is editable (Glyphs does the same).
      */
     setPreviewRender(on: boolean): void;
     setRightSidebearing(value: number): boolean;
