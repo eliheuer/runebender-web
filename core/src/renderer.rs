@@ -1848,7 +1848,7 @@ impl Renderer {
             self.theme.point_selected_outer,
             &outline_stroke,
         );
-        if !controls.ongrid_dots.elements().is_empty() {
+        if !self.readonly_points && !controls.ongrid_dots.elements().is_empty() {
             self.scene.fill(
                 Fill::NonZero,
                 Affine::IDENTITY,
@@ -2061,7 +2061,9 @@ impl Renderer {
         // interiors, so only the grid shows through (Eli's design).
         self.scene
             .fill(Fill::NonZero, Affine::IDENTITY, inner, None, path);
-        if let Some(overlay) = self.grid_overlay.clone() {
+        // Read-only instance points are plain discs: no grid window,
+        // because nothing here is being placed on the grid.
+        if let Some(overlay) = self.grid_overlay.clone().filter(|_| !self.readonly_points) {
             self.scene
                 .push_layer(Fill::NonZero, Mix::Normal, 1.0, Affine::IDENTITY, path);
             // inside the window the grid must be READABLE, not ambient:
