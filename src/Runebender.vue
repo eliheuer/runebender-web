@@ -249,8 +249,9 @@ const editorPanelsVisible = ref<boolean>(true);
 // it hang off the bottom, it disappears when the tiles above leave it
 // less than its full height. Watched by a ResizeObserver plus a
 // re-measure whenever the set of panels changes (tool switches).
-/** Smallest useful preview; below this the tile hides instead. */
-const GLYPH_PREVIEW_HEIGHT = 72;
+/** The preview claims any leftover space down to this height, so the
+ *  column never ends in dead air; below it there is nothing to fill. */
+const GLYPH_PREVIEW_HEIGHT = 24;
 const glyphPreviewFits = ref<boolean>(true);
 let stageObserver: ResizeObserver | undefined;
 
@@ -10686,9 +10687,9 @@ onBeforeUnmount(() => {
   position: static;
   margin: 0;
 }
-.editor-right-col > .coordinate-overlay {
-  margin-top: auto;
-}
+/* Coordinates used to be pinned to the bottom with margin-top:auto,
+   which parked the slack above it as dead space. The preview is the
+   tile that absorbs slack now, so everything stacks top-down. */
 /* The tool palette and the former attach-on toolbars (shapes, text
    direction) live at the top of the right column as full-width tiles,
    buttons wrapping in a grid instead of one long row. */
@@ -10735,7 +10736,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   flex: 1 1 auto;
   height: auto;
-  min-height: 72px;
+  min-height: 24px;
 }
 /* The sidebar is the elastic tile of the left column: the glyph grid
    inside it stretches into whatever the font-info pane leaves. */
