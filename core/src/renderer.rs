@@ -250,18 +250,20 @@ const HYPER_POINT_SELECTED_RADIUS_PX: f64 = 5.0;
 const START_NODE_HALF_PX: f64 = 5.5;
 const START_NODE_SELECTED_HALF_PX: f64 = 6.5;
 const START_NODE_OFFSET_PX: f64 = 8.0;
-const POINT_OUTLINE_PX: f64 = 1.1 * STROKE_SCALE;
+/// One weight for every editor line: contour, handles, point rings and
+/// the comb's fin edges. They used to differ by up to 60%, which read
+/// as sloppy where they meet.
+const LINE_PX: f64 = 1.0 * STROKE_SCALE;
+const POINT_OUTLINE_PX: f64 = LINE_PX;
 /// Dark casing drawn under the outline, handle lines and points, so
 /// they stay readable on top of the curvature comb (which draws its own
 /// dark casing the same way).
 const HALO_PX: f64 = 2.0;
 const HALO_COLOR: Srgb = AlphaColor::from_rgba8(0x0c, 0x0c, 0x0c, 0xd8);
-const PATH_STROKE_PX: f64 = 1.2 * STROKE_SCALE;
-/// The comb's fin edges sit a little under the contour weight: the two
-/// used to be identical, and the ribs read heavier than the outline.
-const COMB_FIN_PX: f64 = 0.85 * STROKE_SCALE;
+const PATH_STROKE_PX: f64 = LINE_PX;
+const COMB_FIN_PX: f64 = LINE_PX;
 const COMPONENT_SELECTION_STROKE_PX: f64 = 2.0;
-const HANDLE_LINE_PX: f64 = 0.75 * STROKE_SCALE;
+const HANDLE_LINE_PX: f64 = LINE_PX;
 const MARQUEE_STROKE_PX: f64 = 1.0 * STROKE_SCALE;
 const METRIC_LINE_PX: f64 = 1.0 * STROKE_SCALE;
 const TOOL_PREVIEW_LINE_PX: f64 = 1.0 * STROKE_SCALE;
