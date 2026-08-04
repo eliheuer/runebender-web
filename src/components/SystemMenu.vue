@@ -91,10 +91,10 @@ function onMenuButtonClick() {
   will-change: transform;
   /* The rune's ink sits up and left of the PNG's centre, so nudge the
      image to make it read as centred in the button. */
-  transform: translate(2px, 2px);
+  transform: translate(4px, 2px);
 }
 .menu-btn:hover img {
-  transform: translate(2px, 2px) rotateY(-16deg) rotateX(7deg) scale(1.08);
+  transform: translate(4px, 2px) rotateY(-16deg) rotateX(7deg) scale(1.08);
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.7));
 }
 .menu-btn img.spinning {
@@ -102,10 +102,10 @@ function onMenuButtonClick() {
 }
 @keyframes rune-spin {
   from {
-    transform: translate(2px, 2px) rotateY(0deg);
+    transform: translate(4px, 2px) rotateY(0deg);
   }
   to {
-    transform: translate(2px, 2px) rotateY(360deg);
+    transform: translate(4px, 2px) rotateY(360deg);
   }
 }
 </style>
