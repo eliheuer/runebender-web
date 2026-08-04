@@ -74,6 +74,9 @@ const POINT_MARK_YELLOW: Srgb = AlphaColor::from_rgba8(0xff, 0xdc, 0x32, 0xff);
 const POINT_MARK_ORANGE: Srgb = AlphaColor::from_rgba8(0xff, 0x98, 0x0f, 0xff);
 /// Points of an interpolated instance: uniform grey, no on/off-curve
 /// colour coding, because nothing here can be dragged.
+/// Anchors are drawn as diamonds; the radius is bumped so a rotated
+/// square reads as the same visual size as a point circle.
+const ANCHOR_DIAMOND_SCALE: f64 = 1.35;
 const POINT_READONLY_INNER: Srgb = POINT_INNER;
 const POINT_READONLY_OUTER: Srgb = AlphaColor::from_rgba8(0x8a, 0x8a, 0x8a, 0xff);
 const POINT_SMOOTH_INNER: Srgb = POINT_INNER;
@@ -1275,7 +1278,9 @@ impl Renderer {
             } else {
                 SMOOTH_POINT_RADIUS_PX
             }) * scale;
-            let circle = Circle::new(center, radius);
+            // Diamonds, not circles: anchors read as their own kind of
+            // thing next to on-curve and off-curve points.
+            let diamond = diamond_path(center, radius * ANCHOR_DIAMOND_SCALE);
             let (inner, outer) = if selected {
                 (
                     self.theme.point_selected_inner,
@@ -1285,9 +1290,9 @@ impl Renderer {
                 (POINT_INNER, POINT_MARK_GREEN)
             };
             self.scene
-                .fill(Fill::NonZero, Affine::IDENTITY, inner, None, &circle);
+                .fill(Fill::NonZero, Affine::IDENTITY, inner, None, &diamond);
             self.scene
-                .stroke(&outline_stroke, Affine::IDENTITY, outer, None, &circle);
+                .stroke(&outline_stroke, Affine::IDENTITY, outer, None, &diamond);
         }
     }
 
@@ -1296,13 +1301,15 @@ impl Renderer {
         let radius = SMOOTH_POINT_RADIUS_PX * scale;
         let outline_stroke = Stroke::new(POINT_OUTLINE_PX * scale);
         for anchor in &state.propagated_anchors {
-            let circle = Circle::new(view * anchor.point, radius);
+            // Same diamond as a real anchor, outline only: these come
+            // from the base glyph and are not editable here.
+            let diamond = diamond_path(view * anchor.point, radius * ANCHOR_DIAMOND_SCALE);
             self.scene.stroke(
                 &outline_stroke,
                 Affine::IDENTITY,
                 POINT_MARK_GREEN,
                 None,
-                &circle,
+                &diamond,
             );
         }
     }
@@ -2922,4 +2929,16 @@ fn split_subpaths(path: &BezPath) -> Vec<BezPath> {
         }
     }
     out
+}
+
+/// A diamond (rotated square) centred on `center`, `radius` from centre
+/// to each tip.
+fn diamond_path(center: Point, radius: f64) -> BezPath {
+    let mut path = BezPath::new();
+    path.move_to(Point::new(center.x, center.y - radius));
+    path.line_to(Point::new(center.x + radius, center.y));
+    path.line_to(Point::new(center.x, center.y + radius));
+    path.line_to(Point::new(center.x - radius, center.y));
+    path.close_path();
+    path
 }
