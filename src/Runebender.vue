@@ -250,33 +250,28 @@ const editorPanelsVisible = ref<boolean>(true);
 // less than its full height. Watched by a ResizeObserver plus a
 // re-measure whenever the set of panels changes (tool switches).
 const GLYPH_PREVIEW_HEIGHT = 120;
-const rightColEl = ref<HTMLElement | null>(null);
+/** How much room the elastic tool panel keeps for itself. */
+const MIN_TOOL_PANEL_HEIGHT = 120;
 const glyphPreviewFits = ref<boolean>(true);
-let rightColObserver: ResizeObserver | undefined;
+let stageObserver: ResizeObserver | undefined;
 
 function measureGlyphPreviewFit() {
-  const el = rightColEl.value;
+  const el = document.querySelector(".editor-right-col");
   if (!el) return;
   const gap = 6;
   let used = 0;
   for (const child of Array.from(el.children)) {
     if (child.classList.contains("glyph-preview-overlay")) continue;
-    used += child.getBoundingClientRect().height + gap;
+    // The tool panel is the elastic tile: it grows into whatever the
+    // preview isn't using, so its *rendered* height can't be part of
+    // this sum — that feedback loop is what kept the preview hidden
+    // once it had been hidden. Count its floor instead.
+    used += child.classList.contains("helper-overlay")
+      ? MIN_TOOL_PANEL_HEIGHT + gap
+      : child.getBoundingClientRect().height + gap;
   }
   glyphPreviewFits.value = el.clientHeight - used >= GLYPH_PREVIEW_HEIGHT;
 }
-
-watch(
-  () => rightColEl.value,
-  (el) => {
-    rightColObserver?.disconnect();
-    if (!el) return;
-    rightColObserver ??= new ResizeObserver(() => measureGlyphPreviewFit());
-    rightColObserver.observe(el);
-    void nextTick(measureGlyphPreviewFit);
-  },
-  { immediate: true },
-);
 
 watch(
   () => [activeTool.value, editorPanelsVisible.value, selectActive.value] as const,
@@ -1661,6 +1656,13 @@ onMounted(async () => {
 
     status.value = "ready";
 
+    // The stage is always mounted in editor mode, so watching it keeps
+    // the preview-fit check running even as the column's own tiles come
+    // and go with the active tool.
+    if (stage.value) {
+      stageObserver = new ResizeObserver(() => measureGlyphPreviewFit());
+      stageObserver.observe(stage.value);
+    }
     resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(canvas.value);
     themeObserver = new MutationObserver(() => {
@@ -5222,6 +5224,7 @@ function handleTextToolKey(e: KeyboardEvent): boolean {
 
 function handleResize() {
   updateGridViewportSize();
+  measureGlyphPreviewFit();
   editorBottomPreviewHeight.value = clampEditorBottomPreviewHeight(editorBottomPreviewHeight.value);
   if (!editor || !canvas.value) return;
   const dpr = window.devicePixelRatio || 1;
@@ -9308,7 +9311,7 @@ onBeforeUnmount(() => {
     clipboardNoticeTimer = null;
   }
   resizeObserver?.disconnect();
-  rightColObserver?.disconnect();
+  stageObserver?.disconnect();
   themeObserver?.disconnect();
   stopBottomPreviewResize();
   clearBackgroundImage();
@@ -10025,7 +10028,6 @@ onBeforeUnmount(() => {
 
           <div
             v-if="viewMode === 'editor'"
-            ref="rightColEl"
             class="editor-side-col editor-right-col"
           >
             <ShapesToolbar
@@ -10698,7 +10700,8 @@ onBeforeUnmount(() => {
    and pushes the fixed tiles to the bottom. */
 .editor-right-col > .helper-overlay {
   flex: 1 1 auto;
-  min-height: 0;
+  /* Keeps the same floor measureGlyphPreviewFit() reserves for it. */
+  min-height: 120px;
   overflow-y: auto;
 }
 
