@@ -279,7 +279,6 @@ const DESIGN_GRID_CLOSE_MIN_ZOOM: f64 = 8.0;
 const DESIGN_GRID_CLOSE_FINE: f64 = 2.0;
 const DESIGN_GRID_CLOSE_COARSE_N: u32 = 4;
 const DESIGN_GRID_FINE_LINE_PX: f64 = 0.5;
-const ONGRID_DOT_RADIUS_PX: f64 = 1.6;
 const DESIGN_GRID_COARSE_LINE_PX: f64 = 1.0;
 
 // ============================================================================
@@ -393,7 +392,6 @@ impl EditControlsCacheKey {
 
 #[derive(Clone, Default)]
 struct EditControlsGeometry {
-    ongrid_dots: BezPath,
     outline: BezPath,
     handle_lines: BezPath,
     smooth_circles: BezPath,
@@ -408,7 +406,6 @@ struct EditControlsGeometry {
 impl EditControlsGeometry {
     fn with_capacity(capacity: EditControlsGeometryCapacity) -> Self {
         Self {
-            ongrid_dots: BezPath::with_capacity(capacity.ongrid_dots),
             outline: BezPath::with_capacity(capacity.outline),
             handle_lines: BezPath::with_capacity(capacity.handle_lines),
             smooth_circles: BezPath::with_capacity(capacity.smooth_circles),
@@ -423,7 +420,6 @@ impl EditControlsGeometry {
 
     fn capacity(&self) -> EditControlsGeometryCapacity {
         EditControlsGeometryCapacity {
-            ongrid_dots: self.ongrid_dots.elements().len(),
             outline: self.outline.elements().len(),
             handle_lines: self.handle_lines.elements().len(),
             smooth_circles: self.smooth_circles.elements().len(),
@@ -436,7 +432,6 @@ impl EditControlsGeometry {
     }
 
     fn append(&mut self, other: &Self) {
-        append_bezpath(&mut self.ongrid_dots, &other.ongrid_dots);
         append_bezpath(&mut self.outline, &other.outline);
         append_bezpath(&mut self.handle_lines, &other.handle_lines);
         append_bezpath(&mut self.smooth_circles, &other.smooth_circles);
@@ -450,7 +445,6 @@ impl EditControlsGeometry {
 
 #[derive(Clone, Copy, Default)]
 struct EditControlsGeometryCapacity {
-    ongrid_dots: usize,
     outline: usize,
     handle_lines: usize,
     smooth_circles: usize,
@@ -463,7 +457,6 @@ struct EditControlsGeometryCapacity {
 
 impl EditControlsGeometryCapacity {
     fn add(&mut self, other: Self) {
-        self.ongrid_dots += other.ongrid_dots;
         self.outline += other.outline;
         self.handle_lines += other.handle_lines;
         self.smooth_circles += other.smooth_circles;
@@ -1843,27 +1836,20 @@ impl Renderer {
             hyper_outer,
             &outline_stroke,
         );
-        self.draw_point_batch(
+        self.draw_point_batch_tinted(
             &controls.selected_circles,
             self.theme.point_selected_inner,
             self.theme.point_selected_outer,
             &outline_stroke,
+            Some(self.theme.point_selected_outer),
         );
-        self.draw_point_batch(
+        self.draw_point_batch_tinted(
             &controls.selected_squares,
             self.theme.point_selected_inner,
             self.theme.point_selected_outer,
             &outline_stroke,
+            Some(self.theme.point_selected_outer),
         );
-        if !self.readonly_points && !controls.ongrid_dots.elements().is_empty() {
-            self.scene.fill(
-                Fill::NonZero,
-                Affine::IDENTITY,
-                self.theme.point_selected_outer,
-                None,
-                &controls.ongrid_dots,
-            );
-        }
         for start_arrow in start_arrows {
             self.draw_start_arrow(
                 start_arrow.center,
@@ -1953,7 +1939,6 @@ impl Renderer {
         let start_index = closed
             .then(|| points.iter().position(PathPoint::is_on_curve))
             .flatten();
-        let mut ongrid_dots = BezPath::new();
         let mut smooth_circles = BezPath::new();
         let mut corner_squares = BezPath::new();
         let mut offcurve_circles = BezPath::new();
@@ -1964,17 +1949,6 @@ impl Renderer {
         for (index, pt) in points.iter().enumerate() {
             let center = view * pt.point;
             let selected = selection.contains(&pt.id);
-
-            // snapped exactly to the 2-unit design grid -> center dot
-            let on_grid = (pt.point.x / 2.0 - (pt.point.x / 2.0).round()).abs() < 1e-6
-                && (pt.point.y / 2.0 - (pt.point.y / 2.0).round()).abs() < 1e-6;
-            if on_grid {
-                append_circle_path(
-                    &mut ongrid_dots,
-                    center,
-                    ONGRID_DOT_RADIUS_PX * point_scale,
-                );
-            }
 
             if matches!(path, Path::Hyper(_)) && pt.is_on_curve() {
                 let radius = (if selected {
@@ -2046,7 +2020,6 @@ impl Renderer {
             }
         }
         EditControlsGeometry {
-            ongrid_dots,
             outline: BezPath::new(),
             handle_lines: BezPath::new(),
             smooth_circles,
@@ -2060,6 +2033,20 @@ impl Renderer {
     }
 
     fn draw_point_batch(&mut self, path: &BezPath, inner: Srgb, outer: Srgb, stroke: &Stroke) {
+        self.draw_point_batch_tinted(path, inner, outer, stroke, None);
+    }
+
+    /// `grid_tint` paints the grid inside the point window in that
+    /// colour instead of the canvas grid greys — selected points show
+    /// their grid in the same orange as their ring.
+    fn draw_point_batch_tinted(
+        &mut self,
+        path: &BezPath,
+        inner: Srgb,
+        outer: Srgb,
+        stroke: &Stroke,
+        grid_tint: Option<Srgb>,
+    ) {
         if path.elements().is_empty() {
             return;
         }
@@ -2087,18 +2074,20 @@ impl Renderer {
                 .push_layer(Fill::NonZero, Mix::Normal, 1.0, Affine::IDENTITY, path);
             // inside the window the grid must be READABLE, not ambient:
             // full-strength, wider strokes than the canvas grid
+            let coarse = grid_tint.unwrap_or(self.theme.design_grid_coarse);
             self.scene.stroke(
                 &Stroke::new(1.5),
                 Affine::IDENTITY,
-                self.theme.design_grid_coarse.with_alpha(overlay.accent_alpha),
+                coarse.with_alpha(overlay.accent_alpha),
                 None,
                 overlay.accent.as_ref(),
             );
             if let Some((fine, fine_alpha)) = &overlay.fine {
+                let fine_color = grid_tint.unwrap_or(self.theme.design_grid_fine);
                 self.scene.stroke(
                     &Stroke::new(1.0),
                     Affine::IDENTITY,
-                    self.theme.design_grid_fine.with_alpha(*fine_alpha),
+                    fine_color.with_alpha(*fine_alpha),
                     None,
                     fine.as_ref(),
                 );
