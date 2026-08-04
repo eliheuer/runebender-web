@@ -1395,6 +1395,18 @@ const selectedAnatomySvg = computed(() => {
     return undefined;
   }
 });
+/** Anatomy (outline + nodes) SVG of the glyph open in the editor. */
+const currentGlyphAnatomySvg = computed(() => {
+  const data = activeMasterData.value;
+  const bytes = currentGlyph.value ? data?.glyphBytes.get(currentGlyph.value) : undefined;
+  if (!bytes) return "";
+  try {
+    return glifAnatomySvgWithComponents(bytes, glyphXmlByName.value) || glifAnatomySvg(bytes);
+  } catch {
+    return "";
+  }
+});
+
 const textLayout = ref<TextLayoutSnapshot>({ cursorX: 0, cursorY: 0, items: [] });
 const textPreviewRevision = ref(0);
 function bumpTextPreviewRevision() {
@@ -9555,6 +9567,7 @@ onBeforeUnmount(() => {
               :masters="masters"
               :active-master="activeMasterIndex"
               :mark-color="currentGlyph ? glyphMarkColors.get(currentGlyph) : ''"
+              :anatomy-svg="currentGlyphAnatomySvg"
               :can-apply-all-masters="masters.length > 1"
               v-model:mark-apply-all-masters="markColorApplyAllMasters"
               @jump-glyph="onSidebarJumpGlyph"
@@ -10078,6 +10091,7 @@ onBeforeUnmount(() => {
           <div
             v-if="viewMode === 'editor'"
             class="editor-side-col editor-right-col"
+            :class="{ 'preview-hidden': !glyphPreviewFits }"
           >
             <ShapesToolbar
               v-if="activeTool === 'Shapes'"
@@ -10761,6 +10775,11 @@ onBeforeUnmount(() => {
   flex: 0 1 auto;
   min-height: 120px;
   overflow-y: auto;
+}
+/* With no preview tile to absorb the slack, the tool panel takes it so
+   the tiles below snap to the bottom of the column. */
+.editor-right-col.preview-hidden > .helper-overlay {
+  flex-grow: 1;
 }
 
 /* The preview fills whatever the tiles above leave: it is the only

@@ -46,6 +46,8 @@ const props = withDefaults(
     markColor?: string;
     canApplyAllMasters?: boolean;
     markApplyAllMasters?: boolean;
+    /** Outline + nodes preview of the current glyph (anatomy SVG). */
+    anatomySvg?: string;
   }>(),
   {
     glyphs: () => [],
@@ -58,6 +60,7 @@ const props = withDefaults(
     markColor: "",
     canApplyAllMasters: false,
     markApplyAllMasters: false,
+    anatomySvg: "",
   },
 );
 
@@ -318,9 +321,11 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
         <span class="dot" />
         <span>{{ master }}</span>
       </button>
-      <div class="hint">
-        Off a master the canvas shows the interpolated instance, filled
-        and read-only. Editing snaps back to the nearest master.
+      <!-- Fills the rest of the tab with the current glyph in outline,
+           nodes and all: more use than a paragraph nobody reads, and it
+           is the flex item that absorbs the leftover height. -->
+      <div class="axis-preview" :aria-label="`${currentGlyph} outline`">
+        <div v-if="anatomySvg" class="axis-preview-canvas" v-html="anatomySvg" />
       </div>
     </div>
   </div>
@@ -613,6 +618,28 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 }
 .master-row.active .dot {
   background: var(--rb-accent, #18b86f);
+}
+
+.axis-preview {
+  flex: 1 1 auto;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 2px 2px;
+}
+.axis-preview-canvas {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.axis-preview-canvas :deep(svg) {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  display: block;
 }
 
 .hint {
