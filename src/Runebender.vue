@@ -3697,7 +3697,24 @@ const sidebarAxes = computed<SidebarAxis[]>(() =>
   })),
 );
 
-function onSidebarJumpGlyph(name: string) {
+function onSidebarJumpGlyph(name: string, event?: MouseEvent) {
+  // Same gesture set as the full grid: shift extends the run, cmd /
+  // ctrl toggles one cell, a plain click opens the glyph. Multi-select
+  // here is what lets the Colors row mark a batch.
+  if (event?.shiftKey) {
+    selectGlyph(name, event);
+    return;
+  }
+  if (event?.metaKey || event?.ctrlKey) {
+    const next = new Set(selectedGlyphs.value);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    selectedGlyphs.value = next;
+    if (!next.has(selectedGlyph.value)) {
+      selectedGlyph.value = next.values().next().value ?? "";
+    }
+    return;
+  }
   openGridSelectionInEditor(name);
 }
 
@@ -7568,8 +7585,16 @@ function setMarkOnSelected(rgba: string) {
   applyMarkColor(selectedGridGlyphNames(), rgba);
 }
 
-/** The sidebar's Colors section marks the glyph open in the editor. */
+/** The sidebar's Colors section marks the mini grid's selection when
+ *  there is one, otherwise the glyph open in the editor. */
 function setMarkOnCurrentGlyph(rgba: string) {
+  const selected = Array.from(selectedGlyphs.value).filter((name) =>
+    activeMasterData.value?.glyphBytes.has(name),
+  );
+  if (selected.length > 1) {
+    applyMarkColor(selected, rgba);
+    return;
+  }
   if (!currentGlyph.value) return;
   applyMarkColor([currentGlyph.value], rgba);
 }
@@ -9501,6 +9526,7 @@ onBeforeUnmount(() => {
             <EditorSidebar
               :glyphs="sidebarOverviewItems"
               :current-glyph="currentGlyph"
+              :selected-glyphs="[...selectedGlyphs]"
               :shapes="sidebarShapes"
               :axes="sidebarAxes"
               :masters="masters"

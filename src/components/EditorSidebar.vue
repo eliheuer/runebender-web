@@ -36,6 +36,8 @@ const props = withDefaults(
   defineProps<{
     glyphs?: SidebarGlyphItem[];
     currentGlyph?: string;
+    /** Every glyph selected in the grid, for multi-select highlight. */
+    selectedGlyphs?: string[];
     shapes?: SidebarShape[];
     axes?: SidebarAxis[];
     masters?: string[];
@@ -48,6 +50,7 @@ const props = withDefaults(
   {
     glyphs: () => [],
     currentGlyph: "",
+    selectedGlyphs: () => [],
     shapes: () => [],
     axes: () => [],
     masters: () => [],
@@ -59,7 +62,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  (e: "jumpGlyph", name: string): void;
+  (e: "jumpGlyph", name: string, event: MouseEvent): void;
   (e: "selectShape", shape: SidebarShape): void;
   (e: "selectMaster", index: number): void;
   (e: "backToGrid"): void;
@@ -201,11 +204,11 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
             :name="item.name"
             :unicode="item.unicode"
             :svg="item.svg"
-            :selected="item.name === currentGlyph"
+            :selected="item.name === currentGlyph || selectedGlyphs.includes(item.name)"
             :column-span="item.columnSpan"
             :mark-color="item.markColor"
             bare-unicode
-            @click="emit('jumpGlyph', item.name)"
+            @click="emit('jumpGlyph', item.name, $event)"
           />
         </div>
       </div>
