@@ -250,8 +250,6 @@ const editorPanelsVisible = ref<boolean>(true);
 // less than its full height. Watched by a ResizeObserver plus a
 // re-measure whenever the set of panels changes (tool switches).
 const GLYPH_PREVIEW_HEIGHT = 120;
-/** How much room the elastic tool panel keeps for itself. */
-const MIN_TOOL_PANEL_HEIGHT = 120;
 const glyphPreviewFits = ref<boolean>(true);
 let stageObserver: ResizeObserver | undefined;
 
@@ -262,13 +260,9 @@ function measureGlyphPreviewFit() {
   let used = 0;
   for (const child of Array.from(el.children)) {
     if (child.classList.contains("glyph-preview-overlay")) continue;
-    // The tool panel is the elastic tile: it grows into whatever the
-    // preview isn't using, so its *rendered* height can't be part of
-    // this sum — that feedback loop is what kept the preview hidden
-    // once it had been hidden. Count its floor instead.
-    used += child.classList.contains("helper-overlay")
-      ? MIN_TOOL_PANEL_HEIGHT + gap
-      : child.getBoundingClientRect().height + gap;
+    // Every tile above the preview sizes to its content, so their
+    // rendered heights are stable whether or not the preview shows.
+    used += child.getBoundingClientRect().height + gap;
   }
   glyphPreviewFits.value = el.clientHeight - used >= GLYPH_PREVIEW_HEIGHT;
 }
@@ -10724,14 +10718,11 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-/* The tool panel is the elastic tile of the right column (same role
-   the mini glyph grid plays on the left): it takes the leftover height
-   and pushes the fixed tiles to the bottom. */
+/* The tool panel takes the height its content needs — it is the one
+   tile that must never be clipped. Whatever is left over decides
+   whether the glyph preview fits (measureGlyphPreviewFit). */
 .editor-right-col > .helper-overlay {
-  flex: 1 1 auto;
-  /* Keeps the same floor measureGlyphPreviewFit() reserves for it. */
-  min-height: 120px;
-  overflow-y: auto;
+  flex: 0 0 auto;
 }
 
 /* The filled-glyph preview keeps a fixed height; the column hides it
