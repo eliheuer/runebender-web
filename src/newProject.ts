@@ -43,6 +43,12 @@ export type NewProject = {
   designspacePath: string | null;
   /** What the top bar should show. */
   label: string;
+  /**
+   * Leading path segment every file shares. Saving strips it, so the
+   * UFOs land directly in the folder the user picks rather than nested
+   * inside a second one.
+   */
+  rootDir: string;
 };
 
 function fileAt(path: string, text: string): File {
@@ -308,6 +314,7 @@ export function buildNewProject(
       files: ufoFiles(dir, family, "Regular", 400, glyphs),
       designspacePath: null,
       label: ufoDirName(family, "Regular"),
+      rootDir: root,
     };
   }
 
@@ -325,5 +332,10 @@ export function buildNewProject(
   }
   const dsPath = `${root}/${root}.designspace`;
   files.push(fileAt(dsPath, designspaceXml(family, DESIGNSPACE_MASTERS)));
-  return { files, designspacePath: dsPath, label: `${root}.designspace` };
+  return {
+    files,
+    designspacePath: dsPath,
+    label: `${root}.designspace`,
+    rootDir: root,
+  };
 }

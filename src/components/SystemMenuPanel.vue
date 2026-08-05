@@ -11,6 +11,8 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 withDefaults(
   defineProps<{
     saveEnabled?: boolean;
+    /** Project exists only in memory: Save writes it to a folder first. */
+    newProject?: boolean;
     /** Glyphs whose last save hit a disk conflict. */
     conflicts?: string[];
     saveAsEnabled?: boolean;
@@ -22,6 +24,7 @@ withDefaults(
   }>(),
   {
     saveEnabled: false,
+    newProject: false,
     conflicts: () => [],
     saveAsEnabled: false,
     closeEnabled: false,
@@ -163,9 +166,10 @@ onBeforeUnmount(() => {
       type="button"
       role="menuitem"
       :disabled="!saveEnabled"
+      :title="newProject ? 'Pick a folder to write this new project into' : undefined"
       @click="pick('save', saveEnabled)"
     >
-      Save
+      {{ newProject ? "Save to Folder..." : "Save" }}
     </button>
     <button
       v-if="conflicts.length"

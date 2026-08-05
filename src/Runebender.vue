@@ -1767,6 +1767,9 @@ watch(
   () => currentFontPath.value,
   async (slot) => {
     if (!slot || !editor || !canvas.value) return;
+    // Adopting a folder to save a new project into fires this; the save
+    // loads the folder itself once every file has landed.
+    if (writingNewProject) return;
     await loadWorkspaceSlot(slot);
     ensureWorkspaceWatch();
   },
@@ -3810,8 +3813,17 @@ async function openRecentWorkspace(index: number) {
 // path re-sets it).
 const demoFontLoaded = ref(false);
 // A project made by File → New Font: it exists only in memory, so there
-// is nowhere to write it until it has been saved somewhere.
+// is nowhere to write it until the user picks a folder to save it into.
 const newProjectUnsaved = ref(false);
+// The project as generated, kept so saving can write every file — not
+// just the glyphs the user happened to touch.
+const newProjectFiles = ref<File[]>([]);
+// Leading path segment the generated files share; stripped on save so
+// the UFOs land directly in the chosen folder.
+const newProjectRoot = ref("");
+// True while writing a new project into a just-adopted folder: the
+// workspace watcher must not race in and load the folder half-written.
+let writingNewProject = false;
 
 // Workspace was imported from a .glyphs source: editable in memory,
 // but saving back is not supported yet (stage 1 is read-only).
@@ -6405,14 +6417,15 @@ function applyWorkspaceLabels() {
 async function startNewProject(kind: NewProjectKind) {
   const project = buildNewProject(kind, "New Font");
   // No file handles and no remembered source: this project has no home on
-  // disk yet, and inheriting the last font's would write into it.
-  activeSourceChoice.value = project.designspacePath
-    ? { kind: "designspace", path: project.designspacePath }
-    : null;
-  preferredSourceFileName.value = null;
+  // disk yet, and inheriting the last font's would write into it. The
+  // loader picks the designspace on its own — one designspace, and both
+  // UFOs referenced by it, is not an ambiguous folder.
+  resetSourceChoice();
   status.value = "creating new project…";
   await loadGlifFiles(project.files, new Map());
   newProjectUnsaved.value = true;
+  newProjectFiles.value = project.files;
+  newProjectRoot.value = project.rootDir;
   fontLabel.value = project.label;
   workspaceNotice.value = "New project — not on disk yet";
   status.value = `new ${kind === "ufo" ? "font" : "variable font"} — unsaved`;
@@ -6432,6 +6445,7 @@ async function loadGlifFiles(
   glyphsSourceReadOnly.value = false;
   demoFontLoaded.value = false;
   newProjectUnsaved.value = false;
+  newProjectFiles.value = [];
   // relPath is empty for files straight out of showOpenFilePicker
   // (webkitRelativePath is "" there, and ?? keeps it), so fall back
   // to the plain file name.
@@ -8102,16 +8116,123 @@ async function onSaveOverwritingDisk() {
   await onSave({ force: true });
 }
 
+/**
+ * Everything a new project should write, as (path, text). Starts from the
+ * generated files and lets the live state win, so a glyph drawn — or
+ * font info edited — before the first save is not lost.
+ */
+async function collectNewProjectFiles(): Promise<
+  { path: string; text: string }[]
+> {
+  const out = new Map<string, string>();
+  for (const file of newProjectFiles.value) {
+    out.set(relPath(file), await file.text());
+  }
+  const decoder = new TextDecoder();
+  for (const data of masterDataMap.value.values()) {
+    for (const [name, bytes] of data.glyphBytes) {
+      const path = data.glyphPaths.get(name);
+      if (path && out.has(path)) out.set(path, decoder.decode(bytes));
+    }
+    if (data.fontInfoBytes) {
+      const anyGlyphPath = data.glyphPaths.values().next().value;
+      const ufoRoot = anyGlyphPath?.replace(/\/glyphs\/[^/]+$/, "");
+      const infoPath = ufoRoot ? `${ufoRoot}/fontinfo.plist` : null;
+      if (infoPath && out.has(infoPath)) {
+        out.set(infoPath, decoder.decode(data.fontInfoBytes));
+      }
+    }
+  }
+  if (
+    designspacePath.value &&
+    designspaceText.value &&
+    out.has(designspacePath.value)
+  ) {
+    out.set(designspacePath.value, designspaceText.value);
+  }
+  return Array.from(out, ([path, text]) => ({ path, text }));
+}
+
+/**
+ * First save of a project that only exists in memory: pick a folder,
+ * write the whole thing into it, then load it back off disk so every
+ * later save is an ordinary one.
+ *
+ * The host refuses to overwrite a file it has never read, so an existing
+ * file of the same name stops the save instead of clobbering someone's
+ * work.
+ */
+async function saveNewProjectToFolder(): Promise<boolean> {
+  if (!runebenderHost.openWorkspaceFolder) {
+    status.value =
+      "saving a new project needs the browser file host — open runebender.org or the dev server";
+    return false;
+  }
+  const entries = await collectNewProjectFiles();
+  if (entries.length === 0) {
+    status.value = "nothing to save";
+    return false;
+  }
+
+  writingNewProject = true;
+  try {
+    const chosen = await runebenderHost.openWorkspaceFolder();
+    if (chosen.cancelled) {
+      status.value = "save cancelled";
+      return false;
+    }
+    if (chosen.error || !chosen.slot) {
+      status.value = `save failed: ${chosen.error ?? "no folder chosen"}`;
+      return false;
+    }
+    const slot = chosen.slot;
+    const prefix = newProjectRoot.value ? `${newProjectRoot.value}/` : "";
+
+    let written = 0;
+    for (const { path, text } of entries) {
+      const rel = prefix && path.startsWith(prefix) ? path.slice(prefix.length) : path;
+      const res = await runebenderHost.writeWorkspaceFile(rel, text);
+      if (!res.ok) {
+        console.warn(
+          `[runebender] new project save stopped at ${rel}: ${res.status}`,
+        );
+        status.value =
+          res.status === 409
+            ? `save stopped at ${rel}: that file is already in the folder — save into an empty one`
+            : `save failed writing ${rel} (${res.status})`;
+        workspaceNotice.value = "New project — save incomplete";
+        return false;
+      }
+      written += 1;
+      if (written % 50 === 0) {
+        status.value = `writing ${written}/${entries.length} files…`;
+      }
+    }
+
+    // Load it back the ordinary way: that wires up the file handles and
+    // read baselines every later save needs. Drop the in-memory source
+    // paths first — the copy on disk sits at different ones.
+    resetSourceChoice();
+    designspacePath.value = null;
+    writingNewProject = false;
+    await loadWorkspaceSlot(slot);
+    ensureWorkspaceWatch();
+    lastSavedDisplay.value = formatLastSavedDisplay();
+    workspaceNotice.value = null;
+    status.value = `saved ${written} files to ${slot}`;
+    return true;
+  } catch (e) {
+    console.warn("new project save failed:", e);
+    status.value = `save failed: ${e}`;
+    return false;
+  } finally {
+    writingNewProject = false;
+  }
+}
+
 async function onSave(options: { force?: boolean } = {}): Promise<boolean> {
   if (newProjectUnsaved.value) {
-    // Writing needs either a workspace slot or per-glyph file handles, and
-    // a project built in memory has neither. Say so rather than letting
-    // every glyph fail one by one.
-    status.value =
-      "new project has no home on disk yet — saving a new font isn't wired up";
-    workspaceNotice.value =
-      "New project — not on disk yet, saving isn't wired up";
-    return false;
+    return saveNewProjectToFolder();
   }
   if (glyphsSourceReadOnly.value) {
     status.value = `${glyphsSourceLabel.value} opened read-only — saving back to .glyphs isn't supported yet`;
@@ -9519,6 +9640,7 @@ onBeforeUnmount(() => {
           <SystemMenuPanel
             v-if="systemMenuOpen"
             :save-enabled="glyphNames.length > 0"
+            :new-project="newProjectUnsaved"
             :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
             :close-enabled="!!props.onCloseRequested"
             :reopen-name="systemMenuReopenName"
@@ -9632,6 +9754,7 @@ onBeforeUnmount(() => {
               v-if="systemMenuOpen"
               class="editor-system-menu-panel"
               :save-enabled="glyphNames.length > 0"
+              :new-project="newProjectUnsaved"
               :save-as-enabled="!!currentFontPath && glyphNames.length > 0"
               :close-enabled="!!props.onCloseRequested"
               :reopen-name="systemMenuReopenName"
