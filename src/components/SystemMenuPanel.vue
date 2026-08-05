@@ -31,6 +31,8 @@ withDefaults(
 );
 
 const emit = defineEmits<{
+  (e: "newUfo"): void;
+  (e: "newDesignspace"): void;
   (e: "openUfo"): void;
   (e: "openFolder"): void;
   (e: "openRecent", index: number): void;
@@ -51,6 +53,8 @@ const rootEl = ref<HTMLElement | null>(null);
 
 function pick(
   action:
+    | "newUfo"
+    | "newDesignspace"
     | "openUfo"
     | "openFolder"
     | "reopen"
@@ -98,6 +102,23 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="rootEl" class="system-menu-panel" role="menu">
+    <button
+      type="button"
+      role="menuitem"
+      title="Blank Regular UFO with the GF Latin Core glyph set and Google Fonts metadata"
+      @click="pick('newUfo')"
+    >
+      New Font
+    </button>
+    <button
+      type="button"
+      role="menuitem"
+      title="Same, as a designspace with Regular and Bold masters on a wght axis"
+      @click="pick('newDesignspace')"
+    >
+      New Variable Font
+    </button>
+    <div class="separator" />
     <button
       type="button"
       role="menuitem"

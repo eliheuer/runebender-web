@@ -56,6 +56,7 @@ import EditorSidebar, {
 } from "./components/EditorSidebar.vue";
 import SystemMenu from "./components/SystemMenu.vue";
 import SystemMenuPanel from "./components/SystemMenuPanel.vue";
+import { buildNewProject, type NewProjectKind } from "./newProject";
 import TextDirectionToolbar from "./components/TextDirectionToolbar.vue";
 import type {
   TextDirection,
@@ -3808,6 +3809,9 @@ async function openRecentWorkspace(index: number) {
 // Any other load path clears it (loadGlifFiles resets, the demo boot
 // path re-sets it).
 const demoFontLoaded = ref(false);
+// A project made by File → New Font: it exists only in memory, so there
+// is nowhere to write it until it has been saved somewhere.
+const newProjectUnsaved = ref(false);
 
 // Workspace was imported from a .glyphs source: editable in memory,
 // but saving back is not supported yet (stage 1 is read-only).
@@ -6392,6 +6396,28 @@ function applyWorkspaceLabels() {
     : "Managed copy (workspace cache)";
 }
 
+/**
+ * File → New Font / New Variable Font. Builds a blank project in memory —
+ * GF Latin Core glyph set, Google Fonts vertical metrics and naming — and
+ * feeds it to the normal loader, so from here on it behaves like any
+ * opened font. Nothing touches disk until the project is saved.
+ */
+async function startNewProject(kind: NewProjectKind) {
+  const project = buildNewProject(kind, "New Font");
+  // No file handles and no remembered source: this project has no home on
+  // disk yet, and inheriting the last font's would write into it.
+  activeSourceChoice.value = project.designspacePath
+    ? { kind: "designspace", path: project.designspacePath }
+    : null;
+  preferredSourceFileName.value = null;
+  status.value = "creating new project…";
+  await loadGlifFiles(project.files, new Map());
+  newProjectUnsaved.value = true;
+  fontLabel.value = project.label;
+  workspaceNotice.value = "New project — not on disk yet";
+  status.value = `new ${kind === "ufo" ? "font" : "variable font"} — unsaved`;
+}
+
 async function loadGlifFiles(
   files: File[],
   fileHandles: Map<string, FileSystemFileHandle> = new Map(),
@@ -6405,6 +6431,7 @@ async function loadGlifFiles(
   // Native UFO/designspace files win when both are present.
   glyphsSourceReadOnly.value = false;
   demoFontLoaded.value = false;
+  newProjectUnsaved.value = false;
   // relPath is empty for files straight out of showOpenFilePicker
   // (webkitRelativePath is "" there, and ?? keeps it), so fall back
   // to the plain file name.
@@ -8076,6 +8103,16 @@ async function onSaveOverwritingDisk() {
 }
 
 async function onSave(options: { force?: boolean } = {}): Promise<boolean> {
+  if (newProjectUnsaved.value) {
+    // Writing needs either a workspace slot or per-glyph file handles, and
+    // a project built in memory has neither. Say so rather than letting
+    // every glyph fail one by one.
+    status.value =
+      "new project has no home on disk yet — saving a new font isn't wired up";
+    workspaceNotice.value =
+      "New project — not on disk yet, saving isn't wired up";
+    return false;
+  }
   if (glyphsSourceReadOnly.value) {
     status.value = `${glyphsSourceLabel.value} opened read-only — saving back to .glyphs isn't supported yet`;
     return false;
@@ -9487,6 +9524,8 @@ onBeforeUnmount(() => {
             :reopen-name="systemMenuReopenName"
             :recents="recentWorkspaces"
               :conflicts="conflictedGlyphNames"
+            @new-ufo="startNewProject('ufo')"
+            @new-designspace="startNewProject('designspace')"
             @open-ufo="openFontDirectoryPicker"
             @open-recent="openRecentWorkspace"
             @open-folder="openSourceFolderPicker"
@@ -9598,6 +9637,8 @@ onBeforeUnmount(() => {
               :reopen-name="systemMenuReopenName"
               :recents="recentWorkspaces"
               :conflicts="conflictedGlyphNames"
+              @new-ufo="startNewProject('ufo')"
+              @new-designspace="startNewProject('designspace')"
               @open-ufo="openFontDirectoryPicker"
               @open-recent="openRecentWorkspace"
               @open-folder="openSourceFolderPicker"
