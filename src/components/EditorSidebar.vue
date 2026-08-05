@@ -76,34 +76,6 @@ const emit = defineEmits<{
 }>();
 
 const tab = ref<"overview" | "shapes" | "axes" | "chat">("overview");
-
-// What the assistant is told about the editor, rebuilt on every send.
-const chatContext = computed(() => {
-  const lines: string[] = [];
-  if (props.currentGlyph) lines.push(`Open glyph: ${props.currentGlyph}`);
-  if (props.shapes.length) {
-    lines.push(
-      `Shapes: ${props.shapes
-        .map((s) => `${s.kind} ${s.label} at ${Math.round(s.x)},${Math.round(s.y)}`)
-        .join("; ")}`,
-    );
-  }
-  if (props.axes.length) {
-    lines.push(
-      `Axes: ${props.axes
-        .map((a) => `${a.name} (${a.tag}) ${a.min}–${a.max}, now ${Math.round(a.value)}`)
-        .join("; ")}`,
-    );
-  }
-  if (props.masters.length) {
-    lines.push(
-      `Masters: ${props.masters.join(", ")} — active: ${
-        props.masters[props.activeMaster] ?? "?"
-      }`,
-    );
-  }
-  return lines.join("\n");
-});
 const search = ref("");
 
 const filteredGlyphs = computed(() => {
@@ -369,8 +341,8 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
     </div>
 
     <div v-else class="tab-body chat">
-      <div class="side-label">Assistant · Placeholder</div>
-      <AiChatPanel :context="chatContext" />
+      <div class="side-label">Assistant</div>
+      <AiChatPanel />
     </div>
   </div>
 </template>
@@ -398,12 +370,18 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 }
 .tabs button {
   flex: 1;
-  height: 32px;
+  height: 40px;
   border: 1px solid transparent;
   border-radius: var(--rb-button-radius, 8px);
   background: transparent;
   color: var(--rb-secondary-text, #707070);
-  font-size: var(--rb-ui-font-size, 13px);
+  /* These are glyph icons, not label text, so they don't follow the UI
+     type scale — at body size they were too small to read. */
+  font-size: 26px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 .tabs button.active {
