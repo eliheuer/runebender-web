@@ -1511,6 +1511,9 @@ type Editor = {
   deleteTextBeforeCursor(): boolean;
   deleteTextAfterCursor(): boolean;
   moveTextCursorVisualLeft(): void;
+  moveTextCursorVertically(delta: number): boolean;
+  moveTextCursorToLineEdge(toEnd: boolean): void;
+  placeTextCursorAt(x: number, y: number): number;
   moveTextCursorVisualRight(): void;
   activateTextSortAt(x: number, y: number): boolean;
   activateTextSortAtIndex(x: number, y: number): number;
@@ -5244,6 +5247,24 @@ function deleteTextAfterCursor(): boolean {
   return changed;
 }
 
+function placeTextCursorAt(x: number, y: number) {
+  if (!editor || !hasTextBufferSession.value) return;
+  textCursor.value = editor.placeTextCursorAt(x, y);
+  requestRender({ refreshDerivedState: false });
+}
+
+function moveTextCursorVertically(delta: -1 | 1) {
+  if (!editor?.moveTextCursorVertically(delta)) return;
+  refreshTextStateFromEditor();
+  requestRender({ refreshDerivedState: false });
+}
+
+function moveTextCursorToLineEdge(toEnd: boolean) {
+  editor?.moveTextCursorToLineEdge(toEnd);
+  refreshTextStateFromEditor();
+  requestRender({ refreshDerivedState: false });
+}
+
 function moveTextCursorVisual(delta: -1 | 1) {
   if (delta < 0) {
     editor?.moveTextCursorVisualLeft();
@@ -5320,6 +5341,18 @@ function handleTextToolKey(e: KeyboardEvent): boolean {
       return true;
     case "ArrowRight":
       moveTextCursorVisual(1);
+      return true;
+    case "ArrowUp":
+      moveTextCursorVertically(-1);
+      return true;
+    case "ArrowDown":
+      moveTextCursorVertically(1);
+      return true;
+    case "Home":
+      moveTextCursorToLineEdge(false);
+      return true;
+    case "End":
+      moveTextCursorToLineEdge(true);
       return true;
     case "Backspace":
       if (!deleteTextBeforeCursor()) requestRender();
@@ -5507,6 +5540,9 @@ function onPointerDown(e: PointerEvent) {
       return;
     }
   } else if (isPlainTextLeftPointer(e)) {
+    // A click in the text buffer moves the caret, the way it does in any
+    // text editor. Entering a glyph to draw it is the double-click.
+    placeTextCursorAt(c[0], c[1]);
     return;
   }
   (e.target as Element).setPointerCapture?.(e.pointerId);

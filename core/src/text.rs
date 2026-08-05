@@ -670,6 +670,50 @@ impl TextBuffer {
         }
     }
 
+    /// Move the caret to the line above or below, keeping it as close as
+    /// possible to the x it is at now — the way arrow keys work in any
+    /// text editor. False when there is no line that way.
+    pub fn move_cursor_vertically(&mut self, delta: i32, line_height: f64) -> bool {
+        let current_line = self.line_number_for_sort(self.cursor);
+        let target = current_line as i64 + delta as i64;
+        if target < 0 || target as usize >= self.line_count() {
+            return false;
+        }
+        let line_height = line_height.max(1.0);
+        let layout = self.layout(line_height);
+        let x = layout.cursor_x;
+        let (line_start, line_end) = self.line_range_for_number(target as usize);
+        self.cursor = self.nearest_cursor_for_line(x, line_start, line_end, &layout);
+        true
+    }
+
+    /// Home / End: the logical start or end of the caret's own line.
+    pub fn move_cursor_to_line_edge(&mut self, to_end: bool) {
+        let line = self.line_number_for_sort(self.cursor);
+        let (line_start, line_end) = self.line_range_for_number(line);
+        self.cursor = if to_end { line_end } else { line_start };
+    }
+
+    /// Where a click puts the caret: the boundary between sorts nearest
+    /// the point. Clicking a glyph's left half lands before it and its
+    /// right half after it, rather than always landing after the glyph
+    /// the way sort activation does.
+    pub fn place_cursor_at(
+        &mut self,
+        x: f64,
+        y: f64,
+        line_height: f64,
+        ascender: f64,
+        descender: f64,
+    ) -> usize {
+        let line_height = line_height.max(1.0);
+        let layout = self.layout(line_height);
+        let line = self.line_number_for_y(y, line_height, ascender, descender);
+        let (line_start, line_end) = self.line_range_for_number(line);
+        self.cursor = self.nearest_cursor_for_line(x, line_start, line_end, &layout);
+        self.cursor
+    }
+
     pub fn set_cursor(&mut self, cursor: usize) {
         self.cursor = cursor.min(self.sorts.len());
     }
@@ -1965,6 +2009,93 @@ mod tests {
 
         assert_eq!(hit.active_sort, None);
         assert_eq!(hit.cursor, 1);
+    }
+
+    /// Three lines of two glyphs each, 500 units wide, 1000-unit lines.
+    fn three_line_buffer() -> TextBuffer {
+        let mut buffer = TextBuffer::new();
+        for line in 0..3 {
+            if line > 0 {
+                buffer.insert_line_break();
+            }
+            buffer.insert_glyph("A", Some('A'), 500.0);
+            buffer.insert_glyph("B", Some('B'), 500.0);
+        }
+        buffer
+    }
+
+    #[test]
+    fn cursor_moves_up_and_down_between_lines() {
+        let mut buffer = three_line_buffer();
+        // Caret sits after the last glyph of the last line.
+        assert_eq!(buffer.line_number_for_sort(buffer.cursor()), 2);
+
+        assert!(buffer.move_cursor_vertically(-1, 1000.0));
+        assert_eq!(buffer.line_number_for_sort(buffer.cursor()), 1);
+        assert!(buffer.move_cursor_vertically(-1, 1000.0));
+        assert_eq!(buffer.line_number_for_sort(buffer.cursor()), 0);
+
+        assert!(buffer.move_cursor_vertically(1, 1000.0));
+        assert_eq!(buffer.line_number_for_sort(buffer.cursor()), 1);
+    }
+
+    #[test]
+    fn cursor_keeps_its_column_when_changing_line() {
+        let mut buffer = three_line_buffer();
+        // Between the two glyphs of the bottom line.
+        buffer.set_cursor(7);
+        assert_eq!(buffer.line_number_for_sort(buffer.cursor()), 2);
+
+        assert!(buffer.move_cursor_vertically(-1, 1000.0));
+        // Same offset into the line above, not its start or end.
+        let (line_start, _) = buffer.line_range_for_number(1);
+        assert_eq!(buffer.cursor(), line_start + 1);
+    }
+
+    #[test]
+    fn cursor_stops_at_the_first_and_last_line() {
+        let mut buffer = three_line_buffer();
+        assert!(!buffer.move_cursor_vertically(1, 1000.0));
+        buffer.set_cursor(0);
+        assert!(!buffer.move_cursor_vertically(-1, 1000.0));
+    }
+
+    #[test]
+    fn home_and_end_move_within_the_caret_line() {
+        let mut buffer = three_line_buffer();
+        // Sorts are [A B ↵ A B ↵ A B], so the middle line spans 3..5.
+        buffer.set_cursor(4); // between the middle line's two glyphs
+        assert_eq!(buffer.line_number_for_sort(buffer.cursor()), 1);
+
+        buffer.move_cursor_to_line_edge(true);
+        assert_eq!(buffer.cursor(), 5);
+        assert_eq!(buffer.line_number_for_sort(buffer.cursor()), 1);
+
+        buffer.move_cursor_to_line_edge(false);
+        assert_eq!(buffer.cursor(), 3);
+    }
+
+    #[test]
+    fn click_places_the_caret_between_sorts() {
+        let mut buffer = TextBuffer::new();
+        buffer.insert_glyph("A", Some('A'), 500.0);
+        buffer.insert_glyph("B", Some('B'), 500.0);
+
+        // Left half of the first glyph: before it.
+        assert_eq!(buffer.place_cursor_at(100.0, 0.0, 1000.0, 800.0, -200.0), 0);
+        // Right half of the first glyph: between the two.
+        assert_eq!(buffer.place_cursor_at(400.0, 0.0, 1000.0, 800.0, -200.0), 1);
+        // Past the end of the run: after the last glyph.
+        assert_eq!(buffer.place_cursor_at(2000.0, 0.0, 1000.0, 800.0, -200.0), 2);
+    }
+
+    #[test]
+    fn click_places_the_caret_on_the_clicked_line() {
+        let mut buffer = three_line_buffer();
+
+        // Middle line sits one line-height below the first.
+        let cursor = buffer.place_cursor_at(100.0, -1000.0, 1000.0, 800.0, -200.0);
+        assert_eq!(buffer.line_number_for_sort(cursor), 1);
     }
 
     #[test]

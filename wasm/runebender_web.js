@@ -438,6 +438,23 @@ export class GlyphEditor {
         wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
         return v2;
     }
+    /**
+     * Home / End within the caret's line.
+     * @param {boolean} to_end
+     */
+    moveTextCursorToLineEdge(to_end) {
+        wasm.glypheditor_moveTextCursorToLineEdge(this.__wbg_ptr, to_end);
+    }
+    /**
+     * Arrow up/down in the text buffer. Returns true when the caret
+     * actually moved to another line.
+     * @param {number} delta
+     * @returns {boolean}
+     */
+    moveTextCursorVertically(delta) {
+        const ret = wasm.glypheditor_moveTextCursorVertically(this.__wbg_ptr, delta);
+        return ret !== 0;
+    }
     moveTextCursorVisualLeft() {
         wasm.glypheditor_moveTextCursorVisualLeft(this.__wbg_ptr);
     }
@@ -531,6 +548,17 @@ export class GlyphEditor {
     penDeleteLastPoint() {
         const ret = wasm.glypheditor_penDeleteLastPoint(this.__wbg_ptr);
         return ret !== 0;
+    }
+    /**
+     * Put the caret where the click landed, between sorts. Returns the
+     * new cursor position.
+     * @param {number} x
+     * @param {number} y
+     * @returns {number}
+     */
+    placeTextCursorAt(x, y) {
+        const ret = wasm.glypheditor_placeTextCursorAt(this.__wbg_ptr, x, y);
+        return ret >>> 0;
     }
     /**
      * @returns {boolean}

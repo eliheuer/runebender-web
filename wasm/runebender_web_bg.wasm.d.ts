@@ -61,6 +61,8 @@ export const glypheditor_metricBounds: (a: number) => [number, number];
 export const glypheditor_moveContour: (a: number, b: number, c: number, d: number) => number;
 export const glypheditor_moveSelectionReference: (a: number, b: number, c: number, d: number) => number;
 export const glypheditor_moveSelectionReferenceState: (a: number, b: number, c: number, d: number) => [number, number];
+export const glypheditor_moveTextCursorToLineEdge: (a: number, b: number) => void;
+export const glypheditor_moveTextCursorVertically: (a: number, b: number) => number;
 export const glypheditor_moveTextCursorVisualLeft: (a: number) => void;
 export const glypheditor_moveTextCursorVisualRight: (a: number) => void;
 export const glypheditor_new: (a: any, b: number, c: number) => any;
@@ -70,6 +72,7 @@ export const glypheditor_nudgeSelectionState: (a: number, b: number, c: number, 
 export const glypheditor_optimizeSelection: (a: number, b: number) => number;
 export const glypheditor_pasteSelection: (a: number) => number;
 export const glypheditor_penDeleteLastPoint: (a: number) => number;
+export const glypheditor_placeTextCursorAt: (a: number, b: number, c: number) => number;
 export const glypheditor_pointerCancel: (a: number) => number;
 export const glypheditor_pointerDown: (a: number, b: number, c: number, d: number, e: number) => void;
 export const glypheditor_pointerMove: (a: number, b: number, c: number, d: number) => void;

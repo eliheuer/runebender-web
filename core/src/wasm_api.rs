@@ -2193,6 +2193,49 @@ impl GlyphEditor {
         self.state.text_buffer.move_cursor_visual_right();
     }
 
+    /// Arrow up/down in the text buffer. Returns true when the caret
+    /// actually moved to another line.
+    #[wasm_bindgen(js_name = moveTextCursorVertically)]
+    pub fn move_text_cursor_vertically(&mut self, delta: i32) -> bool {
+        if !self.state.has_text_session {
+            return false;
+        }
+        let line_height = self.state.text_line_height();
+        self.state
+            .text_buffer
+            .move_cursor_vertically(delta, line_height)
+    }
+
+    /// Home / End within the caret's line.
+    #[wasm_bindgen(js_name = moveTextCursorToLineEdge)]
+    pub fn move_text_cursor_to_line_edge(&mut self, to_end: bool) {
+        if !self.state.has_text_session {
+            return;
+        }
+        self.state.text_buffer.move_cursor_to_line_edge(to_end);
+    }
+
+    /// Put the caret where the click landed, between sorts. Returns the
+    /// new cursor position.
+    #[wasm_bindgen(js_name = placeTextCursorAt)]
+    pub fn place_text_cursor_at(&mut self, x: f64, y: f64) -> u32 {
+        if !self.state.has_text_session {
+            return 0;
+        }
+        let design_pos = self.state.viewport.screen_to_design(Point::new(x, y));
+        let line_height = self.state.text_line_height();
+        // Sort bounds, not the font's ascender: lines are spaced by the
+        // sort box, so anything else maps clicks to the wrong line.
+        let (ascender, descender) = self.state.text_sort_metric_bounds();
+        self.state.text_buffer.place_cursor_at(
+            design_pos.x,
+            design_pos.y,
+            line_height,
+            ascender,
+            descender,
+        ) as u32
+    }
+
     #[wasm_bindgen(js_name = activateTextSortAt)]
     pub fn activate_text_sort_at(&mut self, x: f64, y: f64) -> bool {
         if !self.state.has_text_session {

@@ -112,6 +112,15 @@ export class GlyphEditor {
      *   right_sidebearing, ...selectionState]`.
      */
     moveSelectionReferenceState(axis: string, value: number): Float64Array;
+    /**
+     * Home / End within the caret's line.
+     */
+    moveTextCursorToLineEdge(to_end: boolean): void;
+    /**
+     * Arrow up/down in the text buffer. Returns true when the caret
+     * actually moved to another line.
+     */
+    moveTextCursorVertically(delta: number): boolean;
     moveTextCursorVisualLeft(): void;
     moveTextCursorVisualRight(): void;
     /**
@@ -145,6 +154,11 @@ export class GlyphEditor {
      * currently being drawn. Returns true if something was removed.
      */
     penDeleteLastPoint(): boolean;
+    /**
+     * Put the caret where the click landed, between sorts. Returns the
+     * new cursor position.
+     */
+    placeTextCursorAt(x: number, y: number): number;
     pointerCancel(): boolean;
     pointerDown(x: number, y: number, button: number, mods: number): void;
     pointerMove(x: number, y: number, mods: number): void;
@@ -522,6 +536,8 @@ export interface InitOutput {
     readonly glypheditor_moveContour: (a: number, b: number, c: number, d: number) => number;
     readonly glypheditor_moveSelectionReference: (a: number, b: number, c: number, d: number) => number;
     readonly glypheditor_moveSelectionReferenceState: (a: number, b: number, c: number, d: number) => [number, number];
+    readonly glypheditor_moveTextCursorToLineEdge: (a: number, b: number) => void;
+    readonly glypheditor_moveTextCursorVertically: (a: number, b: number) => number;
     readonly glypheditor_moveTextCursorVisualLeft: (a: number) => void;
     readonly glypheditor_moveTextCursorVisualRight: (a: number) => void;
     readonly glypheditor_new: (a: any, b: number, c: number) => any;
@@ -531,6 +547,7 @@ export interface InitOutput {
     readonly glypheditor_optimizeSelection: (a: number, b: number) => number;
     readonly glypheditor_pasteSelection: (a: number) => number;
     readonly glypheditor_penDeleteLastPoint: (a: number) => number;
+    readonly glypheditor_placeTextCursorAt: (a: number, b: number, c: number) => number;
     readonly glypheditor_pointerCancel: (a: number) => number;
     readonly glypheditor_pointerDown: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly glypheditor_pointerMove: (a: number, b: number, c: number, d: number) => void;
