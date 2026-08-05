@@ -284,7 +284,16 @@ export class GlyphEditor {
     shapeTextBuffer(): boolean;
     subtractSelection(): boolean;
     textBufferLayout(line_height: number): string;
-    textBufferPreviewSvg(): string;
+    /**
+     * The bottom preview strip. `pane_aspect` is the pane's width over
+     * its height; the SVG is scaled to fit inside it, so the layout that
+     * renders biggest at that shape is the one that uses the space best.
+     *
+     * Two layouts are candidates: the buffer's own lines (what the editor
+     * canvas shows) and every sort run together on one strip. A tall pane
+     * suits the lines, a short wide one suits the strip.
+     */
+    textBufferPreviewSvg(pane_aspect: number): string;
     textBufferSnapshot(): string;
     textBufferState(): string;
     textKerningModel(): string;
@@ -581,7 +590,7 @@ export interface InitOutput {
     readonly glypheditor_shapeTextBuffer: (a: number) => number;
     readonly glypheditor_subtractSelection: (a: number) => number;
     readonly glypheditor_textBufferLayout: (a: number, b: number) => [number, number, number, number];
-    readonly glypheditor_textBufferPreviewSvg: (a: number) => [number, number, number, number];
+    readonly glypheditor_textBufferPreviewSvg: (a: number, b: number) => [number, number, number, number];
     readonly glypheditor_textBufferSnapshot: (a: number) => [number, number, number, number];
     readonly glypheditor_textBufferState: (a: number) => [number, number, number, number];
     readonly glypheditor_textKerningModel: (a: number) => [number, number, number, number];

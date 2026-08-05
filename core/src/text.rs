@@ -292,7 +292,7 @@ impl TextBuffer {
             .count()
     }
 
-    fn line_count(&self) -> usize {
+    pub fn line_count(&self) -> usize {
         1 + self
             .sorts
             .iter()

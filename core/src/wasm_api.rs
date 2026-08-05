@@ -687,6 +687,25 @@ fn svg_from_bezpath_em(bez: &BezPath, upm: f64) -> Result<String, JsValue> {
     Ok(crate::glyph_svg::grid_thumbnail_svg(bez, upm))
 }
 
+/// Breathing room around the bottom preview text, as a fraction of the
+/// text's own height.
+const PREVIEW_MARGIN: f64 = 0.06;
+
+/// How large a box renders inside a pane of the given width-to-height
+/// ratio, with the pane normalised to height 1. Bigger is better use of
+/// the space.
+fn fit_scale(bbox: Rect, pane_aspect: f64) -> f64 {
+    let aspect = if pane_aspect.is_finite() && pane_aspect > 0.0 {
+        pane_aspect
+    } else {
+        // No measurement yet: prefer the single strip, the old behaviour.
+        f64::INFINITY
+    };
+    let width = bbox.width().max(1.0);
+    let height = bbox.height().max(1.0);
+    (aspect / width).min(1.0 / height)
+}
+
 fn parse_glif_xml_map(glyph_xml_by_name: &str) -> Result<HashMap<String, norad::Glyph>, JsValue> {
     let xml_by_name: GlifXmlMap = serde_json::from_str(glyph_xml_by_name)
         .map_err(|e| JsValue::from_str(&format!("parse glyph XML map: {e}")))?;
@@ -1963,9 +1982,12 @@ impl GlyphEditor {
         self.text_layout_state_values()
     }
 
-    #[wasm_bindgen(js_name = textBufferPreviewSvg)]
-    pub fn text_buffer_preview_svg(&self) -> Result<String, JsValue> {
-        let layout = self.state.text_buffer.preview_layout();
+    /// Outlines for one preview layout, in font units, with their union
+    /// bounds. `None` when the layout draws nothing.
+    fn preview_paths(
+        &self,
+        layout: Vec<crate::text::TextLayoutItem>,
+    ) -> Result<Option<(Vec<BezPath>, Rect)>, JsValue> {
         let active_sort = self.state.text_buffer.active_sort();
         let mut paths = Vec::new();
         let mut bounds: Option<Rect> = None;
@@ -1974,6 +1996,8 @@ impl GlyphEditor {
             let Some(sort) = self.state.text_buffer.sort(item.index) else {
                 continue;
             };
+            // The sort being edited comes from the live paths, so the strip
+            // follows the drawing rather than the saved outline.
             let mut path = if Some(item.index) == active_sort {
                 let mut active_path = BezPath::new();
                 for path in &self.state.paths {
@@ -2003,20 +2027,47 @@ impl GlyphEditor {
             paths.push(path);
         }
 
-        let Some(bbox) = bounds else {
-            return Ok(String::new());
+        Ok(bounds.map(|bbox| (paths, bbox)))
+    }
+
+    /// The bottom preview strip. `pane_aspect` is the pane's width over
+    /// its height; the SVG is scaled to fit inside it, so the layout that
+    /// renders biggest at that shape is the one that uses the space best.
+    ///
+    /// Two layouts are candidates: the buffer's own lines (what the editor
+    /// canvas shows) and every sort run together on one strip. A tall pane
+    /// suits the lines, a short wide one suits the strip.
+    #[wasm_bindgen(js_name = textBufferPreviewSvg)]
+    pub fn text_buffer_preview_svg(&self, pane_aspect: f64) -> Result<String, JsValue> {
+        let strip = self.preview_paths(self.state.text_buffer.preview_layout())?;
+        let multiline = if self.state.text_buffer.line_count() > 1 {
+            let line_height = self.state.text_line_height();
+            self.preview_paths(self.state.text_buffer.layout(line_height).items)?
+        } else {
+            None
         };
 
-        // Keep a small amount of visual margin in font units. The Vue
-        // preview strip scales this SVG by height and clips horizontal
-        // overflow, so long strings can still use the panel height instead
-        // of shrinking to fit the full run into one viewport.
-        let margin_x = bbox.width().max(1.0) * 0.06;
-        let margin_y = bbox.height().max(1.0) * 0.06;
-        let view_x = bbox.x0 - margin_x;
-        let view_y = -(bbox.y1 + margin_y);
-        let view_width = (bbox.width() + margin_x * 2.0).max(1.0);
-        let view_height = (bbox.height() + margin_y * 2.0).max(1.0);
+        let chosen = match (strip, multiline) {
+            (Some(strip), Some(multiline)) => {
+                if fit_scale(multiline.1, pane_aspect) > fit_scale(strip.1, pane_aspect) {
+                    multiline
+                } else {
+                    strip
+                }
+            }
+            (Some(only), None) | (None, Some(only)) => only,
+            (None, None) => return Ok(String::new()),
+        };
+        let (paths, bbox) = chosen;
+
+        // Margin scales off the text's height, not its width: tied to width
+        // it grew with the string, so a long line ended up inset by a tenth
+        // of the pane on each side while the middle stayed small.
+        let margin = bbox.height().max(1.0) * PREVIEW_MARGIN;
+        let view_x = bbox.x0 - margin;
+        let view_y = -(bbox.y1 + margin);
+        let view_width = (bbox.width() + margin * 2.0).max(1.0);
+        let view_height = (bbox.height() + margin * 2.0).max(1.0);
 
         let mut svg = format!(
             r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}" viewBox="{} {} {} {}" preserveAspectRatio="xMidYMid meet">"#,

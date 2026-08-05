@@ -1141,13 +1141,21 @@ export class GlyphEditor {
         }
     }
     /**
+     * The bottom preview strip. `pane_aspect` is the pane's width over
+     * its height; the SVG is scaled to fit inside it, so the layout that
+     * renders biggest at that shape is the one that uses the space best.
+     *
+     * Two layouts are candidates: the buffer's own lines (what the editor
+     * canvas shows) and every sort run together on one strip. A tall pane
+     * suits the lines, a short wide one suits the strip.
+     * @param {number} pane_aspect
      * @returns {string}
      */
-    textBufferPreviewSvg() {
+    textBufferPreviewSvg(pane_aspect) {
         let deferred2_0;
         let deferred2_1;
         try {
-            const ret = wasm.glypheditor_textBufferPreviewSvg(this.__wbg_ptr);
+            const ret = wasm.glypheditor_textBufferPreviewSvg(this.__wbg_ptr, pane_aspect);
             var ptr1 = ret[0];
             var len1 = ret[1];
             if (ret[3]) {

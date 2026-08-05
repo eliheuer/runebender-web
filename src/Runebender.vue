@@ -1435,6 +1435,29 @@ const textPreviewRevision = ref(0);
 function bumpTextPreviewRevision() {
   textPreviewRevision.value += 1;
 }
+// Width over height of the preview pane. The wasm side picks between the
+// buffer's own lines and one long strip by which renders bigger at this
+// shape, so the preview has to be re-rendered when the pane is resized.
+const textPreviewSurface = ref<HTMLElement | null>(null);
+const textPreviewAspect = ref(0);
+let textPreviewResizeObserver: ResizeObserver | undefined;
+
+watch(textPreviewSurface, (el) => {
+  textPreviewResizeObserver?.disconnect();
+  if (!el) {
+    textPreviewAspect.value = 0;
+    return;
+  }
+  textPreviewResizeObserver = new ResizeObserver(([entry]) => {
+    const { width, height } = entry.contentRect;
+    textPreviewAspect.value = height > 0 ? width / height : 0;
+  });
+  textPreviewResizeObserver.observe(el);
+  const rect = el.getBoundingClientRect();
+  textPreviewAspect.value = rect.height > 0 ? rect.width / rect.height : 0;
+});
+onBeforeUnmount(() => textPreviewResizeObserver?.disconnect());
+
 const textBufferPreviewSvg = computed(() => {
   textPreviewRevision.value;
   textBuffer.value;
@@ -1442,7 +1465,7 @@ const textBufferPreviewSvg = computed(() => {
   activeTextSortIndex.value;
   currentGlyph.value;
   try {
-    return editor?.textBufferPreviewSvg() ?? "";
+    return editor?.textBufferPreviewSvg(textPreviewAspect.value) ?? "";
   } catch (e) {
     console.warn("failed to render text buffer preview:", e);
     return "";
@@ -1477,7 +1500,7 @@ type Editor = {
   textBufferLayout(lineHeight: number): string;
   textBufferState(): string;
   textLayoutState(): Float64Array;
-  textBufferPreviewSvg(): string;
+  textBufferPreviewSvg(paneAspect: number): string;
   clearTextBuffer(): void;
   insertTextGlyph(name: string, codepoint: number, advanceWidth: number): void;
   insertInactiveTextGlyph(name: string, codepoint: number, advanceWidth: number): void;
@@ -10285,6 +10308,7 @@ onBeforeUnmount(() => {
           />
           <div
             v-if="textBufferPreviewVisible"
+            ref="textPreviewSurface"
             class="text-preview-surface"
             aria-hidden="true"
           >
