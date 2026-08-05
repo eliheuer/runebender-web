@@ -288,9 +288,19 @@ impl MouseDelegate for SelectTool {
             }
             (None, _) => {
                 if let Some(anchor_id) = anchor_hit {
-                    if event.mods.shift && state.selected_anchor == Some(anchor_id) {
-                        state.clear_anchor_selection();
-                        SelectDragKind::None
+                    if event.mods.shift {
+                        // Shift extends the anchor selection so a group
+                        // can be dragged together; clicking a selected
+                        // one again drops it.
+                        state.toggle_anchor_selection(anchor_id);
+                        if state.is_anchor_selected(anchor_id) {
+                            SelectDragKind::AnchorTranslate
+                        } else {
+                            SelectDragKind::None
+                        }
+                    } else if state.is_anchor_selected(anchor_id) {
+                        // Dragging one of an existing group moves them all.
+                        SelectDragKind::AnchorTranslate
                     } else {
                         state.select_anchor(anchor_id);
                         SelectDragKind::AnchorTranslate

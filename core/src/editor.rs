@@ -165,7 +165,11 @@ pub struct EditorState {
     /// editor entities, like Fontra's `anchor/{i}` selection layer: they
     /// render and serialize with the glyph but do not become outline points.
     pub anchors: Vec<AnchorPoint>,
+    /// Primary anchor selection: what the anchor panel edits.
     pub selected_anchor: Option<EntityId>,
+    /// Every selected anchor, primary included. Shift-click adds to it
+    /// so a group of anchors can be dragged together.
+    pub selected_anchors: Vec<EntityId>,
     /// Read-only anchors inherited through UFO components. These are
     /// shown for component/mark editing context, but only `anchors`
     /// serialize back to the active glyph.
@@ -236,6 +240,7 @@ impl Default for EditorState {
             deleted_component_indices: HashSet::new(),
             anchors: Vec::new(),
             selected_anchor: None,
+            selected_anchors: Vec::new(),
             propagated_anchors: Vec::new(),
             metrics: None,
             marquee: None,
@@ -414,6 +419,7 @@ impl EditorState {
         self.deleted_component_indices.clear();
         self.anchors.clear();
         self.selected_anchor = None;
+        self.selected_anchors.clear();
         self.propagated_anchors.clear();
         self.selection = Selection::new();
         self.marquee = None;
@@ -472,6 +478,7 @@ impl EditorState {
         self.selected_component = None;
         self.anchors.clear();
         self.selected_anchor = None;
+        self.selected_anchors.clear();
         self.propagated_anchors.clear();
         self.selection = Selection::new();
         self.marquee = None;
@@ -560,6 +567,7 @@ impl EditorState {
     pub fn select_component(&mut self, id: EntityId) {
         self.selection = Selection::new();
         self.selected_anchor = None;
+        self.selected_anchors.clear();
         self.selected_component = Some(id);
     }
 
@@ -571,6 +579,28 @@ impl EditorState {
         self.selection = Selection::new();
         self.selected_component = None;
         self.selected_anchor = Some(id);
+        self.selected_anchors = vec![id];
+    }
+
+    /// Shift-click: add the anchor to the selection, or drop it if it
+    /// was already in there.
+    pub fn toggle_anchor_selection(&mut self, id: EntityId) {
+        self.selection = Selection::new();
+        self.selected_component = None;
+        if let Some(index) = self.selected_anchors.iter().position(|other| *other == id) {
+            self.selected_anchors.remove(index);
+        } else {
+            self.selected_anchors.push(id);
+        }
+        self.selected_anchor = self.selected_anchors.last().copied();
+    }
+
+    pub fn is_anchor_selected(&self, id: EntityId) -> bool {
+        self.selected_anchors.contains(&id)
+    }
+
+    pub fn selected_anchor_count(&self) -> usize {
+        self.selected_anchors.len()
     }
 
     pub fn add_anchor(&mut self, point: Point, name: Option<String>) -> EntityId {
@@ -609,6 +639,7 @@ impl EditorState {
 
     pub fn clear_anchor_selection(&mut self) {
         self.selected_anchor = None;
+        self.selected_anchors.clear();
     }
 
     pub fn selected_anchor(&self) -> Option<&AnchorPoint> {
@@ -621,43 +652,63 @@ impl EditorState {
         self.anchors.iter_mut().find(|anchor| anchor.id == selected)
     }
 
+    /// Moves every selected anchor, so a group drags as one.
     pub fn translate_selected_anchor(&mut self, delta: Vec2) -> bool {
-        if delta == Vec2::ZERO {
+        if delta == Vec2::ZERO || self.selected_anchors.is_empty() {
             return false;
         }
-        let Some(anchor) = self.selected_anchor_mut() else {
+        let selected = self.selected_anchors.clone();
+        let mut moved = false;
+        for anchor in self.anchors.iter_mut() {
+            if selected.contains(&anchor.id) {
+                anchor.point += delta;
+                moved = true;
+            }
+        }
+        if !moved {
             return false;
-        };
-        anchor.point += delta;
+        }
         self.realign_components_to_anchors();
         self.bump_edit_revision();
         true
     }
 
     pub fn transform_selected_anchor(&mut self, transform: Affine) -> bool {
-        let Some(anchor) = self.selected_anchor_mut() else {
-            return false;
-        };
-        let next = transform * anchor.point;
-        if next == anchor.point {
+        if self.selected_anchors.is_empty() {
             return false;
         }
-        anchor.point = next;
+        let selected = self.selected_anchors.clone();
+        let mut changed = false;
+        for anchor in self.anchors.iter_mut() {
+            if !selected.contains(&anchor.id) {
+                continue;
+            }
+            let next = transform * anchor.point;
+            if next != anchor.point {
+                anchor.point = next;
+                changed = true;
+            }
+        }
+        if !changed {
+            return false;
+        }
         self.realign_components_to_anchors();
         self.bump_edit_revision();
         true
     }
 
     pub fn delete_selected_anchor(&mut self) -> bool {
-        let Some(selected) = self.selected_anchor else {
+        if self.selected_anchors.is_empty() {
             return false;
-        };
+        }
+        let selected = self.selected_anchors.clone();
         let before = self.anchors.len();
-        self.anchors.retain(|anchor| anchor.id != selected);
+        self.anchors.retain(|anchor| !selected.contains(&anchor.id));
         if self.anchors.len() == before {
             return false;
         }
         self.selected_anchor = None;
+        self.selected_anchors.clear();
         self.realign_components_to_anchors();
         self.bump_edit_revision();
         true
@@ -673,14 +724,26 @@ impl EditorState {
         let id = anchor.id;
         self.anchors.push(anchor);
         self.selected_anchor = Some(id);
+        self.selected_anchors = vec![id];
         self.realign_components_to_anchors();
         self.bump_edit_revision();
         true
     }
 
+    /// Bounding box of every selected anchor.
     pub fn selected_anchor_bounds(&self) -> Option<Rect> {
-        let anchor = self.selected_anchor()?;
-        Some(Rect::from_origin_size(anchor.point, (0.0, 0.0)))
+        let mut bounds: Option<Rect> = None;
+        for anchor in &self.anchors {
+            if !self.selected_anchors.contains(&anchor.id) {
+                continue;
+            }
+            let point = Rect::from_origin_size(anchor.point, (0.0, 0.0));
+            bounds = Some(match bounds {
+                Some(rect) => rect.union(point),
+                None => point,
+            });
+        }
+        bounds
     }
 
     pub fn translate_selected_component(&mut self, delta: Vec2) -> bool {
@@ -4456,6 +4519,29 @@ pub fn convert_norad_point(pt: &norad::ContourPoint) -> WsContourPoint {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn shift_click_selects_several_anchors_and_moves_them_together() {
+        let mut state = EditorState::default();
+        let a = state.add_anchor(Point::new(0.0, 0.0), Some("top".into()));
+        let b = state.add_anchor(Point::new(100.0, 0.0), Some("bottom".into()));
+
+        state.select_anchor(a);
+        assert_eq!(state.selected_anchor_count(), 1);
+        state.toggle_anchor_selection(b);
+        assert_eq!(state.selected_anchor_count(), 2);
+        assert!(state.is_anchor_selected(a) && state.is_anchor_selected(b));
+
+        assert!(state.translate_selected_anchor(Vec2::new(10.0, 20.0)));
+        let points: Vec<Point> = state.anchors.iter().map(|anchor| anchor.point).collect();
+        assert_eq!(points[0], Point::new(10.0, 20.0));
+        assert_eq!(points[1], Point::new(110.0, 20.0));
+
+        // Shift-clicking a selected anchor drops it from the group.
+        state.toggle_anchor_selection(b);
+        assert_eq!(state.selected_anchor_count(), 1);
+        assert!(!state.is_anchor_selected(b));
+    }
+
     use super::*;
     use crate::path::{PathPoints, QuadraticPath};
     use crate::text::{TextDirection, TextSort};

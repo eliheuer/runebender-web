@@ -1368,7 +1368,7 @@ impl GlyphEditor {
     fn selection_state_values(&self) -> Vec<f64> {
         let selection_count = self.state.selection.len()
             + usize::from(self.state.selected_component.is_some())
-            + usize::from(self.state.selected_anchor.is_some());
+            + self.state.selected_anchor_count();
         let (selected_contour_count, bounds_state) = self.selection_contours_and_bounds_values();
         let mut out = vec![
             selection_count as f64,
@@ -3248,6 +3248,10 @@ fn editor_visual_signature(state: &EditorState) -> u64 {
     }
     state.selected_component.hash(&mut hasher);
     state.selected_anchor.hash(&mut hasher);
+    state.selected_anchors.len().hash(&mut hasher);
+    for id in &state.selected_anchors {
+        id.hash(&mut hasher);
+    }
     hash_f64(&mut hasher, state.viewport.offset.x);
     hash_f64(&mut hasher, state.viewport.offset.y);
     hash_f64(&mut hasher, state.viewport.zoom);

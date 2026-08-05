@@ -1423,7 +1423,7 @@ impl Renderer {
         let outline_stroke = Stroke::new(POINT_OUTLINE_PX * scale);
         for anchor in &state.anchors {
             let center = view * anchor.point;
-            let selected = state.selected_anchor == Some(anchor.id);
+            let selected = state.is_anchor_selected(anchor.id);
             let radius = (if selected {
                 SMOOTH_POINT_SELECTED_RADIUS_PX
             } else {
