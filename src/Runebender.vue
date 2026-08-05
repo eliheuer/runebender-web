@@ -10383,6 +10383,9 @@ onBeforeUnmount(() => {
      fit a mini grid cell.) */
   --rb-ui-font-size:       13px;
   --rb-ui-label-size:      11px;
+  /* The top bar is the one headline in the app: what font is open and
+     whether it is saved. */
+  --rb-ui-title-size:      16px;
 
   /* Text */
   --rb-primary-text:       #909090;

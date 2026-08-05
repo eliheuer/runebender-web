@@ -53,7 +53,7 @@ defineEmits<{
     <div class="panel file-info">
       <div class="file-path">
         {{ fontLabel || "No font loaded" }}
-        <span v-if="demo" class="demo-badge">demo font</span>
+        <span v-if="demo" class="demo-badge">(demo font)</span>
       </div>
       <div v-if="demo" class="demo-note">
         This is the bundled demo — open your own font from the
@@ -136,7 +136,7 @@ defineEmits<{
 }
 .file-path {
   color: var(--rb-muted-text, #808080);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-title-size, 16px) ui-sans-serif, system-ui, sans-serif;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -144,18 +144,14 @@ defineEmits<{
   min-width: 0;
 }
 .demo-badge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 8px;
-  border: var(--rb-stroke-width, 1px) solid var(--rb-accent, #18b86f);
-  border-radius: 999px;
+  /* Parenthesised rather than a pill: same information, much quieter
+     beside the file name. */
+  margin-left: 6px;
   color: var(--rb-accent, #18b86f);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
-  vertical-align: 2px;
 }
 .demo-note {
   color: var(--rb-secondary-text, #707070);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-title-size, 16px) ui-sans-serif, system-ui, sans-serif;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -164,7 +160,7 @@ defineEmits<{
 
 .save-status {
   color: var(--rb-warning, #ffdc32);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-title-size, 16px) ui-sans-serif, system-ui, sans-serif;
   display: flex;
   flex-shrink: 1;
   max-width: 100%;
