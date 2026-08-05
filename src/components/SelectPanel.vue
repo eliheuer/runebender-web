@@ -141,7 +141,9 @@ function setAll(value: boolean) {
   text-align: center;
 }
 .row-btn.on {
-  background: color-mix(in srgb, var(--rb-accent, #18b86f) 22%, transparent);
-  border-color: color-mix(in srgb, var(--rb-accent, #18b86f) 65%, transparent);
+  /* Same "on" look as every other toggle in the editor — accent text and
+     border, no fill. See .master-btn.active in TopBar. */
+  color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent, #18b86f);
 }
 </style>
