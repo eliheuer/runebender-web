@@ -929,9 +929,23 @@ function glyphMatchesSidebarFilter(name: string): boolean {
   }
   if (filter.kind === "languageGroup") {
     const languageGroup = SIDEBAR_LANGUAGE_GROUPS.find((group) => group.id === filter.id);
-    return languageGroup
-      ? languageGroup.filters.some((item) => glyphMatchesCharacterFilter(name, item))
-      : false;
+    if (!languageGroup) return false;
+    // A script row means "glyphs of this script". OR-ing its sub-filters
+    // would drag in whatever Latin the Google Fonts glyphsets carry, so
+    // match the script's own blocks (plus the name suffix that
+    // codepoint-less positional forms use) when the group defines them.
+    if (languageGroup.scriptRanges || languageGroup.nameSuffix) {
+      const suffix = languageGroup.nameSuffix;
+      if (suffix) {
+        const base = name.split(".")[0];
+        if (base.endsWith(suffix)) return true;
+      }
+      const codepoints = glyphCodepoints(name);
+      return codepoints.some((cp) =>
+        languageGroup.scriptRanges?.some(([start, end]) => cp >= start && cp <= end),
+      );
+    }
+    return languageGroup.filters.some((item) => glyphMatchesCharacterFilter(name, item));
   }
   if (filter.kind === "gfGlyphset") {
     const gfFilter = SIDEBAR_FILTERS.find((item) => item.id === filter.id);

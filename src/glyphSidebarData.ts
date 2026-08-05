@@ -28,6 +28,15 @@ export type SidebarLanguageGroup = {
   label: string;
   icon: string;
   filters: SidebarCharacterFilter[];
+  /**
+   * What the group row itself selects: the script's own Unicode blocks.
+   * Without this the row would mean "any of my sub-filters", and the
+   * Google Fonts glyphsets carry Latin punctuation and digits, so
+   * clicking Arabic showed half the Latin alphabet.
+   */
+  scriptRanges?: Array<[number, number]>;
+  /** Glyph-name suffix for forms with no codepoint (`beh-ar.init`). */
+  nameSuffix?: string;
 };
 
 export type SidebarGlyphTarget = {
@@ -347,6 +356,16 @@ const ARABIC_BASIC_NAMES = [
 export const SIDEBAR_LANGUAGE_GROUPS: SidebarLanguageGroup[] = [
   {
     ...SCRIPT_META.Arabic,
+    // Arabic, Arabic Supplement, Arabic Extended-A/B, presentation forms.
+    scriptRanges: [
+      [0x0600, 0x06ff],
+      [0x0750, 0x077f],
+      [0x0870, 0x089f],
+      [0x08a0, 0x08ff],
+      [0xfb50, 0xfdff],
+      [0xfe70, 0xfeff],
+    ],
+    nameSuffix: "-ar",
     filters: [
       {
         id: "Arab_BasicShapes",
@@ -375,6 +394,11 @@ export const SIDEBAR_LANGUAGE_GROUPS: SidebarLanguageGroup[] = [
     id: "Cyrl",
     label: "Cyrillic",
     icon: "Я",
+    scriptRanges: [
+      [0x0400, 0x052f],
+      [0x2de0, 0x2dff],
+      [0xa640, 0xa69f],
+    ],
     filters: glyphsetFiltersForScript("Cyrillic"),
   },
   {
@@ -389,10 +413,19 @@ export const SIDEBAR_LANGUAGE_GROUPS: SidebarLanguageGroup[] = [
     id: "Grek",
     label: "Greek",
     icon: "Ω",
+    scriptRanges: [
+      [0x0370, 0x03ff],
+      [0x1f00, 0x1fff],
+    ],
     filters: glyphsetFiltersForScript("Greek"),
   },
   {
     ...SCRIPT_META.Hebrew,
+    scriptRanges: [
+      [0x0590, 0x05ff],
+      [0xfb1d, 0xfb4f],
+    ],
+    nameSuffix: "-hb",
     filters: [
       {
         id: "GF_Hebrew_Subset",
@@ -448,6 +481,12 @@ export const SIDEBAR_LANGUAGE_GROUPS: SidebarLanguageGroup[] = [
     id: "Latn",
     label: "Latin",
     icon: "G",
+    scriptRanges: [
+      [0x0041, 0x024f],
+      [0x1e00, 0x1eff],
+      [0x2c60, 0x2c7f],
+      [0xa720, 0xa7ff],
+    ],
     filters: glyphsetFiltersForScript("Latin"),
   },
   {
