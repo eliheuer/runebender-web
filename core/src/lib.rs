@@ -57,6 +57,10 @@ pub mod text;
 pub mod tool;
 pub mod var_model;
 
+// Not wasm-gated: the thumbnail box math is plain geometry and is
+// covered by the host test suite.
+mod glyph_svg;
+
 #[cfg(target_arch = "wasm32")]
 mod hud_text;
 

@@ -684,21 +684,7 @@ fn svg_from_bezpath_em(bez: &BezPath, upm: f64) -> Result<String, JsValue> {
     if bez.elements().is_empty() {
         return Ok(String::new());
     }
-    let bbox = bez.bounding_box();
-    // Vertical preview box in font units: em occupies 65% of it.
-    let vb_height = upm / 0.65;
-    // Baseline 20% up from the bottom. In flipped (svg y-down) space the
-    // top of the box is at -(0.80 * vb_height) and it extends vb_height
-    // downward, putting the baseline (y=0) 80% down = 20% from bottom.
-    let vb_min_y = -0.80 * vb_height;
-    Ok(format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="{} {} {} {}" preserveAspectRatio="xMidYMid meet"><path d="{}" fill="currentColor" fill-rule="nonzero" transform="scale(1 -1)"/></svg>"#,
-        bbox.x0,
-        vb_min_y,
-        bbox.width(),
-        vb_height,
-        bez.to_svg(),
-    ))
+    Ok(crate::glyph_svg::grid_thumbnail_svg(bez, upm))
 }
 
 fn parse_glif_xml_map(glyph_xml_by_name: &str) -> Result<HashMap<String, norad::Glyph>, JsValue> {
