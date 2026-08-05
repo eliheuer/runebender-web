@@ -234,6 +234,9 @@ const measureHandles = ref(false);
 const measureSegments = ref(false);
 const measureSpans = ref(false);
 const measureSidebearings = ref(false);
+// How measurement labels are written: sums of powers of two, or the plain
+// number. Not a layer — it applies to whichever labels are on.
+const measurePopcount = ref(true);
 const curveComb = ref(false);
 const curveContinuity = ref(false);
 const curveTol = ref(0.12);
@@ -1559,6 +1562,7 @@ type Editor = {
     segments: boolean,
     spans: boolean,
     sidebearings: boolean,
+    popcount: boolean,
   ): void;
   setCurveOptions(comb: boolean, continuity: boolean): void;
   setGlyphSvg(svg: string): void;
@@ -1904,6 +1908,7 @@ function applyMeasureOptions() {
     measureSegments.value,
     measureSpans.value,
     measureSidebearings.value,
+    measurePopcount.value,
   );
   requestRender({ refreshDerivedState: false });
 }
@@ -1914,6 +1919,7 @@ watch(
     measureSegments,
     measureSpans,
     measureSidebearings,
+    measurePopcount,
   ],
   applyMeasureOptions,
 );
@@ -10388,11 +10394,13 @@ onBeforeUnmount(() => {
                 :segments="measureSegments"
                 :spans="measureSpans"
                 :sidebearings="measureSidebearings"
+                :popcount="measurePopcount"
                 @update:colorize="(v: boolean) => (measureColorize = v)"
                 @update:handles="(v: boolean) => (measureHandles = v)"
                 @update:segments="(v: boolean) => (measureSegments = v)"
                 @update:spans="(v: boolean) => (measureSpans = v)"
                 @update:sidebearings="(v: boolean) => (measureSidebearings = v)"
+                @update:popcount="(v: boolean) => (measurePopcount = v)"
               />
               <CurvePanel
                 :comb="curveComb"

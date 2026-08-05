@@ -303,7 +303,7 @@ const DESIGN_GRID_COARSE_LINE_PX: f64 = 1.0;
 
 /// Which layers of the grid-measurement HUD are on. All-false is the plain
 /// editor: nothing extra drawn. Driven from the select-mode side panel.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct MeasureOptions {
     /// Tint the outline segments, curves, and handle lines by popcount.
     pub colorize: bool,
@@ -315,11 +315,38 @@ pub struct MeasureOptions {
     pub spans: bool,
     /// Draw + label left/right side bearings and mark the extreme columns.
     pub sidebearings: bool,
+    /// Spell lengths out as sums of powers of two — `96 = 64+32` — rather
+    /// than as the bare number.
+    pub popcount: bool,
+}
+
+impl Default for MeasureOptions {
+    fn default() -> Self {
+        // Every layer off, but a label that does appear reads as a sum:
+        // that is the point of the measurement HUD.
+        Self {
+            colorize: false,
+            handles: false,
+            segments: false,
+            spans: false,
+            sidebearings: false,
+            popcount: true,
+        }
+    }
 }
 
 impl MeasureOptions {
     fn any(&self) -> bool {
         self.colorize || self.handles || self.segments || self.spans || self.sidebearings
+    }
+
+    /// How a length is written on the canvas.
+    fn label(&self, value: i64) -> String {
+        if self.popcount {
+            measure::label(value)
+        } else {
+            value.to_string()
+        }
     }
 }
 
@@ -704,6 +731,7 @@ impl Renderer {
         segments: bool,
         spans: bool,
         sidebearings: bool,
+        popcount: bool,
     ) {
         self.measure_options = MeasureOptions {
             colorize,
@@ -711,6 +739,7 @@ impl Renderer {
             segments,
             spans,
             sidebearings,
+            popcount,
         };
     }
 
@@ -1270,7 +1299,7 @@ impl Renderer {
                     let a = glyph_view * Point::new(margin_x, y);
                     let b = glyph_view * Point::new(x, y);
                     self.draw_dimension_line(a, b, color, &dim_stroke);
-                    self.place_label(a, b, &measure::label(val), color, label_px, &mut placed);
+                    self.place_label(a, b, &opts.label(val), color, label_px, &mut placed);
                 }
             }
         }
@@ -1301,7 +1330,7 @@ impl Renderer {
                 self.draw_dimension_line(a, b, color, &dim_stroke);
             }
 
-            self.place_label(a, b, &measure::label(m.length), color, label_px, &mut placed);
+            self.place_label(a, b, &opts.label(m.length), color, label_px, &mut placed);
         }
     }
 

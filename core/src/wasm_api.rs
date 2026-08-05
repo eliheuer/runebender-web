@@ -1791,9 +1791,10 @@ impl GlyphEditor {
         segments: bool,
         spans: bool,
         sidebearings: bool,
+        popcount: bool,
     ) {
         self.renderer
-            .set_measure_options(colorize, handles, segments, spans, sidebearings);
+            .set_measure_options(colorize, handles, segments, spans, sidebearings, popcount);
     }
 
     /// Toggle the curve-smoothness HUD layers (comb, continuity markers).

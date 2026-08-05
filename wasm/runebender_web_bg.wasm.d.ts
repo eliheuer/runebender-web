@@ -116,7 +116,7 @@ export const glypheditor_setGlyphNameWithCachedComponentsPreserveHistory: (a: nu
 export const glypheditor_setGlyphSvg: (a: number, b: number, c: number) => [number, number];
 export const glypheditor_setKnifeShiftLocked: (a: number, b: number) => number;
 export const glypheditor_setLeftSidebearing: (a: number, b: number) => number;
-export const glypheditor_setMeasureOptions: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+export const glypheditor_setMeasureOptions: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const glypheditor_setOffset: (a: number, b: number, c: number) => void;
 export const glypheditor_setPreviewRender: (a: number, b: number) => void;
 export const glypheditor_setRightSidebearing: (a: number, b: number) => number;

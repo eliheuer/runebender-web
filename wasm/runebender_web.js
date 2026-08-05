@@ -1018,9 +1018,10 @@ export class GlyphEditor {
      * @param {boolean} segments
      * @param {boolean} spans
      * @param {boolean} sidebearings
+     * @param {boolean} popcount
      */
-    setMeasureOptions(colorize, handles, segments, spans, sidebearings) {
-        wasm.glypheditor_setMeasureOptions(this.__wbg_ptr, colorize, handles, segments, spans, sidebearings);
+    setMeasureOptions(colorize, handles, segments, spans, sidebearings, popcount) {
+        wasm.glypheditor_setMeasureOptions(this.__wbg_ptr, colorize, handles, segments, spans, sidebearings, popcount);
     }
     /**
      * @param {number} x

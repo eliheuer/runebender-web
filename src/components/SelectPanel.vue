@@ -8,6 +8,7 @@ const props = defineProps<{
   segments: boolean;
   spans: boolean;
   sidebearings: boolean;
+  popcount: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -16,8 +17,11 @@ const emit = defineEmits<{
   (e: "update:segments", v: boolean): void;
   (e: "update:spans", v: boolean): void;
   (e: "update:sidebearings", v: boolean): void;
+  (e: "update:popcount", v: boolean): void;
 }>();
 
+// popcount is left out of all on / all off on purpose: it is not a layer
+// to draw, it is how whichever labels are on get written.
 function setAll(value: boolean) {
   emit("update:colorize", value);
   emit("update:handles", value);
@@ -72,6 +76,14 @@ function setAll(value: boolean) {
         @click="emit('update:sidebearings', !props.sidebearings)"
       >
         side bearings
+      </button>
+      <button
+        class="row-btn wide"
+        :class="{ on: props.popcount }"
+        title="Write lengths as sums of powers of two (96 = 64+32) instead of the bare number"
+        @click="emit('update:popcount', !props.popcount)"
+      >
+        popcount sums
       </button>
       <button class="row-btn small" @click="setAll(true)">all on</button>
       <button class="row-btn small" @click="setAll(false)">all off</button>
