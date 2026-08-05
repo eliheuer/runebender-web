@@ -60,6 +60,9 @@ linesweeper = "0.2"
 # wasm — we disable it and register embedded font bytes into the FontContext.
 parley = { version = "0.8", default-features = false, features = ["std"] }
 glyphslib = "0.2.7"
+fea-rs = "0.22"
+harfrust = "0.5"
+write-fonts = "0.44"
 
 # Enable WebGPU canvas surface support for wasm32 targets. Vello pulls
 # in wgpu but with default-features off and no `webgpu`, so the

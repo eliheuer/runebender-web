@@ -61,6 +61,10 @@ pub mod var_model;
 // covered by the host test suite.
 mod glyph_svg;
 
+// OpenType shaping (fea-rs + harfrust). Host-compiled so the shaping
+// behaviour is covered by `cargo test`.
+pub mod shape;
+
 #[cfg(target_arch = "wasm32")]
 mod hud_text;
 
