@@ -6470,11 +6470,11 @@ async function loadGlifFiles(
   const rawPathOf = (f: File) => relPath(f) || f.name;
   const byDepth = (a: string, b: string) =>
     a.split("/").length - b.split("/").length || a.localeCompare(b);
-  const dsPaths = files
+  const allDsPaths = files
     .filter((f) => /\.designspace$/i.test(f.name))
     .map((f) => rawPathOf(f))
     .sort(byDepth);
-  const ufoRoots = [
+  const allUfoRoots = [
     ...new Set(
       files
         .map((f) => {
@@ -6485,6 +6485,19 @@ async function loadGlifFiles(
         .filter((p): p is string => p !== null),
     ),
   ].sort(byDepth);
+  // Ignore subdirectories: a sources/ folder usually holds an archive/
+  // or instance_ufo/ beside the real thing, and offering those is noise
+  // at best and the wrong font at worst. "Top level" is the shallowest
+  // depth anything was found at, since the picked folder's own name may
+  // or may not be part of these paths depending on how it was opened.
+  const depth = (path: string) => path.split("/").length;
+  const shallowest = Math.min(
+    ...[...allDsPaths, ...allUfoRoots].map(depth),
+    Number.MAX_SAFE_INTEGER,
+  );
+  const atTopLevel = (path: string) => depth(path) === shallowest;
+  const dsPaths = allDsPaths.filter(atTopLevel);
+  const ufoRoots = allUfoRoots.filter(atTopLevel);
 
   let source = chosenSource ?? activeSourceChoice.value;
   // The file-first flow already named the wanted file — answer the
