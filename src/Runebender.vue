@@ -5081,6 +5081,12 @@ async function pasteTextIntoBuffer(clipboardText?: string): Promise<boolean> {
 }
 
 function textPasteTargetActive(): boolean {
+  // Cmd+V means "paste the points I copied" whenever the outline
+  // clipboard holds something and the Text tool isn't the one in hand.
+  // The boot state opens a text session, so keying off the session
+  // alone sent every paste to the text buffer — copied points went
+  // nowhere and the tool flipped to Text.
+  if (outlineClipboardFilled && activeTool.value !== "Text") return false;
   return activeTool.value === "Text" || hasTextBufferSession.value;
 }
 
@@ -7982,10 +7988,15 @@ function applyEditorHistoryChange(change: () => boolean): boolean {
   return true;
 }
 
+/** True once points have been copied, so Cmd+V pastes them rather than
+ *  falling through to the text buffer. */
+let outlineClipboardFilled = false;
+
 function copySelection(): boolean {
   if (!editor || selectionCount.value === 0) return false;
   const copied = editor.copySelection();
   if (copied) {
+    outlineClipboardFilled = true;
     showClipboardNotice(
       `Copied ${selectionCount.value} selected point${selectionCount.value === 1 ? "" : "s"}`,
     );

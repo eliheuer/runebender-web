@@ -244,10 +244,124 @@ function glyphsetFiltersForScript(script: string): SidebarCharacterFilter[] {
   }));
 }
 
+/**
+ * Glyphs' two most-used Arabic filters, by glyph name rather than by
+ * codepoint: the positional forms (`.init` / `.medi` / `.fina`) carry no
+ * Unicode of their own, so a range filter can never see them.
+ *
+ * "Basic Shapes" is the skeleton set — the dotless letters plus the dots
+ * and marks that ride on them. "Basic" is the everyday Arabic alphabet
+ * with its dotted letters.
+ */
+const ARABIC_BASIC_SHAPE_BASES = [
+  "hamza-ar",
+  "alef-ar",
+  "behDotless-ar",
+  "hah-ar",
+  "dal-ar",
+  "reh-ar",
+  "seen-ar",
+  "sad-ar",
+  "tah-ar",
+  "ain-ar",
+  "fehDotless-ar",
+  "qafDotless-ar",
+  "kaf-ar",
+  "lam-ar",
+  "meem-ar",
+  "noonghunna-ar",
+  "heh-ar",
+  "waw-ar",
+  "alefMaksura-ar",
+  "lam_alef-ar",
+] as const;
+
+/** Dots and marks: components, so they have no positional forms. */
+const ARABIC_SHAPE_PARTS = [
+  "dotabove-ar",
+  "dotbelow-ar",
+  "dotcenter-ar",
+  "twodotshorizontalabove-ar",
+  "twodotshorizontalbelow-ar",
+  "twodotsverticalabove-ar",
+  "twodotsverticalbelow-ar",
+  "threedotsupabove-ar",
+  "threedotsupbelow-ar",
+  "threedotsupcenter-ar",
+  "threedotsdownabove-ar",
+  "threedotsdownbelow-ar",
+  "threedotsdowncenter-ar",
+  "miniKeheh-ar",
+  "gafsarkashabove-ar",
+  "gafsarkashcenter-ar",
+  "doublestroke-ar",
+] as const;
+
+const ARABIC_BASIC_BASES = [
+  ...ARABIC_BASIC_SHAPE_BASES,
+  "beh-ar",
+  "teh-ar",
+  "theh-ar",
+  "jeem-ar",
+  "khah-ar",
+  "thal-ar",
+  "zain-ar",
+  "sheen-ar",
+  "dad-ar",
+  "zah-ar",
+  "ghain-ar",
+  "feh-ar",
+  "qaf-ar",
+  "noon-ar",
+  "yeh-ar",
+  "yehHamzaabove-ar",
+  "tehMarbuta-ar",
+  "alefHamzaabove-ar",
+  "alefHamzabelow-ar",
+  "alefMadda-ar",
+  "alefWasla-ar",
+  "wawHamzaabove-ar",
+  "alefMaksura-ar",
+  "kashida-ar",
+] as const;
+
+/** A base plus its four positional forms, as Glyphs lists them. */
+function arabicForms(bases: readonly string[]): string[] {
+  return bases.flatMap((base) => [
+    base,
+    `${base}.init`,
+    `${base}.medi`,
+    `${base}.fina`,
+  ]);
+}
+
+const ARABIC_BASIC_SHAPES_NAMES = [
+  ...arabicForms(ARABIC_BASIC_SHAPE_BASES),
+  ...ARABIC_SHAPE_PARTS,
+];
+const ARABIC_BASIC_NAMES = [
+  ...arabicForms(ARABIC_BASIC_BASES),
+  ...ARABIC_SHAPE_PARTS,
+];
+
 export const SIDEBAR_LANGUAGE_GROUPS: SidebarLanguageGroup[] = [
   {
     ...SCRIPT_META.Arabic,
-    filters: glyphsetFiltersForScript("Arabic"),
+    filters: [
+      {
+        id: "Arab_BasicShapes",
+        label: "Basic Shapes",
+        source: "unicode-range",
+        glyphNames: ARABIC_BASIC_SHAPES_NAMES,
+      },
+      {
+        id: "Arab_Basic",
+        label: "Basic",
+        source: "unicode-range",
+        glyphNames: ARABIC_BASIC_NAMES,
+      },
+      ...glyphsetFiltersForScript("Arabic"),
+    ],
   },
   {
     id: "Hans",
