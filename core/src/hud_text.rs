@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use kurbo::Affine;
+use kurbo::{Affine, Stroke};
 use parley::{
     FontContext, FontFamily, FontFamilyName, LayoutContext, PositionedLayoutItem, StyleProperty,
 };
@@ -53,6 +53,11 @@ impl HudText {
     /// top-left corner in device (screen) pixels; `px` is the font size in
     /// device pixels; `color` fills every glyph. Shaping (kerning, and any
     /// script joining the string needs) is applied by harfrust.
+    ///
+    /// Each glyph is stroked in `halo` before it is filled, the same casing
+    /// the outline and handles get: a label lands on top of whatever the
+    /// canvas is already showing — a lit curvature comb, a filled counter —
+    /// and without it the numerals disappear into the busy parts.
     pub(crate) fn draw_line(
         &mut self,
         scene: &mut vello::Scene,
@@ -60,6 +65,7 @@ impl HudText {
         top_left: kurbo::Point,
         px: f32,
         color: Srgb,
+        halo: Srgb,
     ) {
         // Clone the family name so the immutable borrow of `self.family`
         // doesn't collide with the mutable borrows of the parley contexts.
@@ -74,6 +80,11 @@ impl HudText {
         let mut layout: parley::Layout<()> = builder.build(text);
         layout.break_all_lines(None);
 
+        // Scaled off the type size so the casing reads the same whether the
+        // label is small or large; the stroke is centered, so half of this
+        // width sits outside the glyph.
+        let halo_width = (px as f64 * 0.28).clamp(2.0, 5.0);
+
         let transform = Affine::translate((top_left.x, top_left.y));
         for line in layout.lines() {
             for item in line.items() {
@@ -84,6 +95,20 @@ impl HudText {
                 let font = run.font();
                 let font_size = run.font_size();
                 let coords = run.normalized_coords();
+                scene
+                    .draw_glyphs(font)
+                    .font_size(font_size)
+                    .brush(halo)
+                    .transform(transform)
+                    .normalized_coords(coords)
+                    .draw(
+                        &Stroke::new(halo_width),
+                        glyph_run.positioned_glyphs().map(|g| Glyph {
+                            id: g.id,
+                            x: g.x,
+                            y: g.y,
+                        }),
+                    );
                 scene
                     .draw_glyphs(font)
                     .font_size(font_size)

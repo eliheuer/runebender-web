@@ -370,19 +370,26 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 }
 .tabs button {
   flex: 1;
-  height: 40px;
+  height: 34px;
   border: 1px solid transparent;
   border-radius: var(--rb-button-radius, 8px);
   background: transparent;
   color: var(--rb-secondary-text, #707070);
   /* These are glyph icons, not label text, so they don't follow the UI
      type scale — at body size they were too small to read. */
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+/* Flex centering centers the em box, but these symbols carry no
+   descender, so their ink sits low inside it and leaves a gap along the
+   top edge. Trimming the bottom of the content box lifts them back to
+   optical center; measured, not guessed. */
+.tabs button {
+  padding: 0 0 1.5px;
 }
 .tabs button.active {
   color: var(--rb-accent, #18b86f);

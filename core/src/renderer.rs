@@ -1381,7 +1381,7 @@ impl Renderer {
 
         placed.push(Rect::new(chosen.x, chosen.y, chosen.x + w, chosen.y + h));
         self.hud_text
-            .draw_line(&mut self.scene, text, chosen, label_px, color);
+            .draw_line(&mut self.scene, text, chosen, label_px, color, HALO_COLOR);
     }
 
     /// A dimension line for a span: a shaft that stops short of both endpoints
