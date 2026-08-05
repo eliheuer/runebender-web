@@ -5,6 +5,7 @@
 // users, not a pixel copy (see the Glyphs 4 tab bar for reference).
 
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import AiChatPanel from "./AiChatPanel.vue";
 import GlyphCell from "./GlyphCell.vue";
 import { MARK_COLORS, rgbaToCss } from "./markColors";
 
@@ -74,7 +75,35 @@ const emit = defineEmits<{
   (e: "update:markApplyAllMasters", value: boolean): void;
 }>();
 
-const tab = ref<"overview" | "shapes" | "axes">("overview");
+const tab = ref<"overview" | "shapes" | "axes" | "chat">("overview");
+
+// What the assistant is told about the editor, rebuilt on every send.
+const chatContext = computed(() => {
+  const lines: string[] = [];
+  if (props.currentGlyph) lines.push(`Open glyph: ${props.currentGlyph}`);
+  if (props.shapes.length) {
+    lines.push(
+      `Shapes: ${props.shapes
+        .map((s) => `${s.kind} ${s.label} at ${Math.round(s.x)},${Math.round(s.y)}`)
+        .join("; ")}`,
+    );
+  }
+  if (props.axes.length) {
+    lines.push(
+      `Axes: ${props.axes
+        .map((a) => `${a.name} (${a.tag}) ${a.min}–${a.max}, now ${Math.round(a.value)}`)
+        .join("; ")}`,
+    );
+  }
+  if (props.masters.length) {
+    lines.push(
+      `Masters: ${props.masters.join(", ")} — active: ${
+        props.masters[props.activeMaster] ?? "?"
+      }`,
+    );
+  }
+  return lines.join("\n");
+});
 const search = ref("");
 
 const filteredGlyphs = computed(() => {
@@ -182,6 +211,16 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
       >
         ⬌
       </button>
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="tab === 'chat'"
+        :class="{ active: tab === 'chat' }"
+        title="Assistant (placeholder)"
+        @click="tab = 'chat'"
+      >
+        ✻
+      </button>
     </div>
 
     <div v-if="tab === 'overview'" class="tab-body overview">
@@ -280,7 +319,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
       <div v-if="!shapes.length" class="hint">No shapes in this glyph yet.</div>
     </div>
 
-    <div v-else class="tab-body">
+    <div v-else-if="tab === 'axes'" class="tab-body">
       <div class="side-label">Font Axes</div>
       <template v-if="axes.length">
         <div v-for="axis in axes" :key="axis.tag" class="axis">
@@ -327,6 +366,11 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
       <div class="axis-preview" :aria-label="`${currentGlyph} outline`">
         <div v-if="anatomySvg" class="axis-preview-canvas" v-html="anatomySvg" />
       </div>
+    </div>
+
+    <div v-else class="tab-body chat">
+      <div class="side-label">Assistant · Placeholder</div>
+      <AiChatPanel :context="chatContext" />
     </div>
   </div>
 </template>
@@ -415,6 +459,11 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 .back-to-grid:hover {
   color: var(--rb-accent, #18b86f);
   border-color: var(--rb-accent, #18b86f);
+}
+
+/* The chat tab scrolls its own log, so the tile itself must not. */
+.tab-body.chat {
+  overflow: hidden;
 }
 
 /* The overview tab owns its own scrolling: the grid stretches, the
