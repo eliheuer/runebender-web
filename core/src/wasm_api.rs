@@ -687,9 +687,13 @@ fn svg_from_bezpath_em(bez: &BezPath, upm: f64) -> Result<String, JsValue> {
     Ok(crate::glyph_svg::grid_thumbnail_svg(bez, upm))
 }
 
-/// Breathing room around the bottom preview text, as a fraction of the
-/// text's own height.
+/// Breathing room above and below the bottom preview text, as a fraction
+/// of the text's own height.
 const PREVIEW_MARGIN: f64 = 0.06;
+/// Side gap, as a fraction of the text's width. Small enough that a long
+/// line still runs nearly the full pane — about 2% of the pane on each
+/// side — but enough that the text is not flush to the edge.
+const PREVIEW_SIDE_MARGIN: f64 = 0.02;
 
 /// How large a box renders inside a pane of the given width-to-height
 /// ratio, with the pane normalised to height 1. Bigger is better use of
@@ -2060,14 +2064,16 @@ impl GlyphEditor {
         };
         let (paths, bbox) = chosen;
 
-        // Margin scales off the text's height, not its width: tied to width
-        // it grew with the string, so a long line ended up inset by a tenth
-        // of the pane on each side while the middle stayed small.
-        let margin = bbox.height().max(1.0) * PREVIEW_MARGIN;
-        let view_x = bbox.x0 - margin;
-        let view_y = -(bbox.y1 + margin);
-        let view_width = (bbox.width() + margin * 2.0).max(1.0);
-        let view_height = (bbox.height() + margin * 2.0).max(1.0);
+        // The side gap is a small share of the text's width, with the
+        // height-based margin as a floor so a short string is not flush to
+        // the edge either. At 6% of width the old margin grew with the
+        // string until a long line sat a tenth of the pane in on each side.
+        let margin_y = bbox.height().max(1.0) * PREVIEW_MARGIN;
+        let margin_x = (bbox.width().max(1.0) * PREVIEW_SIDE_MARGIN).max(margin_y);
+        let view_x = bbox.x0 - margin_x;
+        let view_y = -(bbox.y1 + margin_y);
+        let view_width = (bbox.width() + margin_x * 2.0).max(1.0);
+        let view_height = (bbox.height() + margin_y * 2.0).max(1.0);
 
         let mut svg = format!(
             r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}" viewBox="{} {} {} {}" preserveAspectRatio="xMidYMid meet">"#,
