@@ -8182,7 +8182,7 @@ async function saveNewProjectToFolder(): Promise<boolean> {
       return false;
     }
     if (chosen.error || !chosen.slot) {
-      status.value = `save failed: ${chosen.error ?? "no folder chosen"}`;
+      status.value = `save failed: ${chosen.error ?? "no directory chosen"}`;
       return false;
     }
     const slot = chosen.slot;
@@ -8198,7 +8198,7 @@ async function saveNewProjectToFolder(): Promise<boolean> {
         );
         status.value =
           res.status === 409
-            ? `save stopped at ${rel}: that file is already in the folder — save into an empty one`
+            ? `save stopped at ${rel}: that file is already in the directory — save into an empty one`
             : `save failed writing ${rel} (${res.status})`;
         workspaceNotice.value = "New project — save incomplete";
         return false;
@@ -8493,7 +8493,7 @@ function requestSaveAsDestination(defaultValue: string): Promise<SaveAsDestinati
     title.style.marginBottom = "8px";
 
     const help = document.createElement("div");
-    help.textContent = "Choose a destination folder for the current designspace/UFO source copy.";
+    help.textContent = "Choose a destination directory for the current designspace/UFO source copy.";
     help.style.color = "#b8bcc2";
     help.style.marginBottom = "12px";
 
@@ -8521,7 +8521,7 @@ function requestSaveAsDestination(defaultValue: string): Promise<SaveAsDestinati
     const relink = document.createElement("input");
     relink.type = "checkbox";
     relink.checked = true;
-    relinkRow.append(relink, document.createTextNode("Save future edits back to this folder"));
+    relinkRow.append(relink, document.createTextNode("Save future edits back to this directory"));
 
     const pickerActions = document.createElement("div");
     pickerActions.style.display = "flex";
@@ -8530,7 +8530,7 @@ function requestSaveAsDestination(defaultValue: string): Promise<SaveAsDestinati
 
     const folderPicker = document.createElement("button");
     folderPicker.type = "button";
-    folderPicker.textContent = "Choose Folder...";
+    folderPicker.textContent = "Choose Directory...";
     folderPicker.style.padding = "8px 12px";
     folderPicker.style.border = "1px solid rgba(255, 255, 255, 0.18)";
     folderPicker.style.borderRadius = "8px";
@@ -9966,7 +9966,7 @@ onBeforeUnmount(() => {
           <div class="grant-panel">
             <div class="grant-title">Choose a source to open</div>
             <div class="grant-text">
-              This folder holds more than one font source.
+              This directory holds more than one font source.
             </div>
             <div class="source-choice-list">
               <template v-if="pendingSourceChoice.designspaces.length">
@@ -10006,8 +10006,8 @@ onBeforeUnmount(() => {
           <div class="grant-panel">
             <div class="grant-title">{{ pendingGrantSource }}</div>
             <div class="grant-text">
-              A designspace loads its UFO masters from the folder around
-              it. Chrome asks you to confirm access to that folder — the
+              A designspace loads its UFO masters from the directory around
+              it. Chrome asks you to confirm access to that directory — the
               next dialog opens right there, so just press
               <strong>Select</strong>.
             </div>
@@ -10020,7 +10020,7 @@ onBeforeUnmount(() => {
                 class="grant-primary"
                 @click="grantPendingSourceFolder"
               >
-                Grant folder access
+                Grant directory access
               </button>
             </div>
           </div>

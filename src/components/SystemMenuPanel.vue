@@ -125,15 +125,15 @@ onBeforeUnmount(() => {
     <button
       type="button"
       role="menuitem"
-      title="One dialog: highlight the folder holding your .designspace / .ufo / .glyphs and press Select"
+      title="One dialog: highlight the directory holding your .designspace / .ufo / .glyphs and press Select"
       @click="pick('openFolder')"
     >
-      Open Font Folder...
+      Open Font Directory...
     </button>
     <button
       type="button"
       role="menuitem"
-      title="Pick a .designspace or .glyphs file directly (a folder confirm follows for designspaces; .ufo is a folder — use Open Font Folder)"
+      title="Pick a .designspace or .glyphs file directly (a directory confirm follows for designspaces; .ufo is a directory — use Open Font Directory)"
       @click="pick('openUfo')"
     >
       Open Font File...
@@ -146,7 +146,7 @@ onBeforeUnmount(() => {
         :key="`recent-${entry.index}`"
         type="button"
         role="menuitem"
-        :title="entry.kind === 'file' ? 'Glyphs file' : 'Font folder'"
+        :title="entry.kind === 'file' ? 'Glyphs file' : 'Font directory'"
         @click="pickRecent(entry.index)"
       >
         {{ entry.name }}{{ entry.kind === "folder" ? "/" : "" }}
@@ -166,10 +166,10 @@ onBeforeUnmount(() => {
       type="button"
       role="menuitem"
       :disabled="!saveEnabled"
-      :title="newProject ? 'Pick a folder to write this new project into' : undefined"
+      :title="newProject ? 'Pick a directory to write this new project into' : undefined"
       @click="pick('save', saveEnabled)"
     >
-      {{ newProject ? "Save to Folder..." : "Save" }}
+      {{ newProject ? "Save to Directory..." : "Save" }}
     </button>
     <button
       v-if="conflicts.length"

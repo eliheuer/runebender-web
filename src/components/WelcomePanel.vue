@@ -20,13 +20,13 @@ defineEmits<{
     <div class="title">Runebender</div>
     <div class="subtitle">A font editor</div>
     <div class="prompt">
-      Open the folder holding your <code>.designspace</code> and
+      Open the directory holding your <code>.designspace</code> and
       <code>.ufo</code> sources, or drop it here.
     </div>
     <button v-if="reopenName" type="button" class="reopen" @click="$emit('reopen')">
       Reopen {{ reopenName }}
     </button>
-    <button type="button" @click="$emit('openUfo')">Open Font Folder...</button>
+    <button type="button" @click="$emit('openUfo')">Open Font Directory...</button>
   </div>
 </template>
 

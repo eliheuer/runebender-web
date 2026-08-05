@@ -479,7 +479,7 @@ export function createFsAccessHost(options: {
         await walkTextFiles(handle, "", found);
         if (!found.some(({ rel }) => rel.split("/").pop() === source.name)) {
           return {
-            error: `${handle.name} does not contain ${source.name} — pick that file's folder (or a folder above it)`,
+            error: `${handle.name} does not contain ${source.name} — pick that file's directory (or a directory above it)`,
           };
         }
         pendingSourceFile = null;
