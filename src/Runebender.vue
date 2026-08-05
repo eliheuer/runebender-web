@@ -10788,6 +10788,17 @@ onBeforeUnmount(() => {
   position: static;
   margin: 0;
 }
+/* The anchor panel is one wide row by default (it used to float over
+   the canvas). In the column it wraps to two: the name across the top,
+   X and Y beneath — otherwise it pushes the column off the grid. */
+.editor-right-col > .anchor-overlay {
+  width: 232px;
+  box-sizing: border-box;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.editor-right-col > .anchor-overlay :deep(.name-field) {
+  grid-column: 1 / -1;
+}
 /* Coordinates used to be pinned to the bottom with margin-top:auto,
    which parked the slack above it as dead space. The preview is the
    tile that absorbs slack now, so everything stacks top-down. */
