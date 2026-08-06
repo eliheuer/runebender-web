@@ -25,7 +25,7 @@ use crate::editor::{
 use crate::measure::{self, MeasureKind};
 use crate::model::EntityId;
 use crate::path::{Path, PathPoint, PointType};
-use crate::text::TextLayout;
+use crate::text::{TextLayout, TextLayoutItem};
 
 // ============================================================================
 // PALETTE
@@ -292,20 +292,20 @@ const TEXT_CURSOR_TRIANGLE_HEIGHT_PX: f64 = 16.0;
 const TEXT_CURSOR_MARKER_FRACTION: f64 = 0.09;
 const TEXT_CURSOR_MARKER_MIN_PX: f64 = 4.0;
 const TEXT_CURSOR_MARKER_MAX_PX: f64 = 34.0;
-const TEXT_METRIC_CROSS_SIZE: f64 = 24.0;
-const TEXT_METRIC_CROSS_MIN_SIZE: f64 = 1.5;
-/// A cross is this fraction of the sort's on-screen height, so it shrinks
+const TEXT_SORT_MARK_SIZE: f64 = 24.0;
+const TEXT_SORT_MARK_MIN_SIZE: f64 = 1.5;
+/// A mark is this fraction of the sort's on-screen height, so it shrinks
 /// with the text instead of staying a fixed size while the glyphs get
-/// smaller — which turned a page of text into a mesh of green crosses.
-const TEXT_METRIC_CROSS_FRACTION: f64 = 0.05;
-/// Below this on-screen size the crosses and their metric boxes switch
-/// off outright. A fade just turns them into grit — either they are worth
-/// drawing at full strength or they are in the way.
-const TEXT_METRIC_MARKS_MIN_PX: f64 = 3.0;
+/// smaller — which turned a page of text into a mesh of green marks.
+const TEXT_SORT_MARK_FRACTION: f64 = 0.05;
+/// Below this on-screen size the corner marks and their metric boxes
+/// switch off outright. A fade just turns them into grit — either they
+/// are worth drawing at full strength or they are in the way.
+const TEXT_SORT_MARK_HIDE_BELOW_PX: f64 = 3.0;
 /// Metric lines for the sorts that are not being edited: just lighter
-/// than the canvas, so the boxes read as structure behind the crosses
-/// without competing with the glyphs. They fade out with the crosses —
-/// at a zoom where the crosses are gone the boxes are noise too.
+/// than the canvas, so the boxes read as structure behind the marks
+/// without competing with the glyphs. They switch off with the marks —
+/// at a zoom where the marks are gone the boxes are noise too.
 const TEXT_SORT_METRIC_QUIET: Srgb = AlphaColor::from_rgba8(0x24, 0x24, 0x24, 0xff);
 const DESIGN_GRID_MID_MIN_ZOOM: f64 = 0.8;
 const DESIGN_GRID_MID_FINE: f64 = 8.0;
@@ -827,7 +827,7 @@ impl Renderer {
     }
 
     /// Caret triangles sized off the sort's on-screen height, the way the
-    /// metric crosses are: a fixed screen size made the caret taller than
+    /// corner marks are: a fixed screen size made the caret taller than
     /// the whole line once you zoomed out.
     fn text_cursor_marker_scale(&self, zoom: f64, sort_height: f64) -> f64 {
         let box_px = (sort_height.max(1.0) * zoom).max(1.0);
@@ -836,20 +836,20 @@ impl Renderer {
         width / self.px(TEXT_CURSOR_TRIANGLE_WIDTH_PX)
     }
 
-    /// Size of a sort's metric cross, in device pixels, from the height
-    /// one sort takes up on screen. Zooming out shrinks the crosses with
+    /// Size of a sort's corner marks, in device pixels, from the height
+    /// one sort takes up on screen. Zooming out shrinks the marks with
     /// the text; zooming in grows them to the old fixed size and stops.
-    fn text_metric_cross_size(&self, zoom: f64, sort_height: f64) -> f64 {
+    fn text_sort_mark_size(&self, zoom: f64, sort_height: f64) -> f64 {
         let box_px = (sort_height.max(1.0) * zoom).max(1.0);
-        (box_px * TEXT_METRIC_CROSS_FRACTION).clamp(
-            self.px(TEXT_METRIC_CROSS_MIN_SIZE),
-            self.px(TEXT_METRIC_CROSS_SIZE),
+        (box_px * TEXT_SORT_MARK_FRACTION).clamp(
+            self.px(TEXT_SORT_MARK_MIN_SIZE),
+            self.px(TEXT_SORT_MARK_SIZE),
         )
     }
 
-    /// Whether the crosses and quiet metric boxes are drawn at all.
-    fn text_metric_marks_visible(&self, cross_size: f64) -> bool {
-        cross_size >= self.px(TEXT_METRIC_MARKS_MIN_PX)
+    /// Whether the corner marks and quiet metric boxes are drawn at all.
+    fn text_metric_marks_visible(&self, mark_size: f64) -> bool {
+        mark_size >= self.px(TEXT_SORT_MARK_HIDE_BELOW_PX)
     }
 
     /// Paint one frame against the given editor state.
@@ -1540,8 +1540,8 @@ impl Renderer {
     ) {
         let (ascender, descender) = state.text_metric_bounds();
         let (sort_top, sort_bottom) = state.text_sort_metric_bounds();
-        let cross_size =
-            self.text_metric_cross_size(state.viewport.zoom, sort_top - sort_bottom);
+        let mark_size =
+            self.text_sort_mark_size(state.viewport.zoom, sort_top - sort_bottom);
         let line_height = state.text_line_height();
         let layout_storage;
         let layout = if let Some(layout) = frame_layout {
@@ -1558,8 +1558,9 @@ impl Renderer {
             let mut guide_metric_path = BezPath::new();
             let mut cursor_metric_path = BezPath::new();
             // Full metric boxes for the sorts nobody is editing, drawn
-            // first so the crosses sit on top of them.
+            // first so the marks sit on top of them.
             let mut quiet_metric_path = BezPath::new();
+            let mut active_sort_items: Vec<TextLayoutItem> = Vec::new();
             for item in &layout.items {
                 let sort_active = state
                     .text_buffer
@@ -1567,7 +1568,10 @@ impl Renderer {
                     .map(|sort| sort.active)
                     .unwrap_or(false);
                 if !text_mode_active && sort_active {
-                    self.draw_text_sort_metrics(state, item.x, item.y, item.advance_width, view);
+                    // Drawn after the quiet boxes below: sorts share edges,
+                    // so a neighbour's grey box would otherwise paint over
+                    // the green metrics of the sort being edited.
+                    active_sort_items.push(*item);
                     continue;
                 }
                 let metric_color = if text_mode_active {
@@ -1605,7 +1609,7 @@ impl Renderer {
                         view,
                     );
                 }
-                append_text_sort_minimal_metrics(
+                append_text_sort_corner_marks(
                     metric_path,
                     item.x,
                     item.y,
@@ -1615,11 +1619,11 @@ impl Renderer {
                     sort_top,
                     sort_bottom,
                     view,
-                    cross_size,
+                    mark_size,
                 );
             }
             let stroke = Stroke::new(self.px(METRIC_LINE_PX));
-            if self.text_metric_marks_visible(cross_size) {
+            if self.text_metric_marks_visible(mark_size) {
                 self.stroke_metric_batch(&quiet_metric_path, TEXT_SORT_METRIC_QUIET, &stroke);
                 self.stroke_metric_batch(&guide_metric_path, self.theme.metric_guide, &stroke);
                 self.stroke_metric_batch(
@@ -1633,6 +1637,9 @@ impl Renderer {
                     &stroke,
                 );
                 self.stroke_metric_batch(&cursor_metric_path, self.theme.text_cursor, &stroke);
+            }
+            for item in &active_sort_items {
+                self.draw_text_sort_metrics(state, item.x, item.y, item.advance_width, view);
             }
         }
 
@@ -2998,7 +3005,12 @@ fn text_sort_metric_box_ys(state: &EditorState, box_top: f64, box_bottom: f64) -
     ys
 }
 
-fn append_text_sort_minimal_metrics(
+/// Corner marks: a tick at each metric height on each edge of the sort,
+/// clipped to the sort's own box. Arms point inward only — a full cross
+/// spilled past the box on every side and read as clutter rather than as
+/// the corners of something.
+#[allow(clippy::too_many_arguments)]
+fn append_text_sort_corner_marks(
     path: &mut BezPath,
     x: f64,
     baseline_y: f64,
@@ -3012,13 +3024,29 @@ fn append_text_sort_minimal_metrics(
 ) {
     let metric_ys =
         text_sort_minimal_metric_ys(baseline_y, ascender, descender, box_top, box_bottom);
+
+    // The box in screen space. The view flips y, so sort the edges rather
+    // than assuming which way round they land.
+    let corner_a = view * Point::new(x, baseline_y + box_bottom);
+    let corner_b = view * Point::new(x + advance_width, baseline_y + box_top);
+    let (left, right) = (corner_a.x.min(corner_b.x), corner_a.x.max(corner_b.x));
+    let (top, bottom) = (corner_a.y.min(corner_b.y), corner_a.y.max(corner_b.y));
+
     for edge_x in [x, x + advance_width] {
         for y in metric_ys.iter().copied() {
             let center = view * Point::new(edge_x, y);
-            path.move_to((center.x - size, center.y));
-            path.line_to((center.x + size, center.y));
-            path.move_to((center.x, center.y - size));
-            path.line_to((center.x, center.y + size));
+            let x0 = (center.x - size).max(left);
+            let x1 = (center.x + size).min(right);
+            if x1 > x0 {
+                path.move_to((x0, center.y));
+                path.line_to((x1, center.y));
+            }
+            let y0 = (center.y - size).max(top);
+            let y1 = (center.y + size).min(bottom);
+            if y1 > y0 {
+                path.move_to((center.x, y0));
+                path.line_to((center.x, y1));
+            }
         }
     }
 }
