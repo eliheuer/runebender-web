@@ -288,14 +288,19 @@ const TEXT_CURSOR_LINE_MAX_PX: f64 = 4.0;
 const TEXT_CURSOR_TRIANGLE_WIDTH_PX: f64 = 24.0;
 const TEXT_CURSOR_TRIANGLE_HEIGHT_PX: f64 = 16.0;
 const TEXT_METRIC_CROSS_SIZE: f64 = 24.0;
-const TEXT_METRIC_CROSS_MIN_SIZE: f64 = 2.0;
+const TEXT_METRIC_CROSS_MIN_SIZE: f64 = 1.5;
 /// A cross is this fraction of the sort's on-screen height, so it shrinks
 /// with the text instead of staying a fixed size while the glyphs get
 /// smaller — which turned a page of text into a mesh of green crosses.
 const TEXT_METRIC_CROSS_FRACTION: f64 = 0.03;
-/// Below this on-screen size the crosses are noise; fade them out rather
-/// than stipple the view.
-const TEXT_METRIC_CROSS_FADE_PX: f64 = 7.0;
+/// Crosses fade out between these on-screen sizes: fully gone below the
+/// first, full strength above the second. Anything smaller is stipple.
+const TEXT_METRIC_CROSS_FADE_MIN_PX: f64 = 4.0;
+const TEXT_METRIC_CROSS_FADE_MAX_PX: f64 = 9.0;
+/// Metric lines for the sorts that are not being edited: just lighter
+/// than the canvas, so the boxes read as structure behind the crosses
+/// without competing with the glyphs.
+const TEXT_SORT_METRIC_QUIET: Srgb = AlphaColor::from_rgba8(0x24, 0x24, 0x24, 0xff);
 const DESIGN_GRID_MID_MIN_ZOOM: f64 = 0.8;
 const DESIGN_GRID_MID_FINE: f64 = 8.0;
 // Mid zoom shows the machine lattice plainly: a line every 8 units,
@@ -830,9 +835,12 @@ impl Renderer {
         )
     }
 
-    /// Crosses fade out once they are too small to read as crosses.
+    /// Crosses fade out once they are too small to read as crosses, and
+    /// reach zero rather than lingering as specks.
     fn text_metric_cross_alpha(&self, size: f64) -> f32 {
-        smoothstep((size / self.px(TEXT_METRIC_CROSS_FADE_PX)).clamp(0.0, 1.0)) as f32
+        let min = self.px(TEXT_METRIC_CROSS_FADE_MIN_PX);
+        let max = self.px(TEXT_METRIC_CROSS_FADE_MAX_PX);
+        smoothstep(((size - min) / (max - min).max(1e-6)).clamp(0.0, 1.0)) as f32
     }
 
     /// Paint one frame against the given editor state.
@@ -1540,6 +1548,9 @@ impl Renderer {
             let mut previous_metric_path = BezPath::new();
             let mut guide_metric_path = BezPath::new();
             let mut cursor_metric_path = BezPath::new();
+            // Full metric boxes for the sorts nobody is editing, drawn
+            // first so the crosses sit on top of them.
+            let mut quiet_metric_path = BezPath::new();
             for item in &layout.items {
                 let sort_active = state
                     .text_buffer
@@ -1570,6 +1581,16 @@ impl Renderer {
                 } else {
                     &mut guide_metric_path
                 };
+                append_text_sort_metric_box(
+                    &mut quiet_metric_path,
+                    item.x,
+                    item.y,
+                    item.advance_width,
+                    state,
+                    sort_top,
+                    sort_bottom,
+                    view,
+                );
                 append_text_sort_minimal_metrics(
                     metric_path,
                     item.x,
@@ -1584,6 +1605,7 @@ impl Renderer {
                 );
             }
             let stroke = Stroke::new(self.px(METRIC_LINE_PX));
+            self.stroke_metric_batch(&quiet_metric_path, TEXT_SORT_METRIC_QUIET, &stroke);
             let fade = self.text_metric_cross_alpha(cross_size);
             if fade > 0.0 {
                 self.stroke_metric_batch(
@@ -2914,6 +2936,57 @@ fn text_sort_minimal_metric_ys(
         baseline_y + ascender,
         baseline_y + box_top,
     ];
+    ys.retain(|y| y.is_finite());
+    ys.sort_by(|a, b| a.total_cmp(b));
+    ys.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+    ys
+}
+
+/// The full metric box for one sort: the vertical edges at its origin and
+/// advance, and a horizontal line at every metric height.
+#[allow(clippy::too_many_arguments)]
+fn append_text_sort_metric_box(
+    path: &mut BezPath,
+    x: f64,
+    baseline_y: f64,
+    advance_width: f64,
+    state: &EditorState,
+    box_top: f64,
+    box_bottom: f64,
+    view: Affine,
+) {
+    if box_top > box_bottom {
+        for edge_x in [x, x + advance_width] {
+            append_screen_line(
+                path,
+                view,
+                Point::new(edge_x, baseline_y + box_bottom),
+                Point::new(edge_x, baseline_y + box_top),
+            );
+        }
+    }
+    for y in text_sort_metric_box_ys(state, box_top, box_bottom) {
+        append_screen_line(
+            path,
+            view,
+            Point::new(x, baseline_y + y),
+            Point::new(x + advance_width, baseline_y + y),
+        );
+    }
+}
+
+/// Metric heights worth a line: baseline, the font's own heights, and the
+/// sort box edges.
+fn text_sort_metric_box_ys(state: &EditorState, box_top: f64, box_bottom: f64) -> Vec<f64> {
+    let (ascender, descender) = state.text_metric_bounds();
+    let mut ys = vec![0.0, ascender, descender, box_top, box_bottom];
+    if let Some(metrics) = state.metrics.as_ref() {
+        ys.extend(
+            [metrics.units_per_em, metrics.x_height, metrics.cap_height]
+                .into_iter()
+                .flatten(),
+        );
+    }
     ys.retain(|y| y.is_finite());
     ys.sort_by(|a, b| a.total_cmp(b));
     ys.dedup_by(|a, b| (*a - *b).abs() < 0.001);

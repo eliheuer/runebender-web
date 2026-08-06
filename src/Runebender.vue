@@ -1409,6 +1409,52 @@ const editorBottomPreviewVisible = computed(
     viewMode.value === "editor" &&
     (textBufferPreviewVisible.value || (!!currentGlyph.value && !!activeGlyphPreviewSvg.value)),
 );
+// The glyph preview is the elastic tile of the right column, so it is
+// often much taller than one glyph needs. Rather than centre one shape in
+// a mostly empty box, stack the glyph at falling sizes — a waterfall,
+// which is how you check a design across sizes anyway.
+const glyphPreviewTile = ref<HTMLElement | null>(null);
+const glyphPreviewTileHeight = ref(0);
+let glyphPreviewResizeObserver: ResizeObserver | undefined;
+
+watch(glyphPreviewTile, (el) => {
+  glyphPreviewResizeObserver?.disconnect();
+  if (!el) {
+    glyphPreviewTileHeight.value = 0;
+    return;
+  }
+  glyphPreviewResizeObserver = new ResizeObserver(([entry]) => {
+    glyphPreviewTileHeight.value = entry.contentRect.height;
+  });
+  glyphPreviewResizeObserver.observe(el);
+  glyphPreviewTileHeight.value = el.getBoundingClientRect().height;
+});
+onBeforeUnmount(() => glyphPreviewResizeObserver?.disconnect());
+
+/** Each step is this much of the one above it. */
+const GLYPH_WATERFALL_RATIO = 0.62;
+/** Smaller than this and the glyph is a smudge, so the waterfall stops. */
+const GLYPH_WATERFALL_MIN = 18;
+const GLYPH_WATERFALL_GAP = 8;
+/** Below this the tile only has room for one. */
+const GLYPH_WATERFALL_MIN_TILE = 150;
+
+const glyphWaterfallSizes = computed<number[]>(() => {
+  const height = glyphPreviewTileHeight.value;
+  if (height <= 0) return [0];
+  if (height < GLYPH_WATERFALL_MIN_TILE) return [height];
+
+  const sizes: number[] = [];
+  let remaining = height;
+  let size = height * 0.42;
+  while (size >= GLYPH_WATERFALL_MIN && remaining >= size) {
+    sizes.push(size);
+    remaining -= size + GLYPH_WATERFALL_GAP;
+    size *= GLYPH_WATERFALL_RATIO;
+  }
+  return sizes.length ? sizes : [height];
+});
+
 const editorBottomPreviewStyle = computed(() => ({
   "--rb-editor-bottom-preview-height": `${editorBottomPreviewHeight.value}px`,
 }));
@@ -10582,14 +10628,19 @@ onBeforeUnmount(() => {
             />
             <div
               v-if="viewMode === 'editor' && editorPanelsVisible && currentGlyph && glyphPreviewFits"
+              ref="glyphPreviewTile"
               class="glyph-preview-overlay"
               aria-label="Active glyph preview"
             >
-              <span
-                v-if="activeGlyphPreviewSvg"
-                class="glyph-preview-shape"
-                v-html="activeGlyphPreviewSvg"
-              />
+              <template v-if="activeGlyphPreviewSvg">
+                <span
+                  v-for="(size, index) in glyphWaterfallSizes"
+                  :key="index"
+                  class="glyph-preview-shape"
+                  :style="{ height: `${size}px` }"
+                  v-html="activeGlyphPreviewSvg"
+                />
+              </template>
             </div>
           </div>
         </div>
@@ -11972,12 +12023,17 @@ onBeforeUnmount(() => {
   height: 86px;
   padding: 12px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .glyph-preview-shape {
   width: auto;
+  /* Height comes from the waterfall step; each step keeps its own scale. */
+  flex: 0 0 auto;
   height: 100%;
   /* Core palette yellow: the bottom-left preview reads as the current glyph
      highlight rather than another gray panel. */
