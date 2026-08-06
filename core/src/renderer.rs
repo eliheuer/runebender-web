@@ -287,16 +287,21 @@ const TEXT_CURSOR_LINE_PX: f64 = 1.5;
 const TEXT_CURSOR_LINE_MAX_PX: f64 = 4.0;
 const TEXT_CURSOR_TRIANGLE_WIDTH_PX: f64 = 24.0;
 const TEXT_CURSOR_TRIANGLE_HEIGHT_PX: f64 = 16.0;
+/// Caret triangle width as a share of the sort's on-screen height, and
+/// the range it is allowed to take.
+const TEXT_CURSOR_MARKER_FRACTION: f64 = 0.09;
+const TEXT_CURSOR_MARKER_MIN_PX: f64 = 4.0;
+const TEXT_CURSOR_MARKER_MAX_PX: f64 = 34.0;
 const TEXT_METRIC_CROSS_SIZE: f64 = 24.0;
 const TEXT_METRIC_CROSS_MIN_SIZE: f64 = 1.5;
 /// A cross is this fraction of the sort's on-screen height, so it shrinks
 /// with the text instead of staying a fixed size while the glyphs get
 /// smaller — which turned a page of text into a mesh of green crosses.
 const TEXT_METRIC_CROSS_FRACTION: f64 = 0.05;
-/// Crosses fade out between these on-screen sizes: fully gone below the
-/// first, full strength above the second. Anything smaller is stipple.
-const TEXT_METRIC_CROSS_FADE_MIN_PX: f64 = 2.0;
-const TEXT_METRIC_CROSS_FADE_MAX_PX: f64 = 5.0;
+/// Below this on-screen size the crosses and their metric boxes switch
+/// off outright. A fade just turns them into grit — either they are worth
+/// drawing at full strength or they are in the way.
+const TEXT_METRIC_MARKS_MIN_PX: f64 = 3.0;
 /// Metric lines for the sorts that are not being edited: just lighter
 /// than the canvas, so the boxes read as structure behind the crosses
 /// without competing with the glyphs. They fade out with the crosses —
@@ -821,8 +826,14 @@ impl Renderer {
         )
     }
 
-    fn text_cursor_marker_scale(&self, zoom: f64) -> f64 {
-        lerp(1.0, 1.45, smoothstep(self.text_overlay_zoom_t(zoom)))
+    /// Caret triangles sized off the sort's on-screen height, the way the
+    /// metric crosses are: a fixed screen size made the caret taller than
+    /// the whole line once you zoomed out.
+    fn text_cursor_marker_scale(&self, zoom: f64, sort_height: f64) -> f64 {
+        let box_px = (sort_height.max(1.0) * zoom).max(1.0);
+        let width = (box_px * TEXT_CURSOR_MARKER_FRACTION)
+            .clamp(self.px(TEXT_CURSOR_MARKER_MIN_PX), self.px(TEXT_CURSOR_MARKER_MAX_PX));
+        width / self.px(TEXT_CURSOR_TRIANGLE_WIDTH_PX)
     }
 
     /// Size of a sort's metric cross, in device pixels, from the height
@@ -836,12 +847,9 @@ impl Renderer {
         )
     }
 
-    /// Crosses fade out once they are too small to read as crosses, and
-    /// reach zero rather than lingering as specks.
-    fn text_metric_cross_alpha(&self, size: f64) -> f32 {
-        let min = self.px(TEXT_METRIC_CROSS_FADE_MIN_PX);
-        let max = self.px(TEXT_METRIC_CROSS_FADE_MAX_PX);
-        smoothstep(((size - min) / (max - min).max(1e-6)).clamp(0.0, 1.0)) as f32
+    /// Whether the crosses and quiet metric boxes are drawn at all.
+    fn text_metric_marks_visible(&self, cross_size: f64) -> bool {
+        cross_size >= self.px(TEXT_METRIC_MARKS_MIN_PX)
     }
 
     /// Paint one frame against the given editor state.
@@ -1611,35 +1619,20 @@ impl Renderer {
                 );
             }
             let stroke = Stroke::new(self.px(METRIC_LINE_PX));
-            let fade = self.text_metric_cross_alpha(cross_size);
-            if fade > 0.0 {
-                self.stroke_metric_batch(
-                    &quiet_metric_path,
-                    TEXT_SORT_METRIC_QUIET.multiply_alpha(fade),
-                    &stroke,
-                );
-            }
-            if fade > 0.0 {
-                self.stroke_metric_batch(
-                    &guide_metric_path,
-                    self.theme.metric_guide.multiply_alpha(fade),
-                    &stroke,
-                );
+            if self.text_metric_marks_visible(cross_size) {
+                self.stroke_metric_batch(&quiet_metric_path, TEXT_SORT_METRIC_QUIET, &stroke);
+                self.stroke_metric_batch(&guide_metric_path, self.theme.metric_guide, &stroke);
                 self.stroke_metric_batch(
                     &active_metric_path,
-                    self.theme.text_kern_active.multiply_alpha(fade),
+                    self.theme.text_kern_active,
                     &stroke,
                 );
                 self.stroke_metric_batch(
                     &previous_metric_path,
-                    self.theme.text_kern_previous.multiply_alpha(fade),
+                    self.theme.text_kern_previous,
                     &stroke,
                 );
-                self.stroke_metric_batch(
-                    &cursor_metric_path,
-                    self.theme.text_cursor.multiply_alpha(fade),
-                    &stroke,
-                );
+                self.stroke_metric_batch(&cursor_metric_path, self.theme.text_cursor, &stroke);
             }
         }
 
@@ -1891,7 +1884,7 @@ impl Renderer {
         let top = view * Point::new(cursor_x, baseline_y + ascender);
         let bottom = view * Point::new(cursor_x, baseline_y + descender);
         let line_width = self.px(self.text_cursor_line_px(zoom));
-        let marker_scale = self.text_cursor_marker_scale(zoom);
+        let marker_scale = self.text_cursor_marker_scale(zoom, ascender - descender);
         let triangle_width = self.px(TEXT_CURSOR_TRIANGLE_WIDTH_PX * marker_scale);
         let triangle_height = self.px(TEXT_CURSOR_TRIANGLE_HEIGHT_PX * marker_scale);
 
