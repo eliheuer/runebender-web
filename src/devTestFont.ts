@@ -8,7 +8,9 @@
 // module out of the production bundle.
 
 const FILES = import.meta.glob(
-  "../assets/test-fonts/**/*.{glif,plist,designspace}",
+  // features.fea rides along: shaping compiles it for harfrust, which is
+  // where ligatures like lam-alef come from.
+  "../assets/test-fonts/**/*.{glif,plist,designspace,fea}",
   { eager: true, query: "?url", import: "default" },
 ) as Record<string, string>;
 

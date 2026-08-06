@@ -361,6 +361,8 @@ type MasterData = {
   glyphMarkColors: Map<string, string>;
   fontInfoBytes: Uint8Array | null;
   unitsPerEm: number;
+  /** The master's features.fea, for OpenType shaping. */
+  featuresText: string | null;
 };
 
 type GlyphMetadata = {
@@ -3739,6 +3741,7 @@ function applyInterpolatedTextInventory(location: string) {
         unicode: glyphUnicodeMapToRecord(glyphUnicodes.value),
         widths: { ...glyphWidthMapToRecord(glyphMetadataMap.value), ...widths },
         outlines: { ...glyphOutlineMapToRecord(glyphSvgs.value), ...outlines },
+        ...textShapingInventoryFields(),
       }),
     );
     refreshTextStateFromEditor(false);
@@ -6237,6 +6240,17 @@ function updateGlyphKerningGroup(side: "left" | "right", value: string) {
   queueComfyStateSync();
 }
 
+/** What the wasm shaper needs beyond the glyph lists: the active
+ *  master's feature file and its em size. Without a feature file the
+ *  buffer falls back to the built-in Arabic joining rules. */
+function textShapingInventoryFields(): { features: string; units_per_em: number } {
+  const data = activeMasterData.value;
+  return {
+    features: data?.featuresText ?? "",
+    units_per_em: data?.unitsPerEm ?? 1000,
+  };
+}
+
 function syncTextKerningModelToEditor() {
   if (!editor) return;
   try {
@@ -6253,6 +6267,7 @@ function syncTextKerningModelToEditor() {
         unicode: glyphUnicodeMapToRecord(glyphUnicodes.value),
         widths: glyphWidthMapToRecord(glyphMetadataMap.value),
         outlines: glyphOutlineMapToRecord(glyphSvgs.value),
+        ...textShapingInventoryFields(),
       }),
     );
     refreshTextStateFromEditor(false);
@@ -7026,6 +7041,12 @@ async function buildMasterData(
     : null;
   const unitsPerEm = fontInfoBytes ? extractUnitsPerEm(fontInfoBytes) : 1000;
 
+  // features.fea drives shaping: harfrust runs the font's own GSUB/GPOS
+  // rather than our joining table, which is where ligatures like
+  // lam-alef come from.
+  const featuresFile = ufoFiles.find((f) => /\/features\.fea$/i.test(relPath(f)));
+  const featuresText = featuresFile ? await featuresFile.text() : null;
+
   const glyphSvgs = await buildGridSvgsForMap(glyphBytes, unitsPerEm);
 
   const contentsFile = ufoFiles.find((f) =>
@@ -7084,6 +7105,7 @@ async function buildMasterData(
     glyphMarkColors,
     fontInfoBytes,
     unitsPerEm,
+    featuresText,
   };
 }
 

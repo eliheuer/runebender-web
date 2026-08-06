@@ -7,7 +7,11 @@
 
 use runebender_core::{model::kerning::lookup_kerning as lookup_xilem_kerning, shaping};
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
+
+use crate::shape::{ShapingFont, ShapingGlyph, ShapingSource, log_shaping_failure};
 
 /// The direction a character forces on its line, if any. Neutrals
 /// (digits, punctuation, spaces) return `None` so they never decide a
@@ -54,6 +58,9 @@ pub enum TextSortKind {
 pub struct TextSort {
     pub kind: TextSortKind,
     pub active: bool,
+    /// Set by shaping when this character was folded into a ligature
+    /// drawn by an earlier sort. See `TextSort::is_absorbed`.
+    pub absorbed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -104,6 +111,16 @@ pub struct TextGlyphInventory {
     widths: HashMap<String, f64>,
     #[serde(default)]
     outlines: HashMap<String, String>,
+    /// The master's features.fea. Empty means shape with the built-in
+    /// joining rules instead of the font's own.
+    #[serde(default)]
+    features: String,
+    #[serde(default = "default_units_per_em")]
+    units_per_em: f64,
+}
+
+fn default_units_per_em() -> f64 {
+    1000.0
 }
 
 impl TextGlyphInventory {
@@ -129,6 +146,7 @@ impl TextSort {
                 advance_width,
             },
             active: false,
+            absorbed: false,
         }
     }
 
@@ -136,7 +154,16 @@ impl TextSort {
         Self {
             kind: TextSortKind::LineBreak,
             active: false,
+            absorbed: false,
         }
+    }
+
+    /// True when shaping folded this character into a ligature drawn by
+    /// an earlier sort — the alef of lam-alef. It keeps its place in the
+    /// buffer so editing and the cursor still see the character, but it
+    /// draws nothing and takes no width.
+    pub fn is_absorbed(&self) -> bool {
+        self.absorbed
     }
 
     pub fn glyph_name(&self) -> Option<&str> {
@@ -144,6 +171,37 @@ impl TextSort {
             TextSortKind::Glyph { name, .. } => Some(name),
             TextSortKind::LineBreak => None,
         }
+    }
+}
+
+/// Cache slot for the compiled shaping font. Derived state: equality and
+/// cloning ignore it.
+#[derive(Debug, Default)]
+struct ShapingFontCache(RefCell<Option<Option<Rc<ShapingFont>>>>);
+
+impl Clone for ShapingFontCache {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for ShapingFontCache {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl ShapingFontCache {
+    fn get(&self) -> Option<Option<Rc<ShapingFont>>> {
+        self.0.borrow().clone()
+    }
+
+    fn set(&self, value: Option<Rc<ShapingFont>>) {
+        self.0.replace(Some(value));
+    }
+
+    fn clear(&self) {
+        self.0.replace(None);
     }
 }
 
@@ -161,6 +219,14 @@ pub struct TextBuffer {
     kerning: TextKerningModel,
     glyph_inventory: TextGlyphInventory,
     manual_kerning: Option<ManualKerningSession>,
+    /// Font compiled from the inventory + features.fea, built on first
+    /// use and dropped whenever the inventory changes. The inner `None`
+    /// means the compile failed, which is the normal state mid-edit.
+    ///
+    /// Derived from the inventory, so it is skipped by `PartialEq` and
+    /// `Clone` starts empty: two buffers with the same text are equal
+    /// whether or not either has compiled its font yet.
+    shaping_font: ShapingFontCache,
 }
 
 impl Default for TextBuffer {
@@ -175,6 +241,7 @@ impl Default for TextBuffer {
             kerning: TextKerningModel::default(),
             glyph_inventory: TextGlyphInventory::default(),
             manual_kerning: None,
+            shaping_font: ShapingFontCache::default(),
         }
     }
 }
@@ -310,6 +377,8 @@ impl TextBuffer {
 
     pub fn set_glyph_inventory(&mut self, glyph_inventory: TextGlyphInventory) {
         self.glyph_inventory = glyph_inventory;
+        // Advances, codepoints and features all feed the shaping font.
+        self.shaping_font.clear();
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &TextSort> {
@@ -366,6 +435,11 @@ impl TextBuffer {
             }
 
             for index in line_start..line_end {
+                // A character folded into a ligature has no glyph of its
+                // own: no item, no width, and no kerning pair.
+                if self.sorts[index].absorbed {
+                    continue;
+                }
                 let advance_width = self.sort_advance(index);
                 let glyph_name = self.sort_glyph_name(index);
                 let kern = previous_glyph_name
@@ -447,6 +521,10 @@ impl TextBuffer {
         for index in 0..self.sorts.len() {
             if matches!(self.sorts[index].kind, TextSortKind::LineBreak) {
                 line += 1;
+                continue;
+            }
+            // Folded into a ligature drawn by an earlier sort.
+            if self.sorts[index].absorbed {
                 continue;
             }
             entries.push(Entry {
@@ -790,7 +868,174 @@ impl TextBuffer {
         self.manual_kerning.take().is_some()
     }
 
+    /// The compiled shaping font for the current inventory, or `None`
+    /// when there is no features.fea or it does not compile. Built once
+    /// and cached until the inventory changes.
+    fn shaping_font(&self) -> Option<Rc<ShapingFont>> {
+        if self.glyph_inventory.features.trim().is_empty() {
+            return None;
+        }
+        if let Some(cached) = self.shaping_font.get() {
+            return cached;
+        }
+
+        // Glyph order: every glyph the inventory knows, .notdef first so
+        // it takes glyph id 0 the way a real font does.
+        let mut names: Vec<&String> = self
+            .glyph_inventory
+            .widths
+            .keys()
+            .chain(self.glyph_inventory.outlines.keys())
+            .collect();
+        names.sort();
+        names.dedup();
+
+        let mut unicodes: HashMap<&str, Vec<u32>> = HashMap::new();
+        for (codepoint, name) in &self.glyph_inventory.unicode {
+            unicodes.entry(name.as_str()).or_default().push(*codepoint);
+        }
+
+        let glyphs: Vec<ShapingGlyph> = std::iter::once(".notdef")
+            .chain(
+                names
+                    .iter()
+                    .map(|name| name.as_str())
+                    .filter(|name| *name != ".notdef"),
+            )
+            .map(|name| ShapingGlyph {
+                name: name.to_string(),
+                advance: self
+                    .glyph_inventory
+                    .widths
+                    .get(name)
+                    .copied()
+                    .unwrap_or(0.0),
+                unicodes: unicodes.get(name).cloned().unwrap_or_default(),
+            })
+            .collect();
+
+        let built = ShapingFont::build(&ShapingSource {
+            units_per_em: self.glyph_inventory.units_per_em,
+            glyphs,
+            features: self.glyph_inventory.features.clone(),
+        })
+        .map(Rc::new)
+        .map_err(|e| {
+            // Expected while the feature file is being edited; the old
+            // joining rules carry on.
+            log_shaping_failure(&e);
+        })
+        .ok();
+
+        self.shaping_font.set(built.clone());
+        built
+    }
+
+    /// Shape every line through the font's own rules. Returns false when
+    /// there is no usable font, so the caller can fall back.
+    ///
+    /// Lines are split into runs first. A line mixing Latin and Arabic
+    /// has to be shaped a run at a time: handed the whole line, the
+    /// shaper takes its script from the first character, and the Arabic
+    /// features — including the lam-alef ligature — never run.
+    fn shape_with_font(&mut self) -> bool {
+        let Some(font) = self.shaping_font() else {
+            return false;
+        };
+
+
+        let mut updates: Vec<(usize, String, f64)> = Vec::new();
+        let mut absorbed: Vec<bool> = vec![false; self.sorts.len()];
+
+        for line in 0..self.line_count() {
+            let (line_start, line_end) = self.line_range_for_number(line);
+            let line_rtl = self.resolved_line_direction(line) == TextDirection::RightToLeft;
+
+            // Characters of this line with the sort each came from.
+            let mut chars: Vec<(char, usize)> = Vec::new();
+            for index in line_start..line_end {
+                if let Some(char) = self.sort_codepoint(index) {
+                    chars.push((char, index));
+                }
+            }
+
+            let mut run_start = 0;
+            while run_start < chars.len() {
+                let arabic = shaping::is_arabic(chars[run_start].0);
+                let mut run_end = run_start;
+                while run_end < chars.len() && shaping::is_arabic(chars[run_end].0) == arabic {
+                    run_end += 1;
+                }
+
+                let mut text = String::new();
+                let mut sort_for_offset: Vec<usize> = Vec::new();
+                for &(char, index) in &chars[run_start..run_end] {
+                    for _ in 0..char.len_utf8() {
+                        sort_for_offset.push(index);
+                    }
+                    text.push(char);
+                }
+
+                // An Arabic run reads right to left whatever the line
+                // around it does.
+                let Ok(shaped) = font.shape(&text, arabic || line_rtl) else {
+                    return false;
+                };
+
+                // Clusters are byte offsets into the run. A ligature
+                // reports the offset of its first character and stands
+                // for every character up to the next cluster.
+                let mut covered = vec![false; sort_for_offset.len()];
+                for glyph in &shaped {
+                    let Some(&sort_index) = sort_for_offset.get(glyph.cluster as usize) else {
+                        continue;
+                    };
+                    let Some(name) = font.glyph_name(glyph.glyph_id) else {
+                        continue;
+                    };
+                    updates.push((sort_index, name.to_string(), glyph.x_advance));
+                    for (offset, covered) in covered.iter_mut().enumerate() {
+                        if sort_for_offset[offset] == sort_index {
+                            *covered = true;
+                        }
+                    }
+                }
+
+                let mut seen_sort: Option<usize> = None;
+                for (offset, &sort_index) in sort_for_offset.iter().enumerate() {
+                    if seen_sort == Some(sort_index) {
+                        continue;
+                    }
+                    seen_sort = Some(sort_index);
+                    if !covered[offset] {
+                        absorbed[sort_index] = true;
+                        updates.push((sort_index, String::new(), 0.0));
+                    }
+                }
+
+                run_start = run_end;
+            }
+        }
+
+        let changed = self.apply_shape_updates(updates);
+        let mut absorbed_changed = false;
+        for (index, sort) in self.sorts.iter_mut().enumerate() {
+            let want = absorbed.get(index).copied().unwrap_or(false);
+            if sort.absorbed != want {
+                sort.absorbed = want;
+                absorbed_changed = true;
+            }
+        }
+        changed || absorbed_changed
+    }
+
     pub fn shape_arabic(&mut self) -> bool {
+        // The font's own GSUB first: it gives ligatures and contextual
+        // rules the joining table below cannot express. Falls through
+        // when there is no features.fea or it does not compile.
+        if self.shape_with_font() {
+            return true;
+        }
         let chars = self.glyph_chars();
         let mut updates = Vec::new();
 
@@ -814,7 +1059,13 @@ impl TextBuffer {
 
     /// Shape when any line in the buffer reads RTL — a Latin line next
     /// to an Arabic one must not stop the Arabic from joining.
+    ///
+    /// With a shaping font the direction gate does not apply: the font's
+    /// rules cover every script it supports, not just Arabic.
     pub fn shape_arabic_if_rtl(&mut self) -> bool {
+        if self.shape_with_font() {
+            return true;
+        }
         let has_rtl_line =
             (0..self.line_count()).any(|line| {
                 self.resolved_line_direction(line) == TextDirection::RightToLeft
@@ -826,6 +1077,12 @@ impl TextBuffer {
     }
 
     pub fn shape_arabic_around_if_rtl(&mut self, position: usize) -> bool {
+        // Reshaping the whole buffer through the font is cheap at editor
+        // sizes, and a ligature can appear or break several sorts away
+        // from the one that changed.
+        if self.shape_with_font() {
+            return true;
+        }
         let line = self.line_number_for_sort(position);
         if self.resolved_line_direction(line) != TextDirection::RightToLeft {
             return false;
@@ -2096,6 +2353,136 @@ mod tests {
         // Middle line sits one line-height below the first.
         let cursor = buffer.place_cursor_at(100.0, -1000.0, 1000.0, 800.0, -200.0);
         assert_eq!(buffer.line_number_for_sort(cursor), 1);
+    }
+
+    /// A buffer wired to the bundled font's inventory and features, the
+    /// way the editor sets one up.
+    fn buffer_with_shaping_font() -> TextBuffer {
+        let ufo_dir = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../assets/test-fonts/VirtuaGrotesk-Regular.ufo"
+        );
+        let font = norad::Font::load(ufo_dir).expect("test UFO loads");
+        let features =
+            std::fs::read_to_string(format!("{ufo_dir}/features.fea")).expect("features.fea");
+
+        let mut widths = HashMap::new();
+        let mut unicode = HashMap::new();
+        for glyph in font.layers.default_layer().iter() {
+            widths.insert(glyph.name().to_string(), glyph.width);
+            for codepoint in glyph.codepoints.iter() {
+                unicode.insert(codepoint as u32, glyph.name().to_string());
+            }
+        }
+
+        let mut buffer = TextBuffer::new();
+        buffer.set_direction(TextDirection::RightToLeft);
+        buffer.set_glyph_inventory(TextGlyphInventory {
+            unicode,
+            widths,
+            outlines: HashMap::new(),
+            features,
+            units_per_em: 1000.0,
+        });
+        buffer
+    }
+
+    fn type_chars(buffer: &mut TextBuffer, text: &str) {
+        for char in text.chars() {
+            let name = buffer
+                .glyph_inventory
+                .unicode
+                .get(&(char as u32))
+                .cloned()
+                .unwrap_or_else(|| ".notdef".to_string());
+            let width = buffer
+                .glyph_inventory
+                .widths
+                .get(&name)
+                .copied()
+                .unwrap_or(0.0);
+            buffer.insert_glyph(name, Some(char), width);
+        }
+    }
+
+    #[test]
+    fn latin_keeps_one_glyph_per_character_when_shaped_by_the_font() {
+        let mut buffer = buffer_with_shaping_font();
+        buffer.set_direction(TextDirection::LeftToRight);
+        type_chars(&mut buffer, "Runebender.org");
+
+        buffer.shape_arabic();
+
+        assert_eq!(buffer.len(), 14);
+        let absorbed = (0..buffer.len())
+            .filter(|i| buffer.sort(*i).expect("sort").is_absorbed())
+            .count();
+        assert_eq!(absorbed, 0, "no Latin character should be folded away");
+        assert_eq!(buffer.layout(1000.0).items.len(), 14);
+        assert_eq!(buffer.sort_glyph_name(0), Some("R"));
+    }
+
+    #[test]
+    fn arabic_in_a_latin_line_still_ligates() {
+        // A line whose first strong character is Latin still reads LTR,
+        // but the Arabic inside it has to be shaped as its own run or
+        // the script-specific features never run.
+        let mut buffer = buffer_with_shaping_font();
+        buffer.set_auto_direction();
+        type_chars(&mut buffer, "hi \u{0644}\u{0627}");
+
+        buffer.shape_arabic();
+
+        assert_eq!(buffer.sort_glyph_name(3), Some("lam_alef-ar"));
+        assert!(buffer.sort(4).expect("alef sort").is_absorbed());
+    }
+
+    #[test]
+    fn lam_alef_renders_as_one_ligature_glyph() {
+        let mut buffer = buffer_with_shaping_font();
+        type_chars(&mut buffer, "\u{0644}\u{0627}");
+
+        assert!(buffer.shape_arabic(), "shaping changed the buffer");
+        assert_eq!(buffer.sort_glyph_name(0), Some("lam_alef-ar"));
+        // The alef keeps its place in the buffer — the cursor and editing
+        // still see two characters — but draws nothing.
+        assert_eq!(buffer.len(), 2);
+        assert!(buffer.sort(1).expect("alef sort").is_absorbed());
+
+        // One glyph on the line, and it is the ligature.
+        let layout = buffer.layout(1000.0);
+        assert_eq!(layout.items.len(), 1);
+        assert_eq!(layout.items[0].index, 0);
+    }
+
+    #[test]
+    fn deleting_the_lam_brings_the_alef_back() {
+        let mut buffer = buffer_with_shaping_font();
+        type_chars(&mut buffer, "\u{0644}\u{0627}");
+        buffer.shape_arabic();
+
+        buffer.set_cursor(1);
+        buffer.delete_before_cursor();
+        buffer.shape_arabic();
+
+        assert_eq!(buffer.len(), 1);
+        assert!(!buffer.sort(0).expect("alef sort").is_absorbed());
+        assert_eq!(buffer.sort_glyph_name(0), Some("alef-ar"));
+        assert_eq!(buffer.layout(1000.0).items.len(), 1);
+    }
+
+    #[test]
+    fn shaping_falls_back_when_the_feature_file_is_broken() {
+        let mut buffer = buffer_with_shaping_font();
+        let mut inventory = buffer.glyph_inventory.clone();
+        inventory.features = "feature liga { sub missing by alsoMissing; } liga;".into();
+        buffer.set_glyph_inventory(inventory);
+        type_chars(&mut buffer, "\u{0628}\u{0628}");
+
+        // The built-in joining rules still run, so the text stays shaped.
+        assert!(buffer.shape_arabic());
+        assert_eq!(buffer.sort_glyph_name(0), Some("beh-ar.init"));
+        assert_eq!(buffer.sort_glyph_name(1), Some("beh-ar.fina"));
     }
 
     #[test]

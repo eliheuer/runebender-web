@@ -67,6 +67,7 @@ pub struct ShapedGlyph {
 }
 
 /// A compiled shaping font, ready to shape with.
+#[derive(Debug)]
 pub struct ShapingFont {
     bytes: Vec<u8>,
     names: Vec<String>,
@@ -335,4 +336,15 @@ mod tests {
         source.features = "feature liga { sub nonexistent by alsoMissing; } liga;".into();
         assert!(ShapingFont::build(&source).is_err());
     }
+}
+
+/// Where a failed feature-file compile goes. Silent in the browser
+/// console rather than fatal: the file will not compile halfway through
+/// an edit, and typing has to keep working.
+pub fn log_shaping_failure(message: &str) {
+    #[cfg(target_arch = "wasm32")]
+    web_sys::console::warn_1(&format!("[runebender] shaping font: {message}").into());
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = message;
+
 }
