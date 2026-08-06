@@ -2050,6 +2050,11 @@ impl GlyphEditor {
     /// Two layouts are candidates: the buffer's own lines (what the editor
     /// canvas shows) and every sort run together on one strip. A tall pane
     /// suits the lines, a short wide one suits the strip.
+    // TODO(perf): the preview lays out and re-serializes every glyph in
+    // the buffer each time it is asked, and the host then parses the
+    // whole SVG. At a page of text that is ~30ms. Cache the paths per
+    // glyph name and rebuild only the transforms, or draw the preview on
+    // a canvas instead of handing the DOM a new document.
     #[wasm_bindgen(js_name = textBufferPreviewSvg)]
     pub fn text_buffer_preview_svg(&self, pane_aspect: f64) -> Result<String, JsValue> {
         let strip = self.preview_paths(self.state.text_buffer.preview_layout())?;

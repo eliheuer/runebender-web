@@ -422,6 +422,10 @@ impl TextBuffer {
         true
     }
 
+    // TODO(perf): every frame walks the whole buffer, and every sort is
+    // drawn whether or not it is on screen. At a page of text this is the
+    // bulk of a frame. Cache the layout against a buffer revision, and
+    // cull sorts outside the viewport before handing them to the scene.
     pub fn layout(&self, line_height: f64) -> TextLayout {
         let mut items = Vec::with_capacity(self.sorts.len());
         let mut cursor_x = 0.0;

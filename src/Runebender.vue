@@ -1524,12 +1524,35 @@ watch(textPreviewSurface, (el) => {
 });
 onBeforeUnmount(() => textPreviewResizeObserver?.disconnect());
 
+// The preview redraws every glyph in the buffer and hands the browser a
+// fresh SVG to parse. At a paragraph or two that is ~30ms of work, far
+// too much to repeat on every keystroke, so changes are coalesced and a
+// long buffer waits a beat before catching up. The preview does not
+// depend on the cursor or the active sort, so those do not trigger it.
+const TEXT_PREVIEW_IDLE_MS = 200;
+/** How many sorts count as a long buffer worth throttling. */
+const TEXT_PREVIEW_LARGE_BUFFER = 200;
+const textPreviewTick = ref(0);
+let textPreviewTimer: ReturnType<typeof setTimeout> | undefined;
+
+watch(
+  [textPreviewRevision, textBuffer, textLayout, textPreviewAspect],
+  () => {
+    if (textPreviewTimer !== undefined) clearTimeout(textPreviewTimer);
+    const delay = textBuffer.value.length > TEXT_PREVIEW_LARGE_BUFFER ? TEXT_PREVIEW_IDLE_MS : 0;
+    textPreviewTimer = setTimeout(() => {
+      textPreviewTimer = undefined;
+      textPreviewTick.value += 1;
+    }, delay);
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => {
+  if (textPreviewTimer !== undefined) clearTimeout(textPreviewTimer);
+});
+
 const textBufferPreviewSvg = computed(() => {
-  textPreviewRevision.value;
-  textBuffer.value;
-  textLayout.value;
-  activeTextSortIndex.value;
-  currentGlyph.value;
+  textPreviewTick.value;
   try {
     return editor?.textBufferPreviewSvg(textPreviewAspect.value) ?? "";
   } catch (e) {
@@ -5150,7 +5173,7 @@ function loadDisplayStringIntoBuffer(text: string) {
       const name = text.slice(index + 1, end);
       // A single space after a name is the terminator, not a space glyph.
       index = end < text.length && text[end] === " " ? end + 1 : end;
-      if (name) insertInactiveTextGlyphByName(name);
+      if (name) insertInactiveTextGlyphByName(name, false);
       continue;
     }
     index += 1;
@@ -5234,6 +5257,12 @@ function closeTextTab(index: number) {
   }
 }
 
+// TODO(perf): this serializes the whole buffer to JSON and parses it
+// back on every keystroke, cursor move and inventory change — about 4ms
+// at a thousand sorts, and it grows with the text. Most callers only
+// need the cursor, the active sort and whether a session is open. Add a
+// small wasm getter for those, and a buffer revision so the sort list is
+// only rebuilt when the sorts actually changed.
 function refreshTextStateFromEditor(
   syncSorts = true,
   renderOptions: RenderRequestOptions = { refreshDerivedState: false },
@@ -5440,10 +5469,12 @@ function insertTextGlyphByName(glyphName: string): boolean {
   return true;
 }
 
-function insertInactiveTextGlyphByName(glyphName: string): boolean {
+function insertInactiveTextGlyphByName(glyphName: string, refresh = true): boolean {
   const { codepoint, advanceWidth } = textGlyphPayload(glyphName);
   editor?.insertInactiveTextGlyph(glyphName, codepoint, advanceWidth);
-  refreshTextStateFromEditor();
+  // Reading the buffer back costs more than the insert itself, so a
+  // caller filling a whole tab does it once at the end instead.
+  if (refresh) refreshTextStateFromEditor();
   return true;
 }
 
@@ -6526,6 +6557,10 @@ function textShapingInventoryFields(): { features: string; units_per_em: number 
   };
 }
 
+// TODO(perf): every call reserializes the outline of every glyph in the
+// font (a few MB of JSON for a large source) even when one glyph
+// changed. Hand the wasm side single-glyph updates, and only rebuild the
+// whole inventory when the master or the glyph set changes.
 function syncTextKerningModelToEditor() {
   if (!editor) return;
   try {
