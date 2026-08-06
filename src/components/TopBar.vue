@@ -39,11 +39,11 @@ defineProps<{
   activeTextTab?: number | null;
 }>();
 
-/** What a tab shows: its text, or a placeholder while it is empty. */
+/** What a tab shows: its text, or a placeholder while it is empty. The
+ *  tab itself ellipsises whatever does not fit its share of the row. */
 function tabLabel(text: string): string {
   const trimmed = text.replace(/\s+/g, " ").trim();
-  if (!trimmed) return "Empty";
-  return trimmed.length > 18 ? `${trimmed.slice(0, 18)}…` : trimmed;
+  return trimmed || "Empty";
 }
 
 function masterLabel(name: string): string {
@@ -63,69 +63,75 @@ defineEmits<{
     <!-- System menu (logo button) in the corner -->
     <slot name="menu" />
 
-    <!-- File info: stretches to fill -->
+    <!-- File info and text tabs share one wide tile: the file name and
+         save state on the top line, the tabs on the bottom. Two tiles
+         here left the name cramped and the tabs stranded in the
+         corner. -->
     <div class="panel file-info">
-      <div class="file-path">
-        {{ fontLabel || "No font loaded" }}
-        <span v-if="demo" class="demo-badge">(demo font)</span>
-      </div>
-      <div v-if="demo" class="demo-note">
-        This is the bundled demo — open your own font from the
-        Runebender menu in the top-left corner.
-      </div>
-      <div
-        v-else-if="fontLabel"
-        class="save-status"
-        :class="{ saved: !unsaved && lastSaved }"
-      >
-        <span class="save-state">{{ !unsaved && lastSaved ? `Saved ${lastSaved}` : "Not saved" }}</span>
-        <span v-if="notice" class="notice" :title="notice"> · {{ notice }}</span>
-        <span v-else-if="sourceLabel" class="source-label" :title="sourceLabel"> · {{ sourceLabel }}</span>
-      </div>
-    </div>
-
-    <!-- Text tabs: the font overview plus every text you have been
-         working on, the way Glyphs keeps them across the top. -->
-    <div v-if="fontLabel" class="panel text-tabs" role="tablist">
-      <button
-        type="button"
-        role="tab"
-        class="text-tab"
-        :class="{ active: activeTextTab === null }"
-        :aria-selected="activeTextTab === null"
-        title="Full glyph overview"
-        @click="$emit('selectTextTab', null)"
-      >
-        Font
-      </button>
-      <button
-        v-for="(text, index) in textTabs"
-        :key="index"
-        type="button"
-        role="tab"
-        class="text-tab"
-        :class="{ active: activeTextTab === index }"
-        :aria-selected="activeTextTab === index"
-        :title="text || 'Empty tab'"
-        @click="$emit('selectTextTab', index)"
-      >
-        <span class="text-tab-label">{{ tabLabel(text) }}</span>
+      <div class="file-line">
+        <span class="file-path">
+          {{ fontLabel || "No font loaded" }}
+          <span v-if="demo" class="demo-badge">(demo font)</span>
+        </span>
+        <span v-if="demo" class="demo-note">
+          This is the bundled demo — open your own font from the
+          Runebender menu in the top-left corner.
+        </span>
         <span
-          class="text-tab-close"
-          role="button"
-          aria-label="Close tab"
-          @click.stop="$emit('closeTextTab', index)"
-        >×</span>
-      </button>
-      <button
-        type="button"
-        class="text-tab add"
-        title="New text tab"
-        aria-label="New text tab"
-        @click="$emit('addTextTab')"
-      >
-        +
-      </button>
+          v-else-if="fontLabel"
+          class="save-status"
+          :class="{ saved: !unsaved && lastSaved }"
+        >
+          <span class="save-state">{{ !unsaved && lastSaved ? `Saved ${lastSaved}` : "Not saved" }}</span>
+          <span v-if="notice" class="notice" :title="notice"> · {{ notice }}</span>
+          <span v-else-if="sourceLabel" class="source-label" :title="sourceLabel"> · {{ sourceLabel }}</span>
+        </span>
+      </div>
+
+      <!-- The font overview plus every text you have been working on,
+           the way Glyphs keeps them across the top. Tabs share the row
+           evenly rather than bunching up on the left. -->
+      <div v-if="fontLabel" class="text-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          class="text-tab fixed"
+          :class="{ active: activeTextTab === null }"
+          :aria-selected="activeTextTab === null"
+          title="Full glyph overview"
+          @click="$emit('selectTextTab', null)"
+        >
+          Font
+        </button>
+        <button
+          v-for="(text, index) in textTabs"
+          :key="index"
+          type="button"
+          role="tab"
+          class="text-tab"
+          :class="{ active: activeTextTab === index }"
+          :aria-selected="activeTextTab === index"
+          :title="text || 'Empty tab'"
+          @click="$emit('selectTextTab', index)"
+        >
+          <span class="text-tab-label">{{ tabLabel(text) }}</span>
+          <span
+            class="text-tab-close"
+            role="button"
+            aria-label="Close tab"
+            @click.stop="$emit('closeTextTab', index)"
+          >×</span>
+        </button>
+        <button
+          type="button"
+          class="text-tab fixed add"
+          title="New text tab"
+          aria-label="New text tab"
+          @click="$emit('addTextTab')"
+        >
+          +
+        </button>
+      </div>
     </div>
 
     <!-- Master switcher -->
@@ -185,21 +191,30 @@ defineEmits<{
 
 .file-info {
   flex: 1;
-  padding: 6px 12px;
+  padding: 4px 8px;
   gap: 2px;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: center;
   min-width: 0;
+}
+
+/* Top line: the name, then how it stands with the disk. */
+.file-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 4px;
+  white-space: nowrap;
 }
 .file-path {
   color: var(--rb-muted-text, #808080);
   font: var(--rb-ui-title-size, 16px) ui-sans-serif, system-ui, sans-serif;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  width: 100%;
   min-width: 0;
+  flex: 0 1 auto;
 }
 .demo-badge {
   /* Parenthesised rather than a pill: same information, much quieter
@@ -210,20 +225,19 @@ defineEmits<{
 .demo-note {
   color: var(--rb-secondary-text, #707070);
   font: var(--rb-ui-title-size, 16px) ui-sans-serif, system-ui, sans-serif;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .save-status {
   color: var(--rb-warning, #ffdc32);
   font: var(--rb-ui-title-size, 16px) ui-sans-serif, system-ui, sans-serif;
   display: flex;
-  flex-shrink: 1;
-  max-width: 100%;
-  white-space: nowrap;
+  flex: 0 1 auto;
   min-width: 0;
+  white-space: nowrap;
 }
 .save-status.saved {
   color: var(--rb-accent, #18b86f);
@@ -244,27 +258,24 @@ defineEmits<{
   text-overflow: ellipsis;
 }
 
-/* One tile of tabs. It takes what the file name leaves, and scrolls
-   rather than pushing the master switcher off the bar. */
+/* Bottom line: the tabs, sharing the width of the tile. */
 .text-tabs {
+  display: flex;
   flex: 1 1 auto;
-  min-width: 0;
-  padding: 6px;
+  align-items: stretch;
   gap: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.text-tabs::-webkit-scrollbar {
-  display: none;
+  min-width: 0;
 }
 .text-tab {
   appearance: none;
-  flex: 0 0 auto;
+  /* Every text tab takes an equal share of what the fixed ones leave. */
+  flex: 1 1 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  max-width: 180px;
-  height: 100%;
+  min-width: 0;
+  max-width: 260px;
   padding: 0 10px;
   background: var(--rb-button-background, #181818);
   border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
@@ -273,6 +284,10 @@ defineEmits<{
   font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
   white-space: nowrap;
+}
+/* Font and + say the same thing at any width, so they stay small. */
+.text-tab.fixed {
+  flex: 0 0 auto;
 }
 .text-tab:hover {
   color: var(--rb-accent, #18b86f);
@@ -287,6 +302,7 @@ defineEmits<{
   text-overflow: ellipsis;
 }
 .text-tab-close {
+  flex: 0 0 auto;
   opacity: 0.55;
 }
 .text-tab-close:hover {
