@@ -24,6 +24,7 @@ export const glypheditor_addAnchorAt: (a: number, b: number, c: number, d: numbe
 export const glypheditor_advanceWidth: (a: number) => number;
 export const glypheditor_anchorContextAt: (a: number, b: number, c: number) => [number, number];
 export const glypheditor_balanceSelection: (a: number) => number;
+export const glypheditor_beginTextSession: (a: number) => void;
 export const glypheditor_clearComponentSelection: (a: number) => void;
 export const glypheditor_clearSegmentHover: (a: number) => number;
 export const glypheditor_clearTextBuffer: (a: number) => void;

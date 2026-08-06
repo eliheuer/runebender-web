@@ -366,6 +366,11 @@ type MasterData = {
   /** base glyph -> glyphs that place it as a component. Built on first
    *  use; kept current as glyphs are edited. */
   componentUsers: Map<string, Set<string>> | null;
+  /** lib.plist verbatim. Kept whole: it holds a pile of keys from other
+   *  tools, and saving text tabs must not drop them. */
+  libText: string | null;
+  libPath: string | null;
+  libFileHandle: FileSystemFileHandle | null;
 };
 
 type GlyphMetadata = {
@@ -566,6 +571,8 @@ const measureInfo = ref<MeasureInfo | undefined>(undefined);
 const dirtyGlyphsByMaster = ref<Map<string, Set<string>>>(new Map());
 const dirtyKerningMasters = ref<Set<string>>(new Set());
 const dirtyGroupsMasters = ref<Set<string>>(new Set());
+/** Masters whose lib.plist needs writing — text tabs live there. */
+const dirtyLibMasters = ref<Set<string>>(new Set());
 const gridGlyphClipboard = ref<Uint8Array | null>(null);
 const markColorApplyAllMasters = ref(false);
 const glyphSortMode = ref<GlyphSortMode>("unicode");
@@ -662,6 +669,7 @@ const hasDirtyChanges = computed(
     dirtyGlyphCount.value > 0 ||
     dirtyKerningMasters.value.size > 0 ||
     dirtyGroupsMasters.value.size > 0 ||
+    dirtyLibMasters.value.size > 0 ||
     designspaceDirty.value,
 );
 const designspaceSummary = computed(() => {
@@ -1561,6 +1569,7 @@ type Editor = {
   textLayoutState(): Float64Array;
   textBufferPreviewSvg(paneAspect: number): string;
   clearTextBuffer(): void;
+  beginTextSession(): void;
   insertTextGlyph(name: string, codepoint: number, advanceWidth: number): void;
   insertInactiveTextGlyph(name: string, codepoint: number, advanceWidth: number): void;
   insertTextGlyphAfterActive(name: string, codepoint: number, advanceWidth: number): number;
@@ -5028,6 +5037,189 @@ function ensureTextSessionForCurrentGlyph() {
   }
 }
 
+// ---------------------------------------------------------------------
+// Text tabs
+//
+// Glyphs keeps every text you have been working with as a tab across the
+// top, alongside one for the font overview, and stores them in the source
+// as com.schriftgestaltung.DisplayStrings. We read and write the same
+// key, so tabs made here show up in Glyphs and the other way round.
+//
+// A string is plain text, with /glyphName for anything the text cannot
+// encode — the final and initial forms, say. A name runs to a space or
+// the next slash, matching Glyphs.
+// ---------------------------------------------------------------------
+
+const DISPLAY_STRINGS_KEY = "com.schriftgestaltung.DisplayStrings";
+
+/** Text tabs for the current font, in the order they appear in the bar. */
+const textTabs = ref<string[]>([]);
+/** Which tab is open. null is the font overview. */
+const activeTextTab = ref<number | null>(null);
+
+function parseDisplayStrings(libText: string | null): string[] {
+  if (!libText) return [];
+  const key = libText.indexOf(`<key>${DISPLAY_STRINGS_KEY}</key>`);
+  if (key === -1) return [];
+  const open = libText.indexOf("<array>", key);
+  const close = libText.indexOf("</array>", open);
+  if (open === -1 || close === -1) return [];
+  return Array.from(
+    libText.slice(open, close).matchAll(/<string>([\s\S]*?)<\/string>/g),
+  ).map(([, value]) =>
+    value
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, "&"),
+  );
+}
+
+function escapePlistText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/** lib.plist with the display strings replaced, everything else untouched. */
+function libTextWithDisplayStrings(libText: string, strings: string[]): string {
+  const block = (indent: string) => {
+    const lines = [`${indent}<key>${DISPLAY_STRINGS_KEY}</key>`, `${indent}<array>`];
+    for (const value of strings) {
+      lines.push(`${indent}\t<string>${escapePlistText(value)}</string>`);
+    }
+    lines.push(`${indent}</array>`);
+    return lines.join("\n");
+  };
+
+  const key = libText.indexOf(`<key>${DISPLAY_STRINGS_KEY}</key>`);
+  if (key !== -1) {
+    const close = libText.indexOf("</array>", key);
+    if (close !== -1) {
+      // Replace from the start of the key's line so the indentation of
+      // the file is what we write back.
+      const lineStart = libText.lastIndexOf("\n", key) + 1;
+      const indent = libText.slice(lineStart, key);
+      return (
+        libText.slice(0, lineStart) +
+        block(indent) +
+        libText.slice(close + "</array>".length)
+      );
+    }
+  }
+  // No key yet: add it right after the opening dict.
+  const dict = libText.indexOf("<dict>");
+  if (dict === -1) return libText;
+  const insertAt = dict + "<dict>".length;
+  return `${libText.slice(0, insertAt)}\n${block("\t")}${libText.slice(insertAt)}`;
+}
+
+/** The text buffer as a display string. */
+function textBufferToDisplayString(): string {
+  let out = "";
+  for (const sort of textBuffer.value) {
+    if (sort.kind === "lineBreak") {
+      out += "\n";
+      continue;
+    }
+    if (sort.char) {
+      out += sort.char;
+      continue;
+    }
+    // Unencoded glyph: /name, terminated by a space so the next
+    // character is not read as part of the name.
+    out += `/${sort.glyphName} `;
+  }
+  return out.trimEnd();
+}
+
+/** Load a display string into the text buffer. */
+function loadDisplayStringIntoBuffer(text: string) {
+  if (!editor) return;
+  editor.clearTextBuffer();
+  // An empty tab is still a place to type: without a session the first
+  // keystroke would be dropped.
+  editor.beginTextSession();
+  let index = 0;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === "/") {
+      let end = index + 1;
+      while (end < text.length && !/[\s/]/.test(text[end])) end += 1;
+      const name = text.slice(index + 1, end);
+      // A single space after a name is the terminator, not a space glyph.
+      index = end < text.length && text[end] === " " ? end + 1 : end;
+      if (name) insertInactiveTextGlyphByName(name);
+      continue;
+    }
+    index += 1;
+    if (char === "\n") {
+      editor.insertTextLineBreak();
+      continue;
+    }
+    const codepoint = char.codePointAt(0);
+    if (codepoint !== undefined) editor.insertTextCharacter(codepoint);
+  }
+  refreshTextStateFromEditor();
+  reshapeTextBuffer();
+}
+
+/** Remember what is on screen before leaving a tab. */
+function captureActiveTextTab() {
+  const index = activeTextTab.value;
+  if (index === null || !hasTextBufferSession.value) return;
+  const text = textBufferToDisplayString();
+  if (textTabs.value[index] === text) return;
+  const next = textTabs.value.slice();
+  next[index] = text;
+  textTabs.value = next;
+  markTextTabsDirty();
+}
+
+function markTextTabsDirty() {
+  const master = activeMasterName.value;
+  if (!master || !masterDataMap.value.get(master)?.libPath) return;
+  dirtyLibMasters.value = new Set(dirtyLibMasters.value).add(master);
+}
+
+function selectTextTab(index: number | null) {
+  if (!editor) return;
+  captureActiveTextTab();
+  activeTextTab.value = index;
+  if (index === null) {
+    viewMode.value = "grid";
+    return;
+  }
+  viewMode.value = "editor";
+  if (activeTool.value !== "Text") onToolSelect("Text");
+  loadDisplayStringIntoBuffer(textTabs.value[index] ?? "");
+  requestRender();
+}
+
+function addTextTab() {
+  captureActiveTextTab();
+  const next = textTabs.value.slice();
+  next.push("");
+  textTabs.value = next;
+  markTextTabsDirty();
+  selectTextTab(next.length - 1);
+}
+
+function closeTextTab(index: number) {
+  const next = textTabs.value.slice();
+  next.splice(index, 1);
+  textTabs.value = next;
+  markTextTabsDirty();
+  const active = activeTextTab.value;
+  if (active === null) return;
+  if (active === index) {
+    selectTextTab(next.length ? Math.min(index, next.length - 1) : null);
+  } else if (active > index) {
+    activeTextTab.value = active - 1;
+  }
+}
+
 function refreshTextStateFromEditor(
   syncSorts = true,
   renderOptions: RenderRequestOptions = { refreshDerivedState: false },
@@ -6732,6 +6924,9 @@ async function loadGlifFiles(
   dirtyGlyphsByMaster.value = new Map();
   dirtyKerningMasters.value = new Set();
   dirtyGroupsMasters.value = new Set();
+  dirtyLibMasters.value = new Set();
+  textTabs.value = [];
+  activeTextTab.value = null;
   lastSavedDisplay.value = null;
   sourceSaveLabel.value = null;
   designspacePath.value = null;
@@ -7192,6 +7387,13 @@ async function buildMasterData(
   const featuresFile = ufoFiles.find((f) => /\/features\.fea$/i.test(relPath(f)));
   const featuresText = featuresFile ? await featuresFile.text() : null;
 
+  // lib.plist carries the text-tab strings (Glyphs writes them there as
+  // com.schriftgestaltung.DisplayStrings), so it round-trips whole.
+  const libFile = ufoFiles.find((f) => /\/lib\.plist$/i.test(relPath(f)));
+  const libText = libFile ? await libFile.text() : null;
+  const libPath = libFile ? relPath(libFile) : null;
+  const libFileHandle = libPath ? (fileHandles.get(libPath) ?? null) : null;
+
   const glyphSvgs = await buildGridSvgsForMap(glyphBytes, unitsPerEm);
 
   const contentsFile = ufoFiles.find((f) =>
@@ -7252,6 +7454,9 @@ async function buildMasterData(
     unitsPerEm,
     featuresText,
     componentUsers: null,
+    libText,
+    libPath,
+    libFileHandle,
   };
 }
 
@@ -7422,6 +7627,10 @@ function activateMaster(name: string) {
   activeMasterName.value = name;
   const data = masterDataMap.value.get(name);
   if (!data || !editor) return;
+  // Text tabs come from the master's lib.plist, the same key Glyphs uses.
+  if (textTabs.value.length === 0) {
+    textTabs.value = parseDisplayStrings(data.libText);
+  }
   syncTextKerningModelToEditor();
   // Push the master's fontinfo so the metric guides reflect it.
   if (data.fontInfoBytes) {
@@ -8540,6 +8749,12 @@ async function onSave(options: { force?: boolean } = {}): Promise<boolean> {
     const unsavedGroups = await persistDirtyGroups();
     const unsavedKerning = await persistDirtyKerning();
     const designspaceSaved = await persistDirtyDesignspace();
+    // Text tabs: worth saving, never worth failing a save over.
+    captureActiveTextTab();
+    const unsavedLib = await persistDirtyLib();
+    if (unsavedLib.length > 0) {
+      console.warn("[runebender] text tabs not saved for", unsavedLib.join(", "));
+    }
     if (unsavedGlyphs.length === 0 && unsavedGroups.length === 0 && unsavedKerning.length === 0 && designspaceSaved) {
       lastSavedDisplay.value = formatLastSavedDisplay();
     }
@@ -8941,6 +9156,46 @@ async function persistDirtyGroups(): Promise<string[]> {
     }
   }
   return unsaved;
+}
+
+async function persistDirtyLib(): Promise<string[]> {
+  const unsaved: string[] = [];
+  for (const masterName of Array.from(dirtyLibMasters.value)) {
+    const data = masterDataMap.value.get(masterName);
+    if (!data || !(await persistLibData(data))) {
+      unsaved.push(masterName);
+      continue;
+    }
+    const next = new Set(dirtyLibMasters.value);
+    next.delete(masterName);
+    dirtyLibMasters.value = next;
+  }
+  return unsaved;
+}
+
+/** Write the text tabs back into the master's lib.plist. */
+async function persistLibData(data: MasterData): Promise<boolean> {
+  if (!data.libText || !data.libPath) return false;
+  const text = libTextWithDisplayStrings(data.libText, textTabs.value);
+  if (text === data.libText) return true;
+
+  if (currentFontPath.value) {
+    const res = await runebenderHost.writeWorkspaceFile(data.libPath, text);
+    await recordWorkspaceWriteResult(res);
+    if (!res.ok) return false;
+    data.libText = text;
+    return true;
+  }
+
+  if (data.libFileHandle) {
+    const writable = await data.libFileHandle.createWritable();
+    await writable.write(new TextEncoder().encode(text));
+    await writable.close();
+    await invalidateCompiledWorkspacePath(data.libPath);
+    data.libText = text;
+    return true;
+  }
+  return false;
 }
 
 async function persistGroupsData(data: MasterData, masterName = activeMasterName.value): Promise<boolean> {
@@ -9856,7 +10111,12 @@ onBeforeUnmount(() => {
       :masters="masters"
       :active-master="activeMasterIndex"
       :master-previews="masterPreviewSvgs"
+      :text-tabs="textTabs"
+      :active-text-tab="activeTextTab"
       @select-master="onSelectMaster"
+      @select-text-tab="selectTextTab"
+      @add-text-tab="addTextTab"
+      @close-text-tab="closeTextTab"
     >
       <template #menu>
         <SystemMenu
@@ -9964,7 +10224,12 @@ onBeforeUnmount(() => {
             :source-label="sourceSaveLabel"
             :notice="workspaceNotice"
             :demo="demoFontLoaded"
+            :text-tabs="textTabs"
+            :active-text-tab="activeTextTab"
             file-only
+            @select-text-tab="selectTextTab"
+            @add-text-tab="addTextTab"
+            @close-text-tab="closeTextTab"
           />
 
           <!-- Tool palette on the RIGHT side of the top row (it

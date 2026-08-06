@@ -25,6 +25,12 @@ export class GlyphEditor {
      * Balance selected cubic segments' handles (or all if none selected).
      */
     balanceSelection(): boolean;
+    /**
+     * Start typing into an empty buffer. A text tab that has nothing in
+     * it yet is still a text session — without this, the first
+     * keystroke has nowhere to go and is dropped.
+     */
+    beginTextSession(): void;
     clearComponentSelection(): void;
     clearSegmentHover(): boolean;
     clearTextBuffer(): void;
@@ -511,6 +517,7 @@ export interface InitOutput {
     readonly glypheditor_advanceWidth: (a: number) => number;
     readonly glypheditor_anchorContextAt: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_balanceSelection: (a: number) => number;
+    readonly glypheditor_beginTextSession: (a: number) => void;
     readonly glypheditor_clearComponentSelection: (a: number) => void;
     readonly glypheditor_clearSegmentHover: (a: number) => number;
     readonly glypheditor_clearTextBuffer: (a: number) => void;

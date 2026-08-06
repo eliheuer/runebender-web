@@ -103,6 +103,14 @@ export class GlyphEditor {
         const ret = wasm.glypheditor_balanceSelection(this.__wbg_ptr);
         return ret !== 0;
     }
+    /**
+     * Start typing into an empty buffer. A text tab that has nothing in
+     * it yet is still a text session — without this, the first
+     * keystroke has nowhere to go and is dropped.
+     */
+    beginTextSession() {
+        wasm.glypheditor_beginTextSession(this.__wbg_ptr);
+    }
     clearComponentSelection() {
         wasm.glypheditor_clearComponentSelection(this.__wbg_ptr);
     }

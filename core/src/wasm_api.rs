@@ -2106,6 +2106,14 @@ impl GlyphEditor {
         self.state.has_text_session = false;
     }
 
+    /// Start typing into an empty buffer. A text tab that has nothing in
+    /// it yet is still a text session — without this, the first
+    /// keystroke has nowhere to go and is dropped.
+    #[wasm_bindgen(js_name = beginTextSession)]
+    pub fn begin_text_session(&mut self) {
+        self.state.has_text_session = true;
+    }
+
     #[wasm_bindgen(js_name = insertTextGlyph)]
     pub fn insert_text_glyph(&mut self, name: &str, codepoint: u32, advance_width: f64) {
         let codepoint = text_codepoint_from_wasm(codepoint);

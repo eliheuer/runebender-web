@@ -33,7 +33,18 @@ defineProps<{
   /** The bundled demo font is loaded — label it as such and point at
    *  the system menu for opening a real source. */
   demo?: boolean;
+  /** Saved text arrangements, in tab order. */
+  textTabs?: string[];
+  /** Open tab: null is the font overview. */
+  activeTextTab?: number | null;
 }>();
+
+/** What a tab shows: its text, or a placeholder while it is empty. */
+function tabLabel(text: string): string {
+  const trimmed = text.replace(/\s+/g, " ").trim();
+  if (!trimmed) return "Empty";
+  return trimmed.length > 18 ? `${trimmed.slice(0, 18)}…` : trimmed;
+}
 
 function masterLabel(name: string): string {
   return name.trim().slice(0, 1).toLowerCase() || "?";
@@ -41,6 +52,9 @@ function masterLabel(name: string): string {
 
 defineEmits<{
   (e: "selectMaster", index: number): void;
+  (e: "selectTextTab", index: number | null): void;
+  (e: "addTextTab"): void;
+  (e: "closeTextTab", index: number): void;
 }>();
 </script>
 
@@ -68,6 +82,50 @@ defineEmits<{
         <span v-if="notice" class="notice" :title="notice"> · {{ notice }}</span>
         <span v-else-if="sourceLabel" class="source-label" :title="sourceLabel"> · {{ sourceLabel }}</span>
       </div>
+    </div>
+
+    <!-- Text tabs: the font overview plus every text you have been
+         working on, the way Glyphs keeps them across the top. -->
+    <div v-if="fontLabel" class="panel text-tabs" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        class="text-tab"
+        :class="{ active: activeTextTab === null }"
+        :aria-selected="activeTextTab === null"
+        title="Full glyph overview"
+        @click="$emit('selectTextTab', null)"
+      >
+        Font
+      </button>
+      <button
+        v-for="(text, index) in textTabs"
+        :key="index"
+        type="button"
+        role="tab"
+        class="text-tab"
+        :class="{ active: activeTextTab === index }"
+        :aria-selected="activeTextTab === index"
+        :title="text || 'Empty tab'"
+        @click="$emit('selectTextTab', index)"
+      >
+        <span class="text-tab-label">{{ tabLabel(text) }}</span>
+        <span
+          class="text-tab-close"
+          role="button"
+          aria-label="Close tab"
+          @click.stop="$emit('closeTextTab', index)"
+        >×</span>
+      </button>
+      <button
+        type="button"
+        class="text-tab add"
+        title="New text tab"
+        aria-label="New text tab"
+        @click="$emit('addTextTab')"
+      >
+        +
+      </button>
     </div>
 
     <!-- Master switcher -->
@@ -184,6 +242,58 @@ defineEmits<{
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* One tile of tabs. It takes what the file name leaves, and scrolls
+   rather than pushing the master switcher off the bar. */
+.text-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.text-tabs::-webkit-scrollbar {
+  display: none;
+}
+.text-tab {
+  appearance: none;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  height: 100%;
+  padding: 0 10px;
+  background: var(--rb-button-background, #181818);
+  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border-radius: var(--rb-button-radius, 8px);
+  color: var(--rb-primary-text, #909090);
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.text-tab:hover {
+  color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent, #18b86f);
+}
+.text-tab.active {
+  color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent, #18b86f);
+}
+.text-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.text-tab-close {
+  opacity: 0.55;
+}
+.text-tab-close:hover {
+  opacity: 1;
+}
+.text-tab.add {
+  padding: 0 12px;
 }
 
 .masters {
