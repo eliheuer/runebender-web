@@ -69,6 +69,10 @@ const HANDLE_LINE: Srgb = srgb(theme::handle::LINE);
 const POINT_INNER: Srgb = AlphaColor::from_rgba8(0x18, 0x18, 0x18, 0xff);
 const POINT_MARK_RED: Srgb = AlphaColor::from_rgba8(0xff, 0x4a, 0x3d, 0xff);
 const POINT_MARK_GREEN: Srgb = AlphaColor::from_rgba8(0x18, 0xb8, 0x6f, 0xff);
+/// Anchors, in the palette's pink: green put them in the same family as
+/// smooth on-curve points, which is exactly what you do not want when
+/// hunting for an anchor in a glyph full of nodes.
+const ANCHOR_MARK_PINK: Srgb = AlphaColor::from_rgba8(0xe8, 0x6a, 0xb8, 0xff);
 const POINT_MARK_PURPLE: Srgb = AlphaColor::from_rgba8(0x8c, 0x6c, 0xff, 0xff);
 const POINT_MARK_YELLOW: Srgb = AlphaColor::from_rgba8(0xff, 0xdc, 0x32, 0xff);
 const POINT_MARK_ORANGE: Srgb = AlphaColor::from_rgba8(0xff, 0x98, 0x0f, 0xff);
@@ -284,7 +288,14 @@ const TEXT_CURSOR_LINE_MAX_PX: f64 = 4.0;
 const TEXT_CURSOR_TRIANGLE_WIDTH_PX: f64 = 24.0;
 const TEXT_CURSOR_TRIANGLE_HEIGHT_PX: f64 = 16.0;
 const TEXT_METRIC_CROSS_SIZE: f64 = 24.0;
-const TEXT_METRIC_CROSS_MIN_SIZE: f64 = 12.0;
+const TEXT_METRIC_CROSS_MIN_SIZE: f64 = 2.0;
+/// A cross is this fraction of the sort's on-screen height, so it shrinks
+/// with the text instead of staying a fixed size while the glyphs get
+/// smaller — which turned a page of text into a mesh of green crosses.
+const TEXT_METRIC_CROSS_FRACTION: f64 = 0.03;
+/// Below this on-screen size the crosses are noise; fade them out rather
+/// than stipple the view.
+const TEXT_METRIC_CROSS_FADE_PX: f64 = 7.0;
 const DESIGN_GRID_MID_MIN_ZOOM: f64 = 0.8;
 const DESIGN_GRID_MID_FINE: f64 = 8.0;
 // Mid zoom shows the machine lattice plainly: a line every 8 units,
@@ -808,12 +819,20 @@ impl Renderer {
         lerp(1.0, 1.45, smoothstep(self.text_overlay_zoom_t(zoom)))
     }
 
-    fn text_metric_cross_size(&self, zoom: f64) -> f64 {
-        lerp(
-            TEXT_METRIC_CROSS_MIN_SIZE,
-            TEXT_METRIC_CROSS_SIZE,
-            smoothstep(self.text_overlay_zoom_t(zoom)),
+    /// Size of a sort's metric cross, in device pixels, from the height
+    /// one sort takes up on screen. Zooming out shrinks the crosses with
+    /// the text; zooming in grows them to the old fixed size and stops.
+    fn text_metric_cross_size(&self, zoom: f64, sort_height: f64) -> f64 {
+        let box_px = (sort_height.max(1.0) * zoom).max(1.0);
+        (box_px * TEXT_METRIC_CROSS_FRACTION).clamp(
+            self.px(TEXT_METRIC_CROSS_MIN_SIZE),
+            self.px(TEXT_METRIC_CROSS_SIZE),
         )
+    }
+
+    /// Crosses fade out once they are too small to read as crosses.
+    fn text_metric_cross_alpha(&self, size: f64) -> f32 {
+        smoothstep((size / self.px(TEXT_METRIC_CROSS_FADE_PX)).clamp(0.0, 1.0)) as f32
     }
 
     /// Paint one frame against the given editor state.
@@ -1467,7 +1486,7 @@ impl Renderer {
                     self.theme.point_selected_outer,
                 )
             } else {
-                (POINT_INNER, POINT_MARK_GREEN)
+                (POINT_INNER, ANCHOR_MARK_PINK)
             };
             self.scene
                 .fill(Fill::NonZero, Affine::IDENTITY, inner, None, &diamond);
@@ -1487,7 +1506,7 @@ impl Renderer {
             self.scene.stroke(
                 &outline_stroke,
                 Affine::IDENTITY,
-                POINT_MARK_GREEN,
+                ANCHOR_MARK_PINK,
                 None,
                 &diamond,
             );
@@ -1504,6 +1523,8 @@ impl Renderer {
     ) {
         let (ascender, descender) = state.text_metric_bounds();
         let (sort_top, sort_bottom) = state.text_sort_metric_bounds();
+        let cross_size =
+            self.text_metric_cross_size(state.viewport.zoom, sort_top - sort_bottom);
         let line_height = state.text_line_height();
         let layout_storage;
         let layout = if let Some(layout) = frame_layout {
@@ -1559,18 +1580,33 @@ impl Renderer {
                     sort_top,
                     sort_bottom,
                     view,
-                    self.px(self.text_metric_cross_size(state.viewport.zoom)),
+                    cross_size,
                 );
             }
             let stroke = Stroke::new(self.px(METRIC_LINE_PX));
-            self.stroke_metric_batch(&guide_metric_path, self.theme.metric_guide, &stroke);
-            self.stroke_metric_batch(&active_metric_path, self.theme.text_kern_active, &stroke);
-            self.stroke_metric_batch(
-                &previous_metric_path,
-                self.theme.text_kern_previous,
-                &stroke,
-            );
-            self.stroke_metric_batch(&cursor_metric_path, self.theme.text_cursor, &stroke);
+            let fade = self.text_metric_cross_alpha(cross_size);
+            if fade > 0.0 {
+                self.stroke_metric_batch(
+                    &guide_metric_path,
+                    self.theme.metric_guide.multiply_alpha(fade),
+                    &stroke,
+                );
+                self.stroke_metric_batch(
+                    &active_metric_path,
+                    self.theme.text_kern_active.multiply_alpha(fade),
+                    &stroke,
+                );
+                self.stroke_metric_batch(
+                    &previous_metric_path,
+                    self.theme.text_kern_previous.multiply_alpha(fade),
+                    &stroke,
+                );
+                self.stroke_metric_batch(
+                    &cursor_metric_path,
+                    self.theme.text_cursor.multiply_alpha(fade),
+                    &stroke,
+                );
+            }
         }
 
         for item in &layout.items {
