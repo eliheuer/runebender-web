@@ -92,6 +92,12 @@ export class GlyphEditor {
     insertInactiveTextGlyph(name: string, codepoint: number, advance_width: number): void;
     insertTextCharacter(codepoint: number): boolean;
     insertTextGlyph(name: string, codepoint: number, advance_width: number): void;
+    /**
+     * Insert a glyph immediately after the sort being edited and make
+     * it the active one. Used when a component is double-clicked, so
+     * its base opens beside the glyph it belongs to.
+     */
+    insertTextGlyphAfterActive(name: string, codepoint: number, advance_width: number): number;
     insertTextLineBreak(): void;
     intersectSelection(): boolean;
     leftSidebearing(): number;
@@ -528,6 +534,7 @@ export interface InitOutput {
     readonly glypheditor_insertInactiveTextGlyph: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly glypheditor_insertTextCharacter: (a: number, b: number) => number;
     readonly glypheditor_insertTextGlyph: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly glypheditor_insertTextGlyphAfterActive: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly glypheditor_insertTextLineBreak: (a: number) => void;
     readonly glypheditor_intersectSelection: (a: number) => number;
     readonly glypheditor_leftSidebearing: (a: number) => number;

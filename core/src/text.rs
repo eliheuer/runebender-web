@@ -1111,6 +1111,37 @@ impl TextBuffer {
         }
     }
 
+    /// Open a glyph beside the one being edited: double-clicking a
+    /// component should put its base glyph next to the current sort, not
+    /// wherever the cursor happens to be sitting in the line.
+    ///
+    /// The new sort becomes the active one, so it is what gets edited.
+    pub fn insert_glyph_after_active(
+        &mut self,
+        name: impl Into<String>,
+        codepoint: Option<char>,
+        advance_width: f64,
+    ) -> usize {
+        self.manual_kerning = None;
+        let index = match self.active_sort {
+            Some(active) => (active + 1).min(self.sorts.len()),
+            None => self.cursor,
+        };
+        self.sorts
+            .insert(index, TextSort::glyph(name, codepoint, advance_width));
+        if self.cursor >= index {
+            self.cursor += 1;
+        }
+        if let Some(active) = self.active_sort
+            && active >= index
+        {
+            self.active_sort = Some(active + 1);
+        }
+        self.set_active_sort(Some(index));
+        self.cursor = index + 1;
+        index
+    }
+
     fn insert_inactive_glyph_at_cursor(
         &mut self,
         name: impl Into<String>,
@@ -2435,6 +2466,38 @@ mod tests {
 
         assert_eq!(buffer.sort_glyph_name(3), Some("lam_alef-ar"));
         assert!(buffer.sort(4).expect("alef sort").is_absorbed());
+    }
+
+    #[test]
+    fn a_glyph_opens_beside_the_one_being_edited() {
+        // Double-clicking a component puts its base next to the glyph
+        // that uses it, wherever the cursor happens to be.
+        let mut buffer = TextBuffer::new();
+        buffer.insert_glyph("A", Some('A'), 500.0);
+        buffer.insert_glyph("B", Some('B'), 500.0);
+        buffer.insert_glyph("C", Some('C'), 500.0);
+        buffer.activate_sort(0);
+        buffer.set_cursor(3); // cursor parked at the end
+
+        let index = buffer.insert_glyph_after_active("acutecomb", None, 0.0);
+
+        assert_eq!(index, 1);
+        assert_eq!(buffer.sort_glyph_name(1), Some("acutecomb"));
+        // ...and it is what gets edited.
+        assert_eq!(buffer.active_sort(), Some(1));
+        assert_eq!(buffer.cursor(), 2);
+    }
+
+    #[test]
+    fn a_glyph_opens_at_the_cursor_when_nothing_is_active() {
+        let mut buffer = TextBuffer::new();
+        buffer.insert_glyph("A", Some('A'), 500.0);
+        buffer.insert_glyph("B", Some('B'), 500.0);
+        buffer.set_active_sort(None);
+        buffer.set_cursor(1);
+
+        assert_eq!(buffer.insert_glyph_after_active("C", Some('C'), 500.0), 1);
+        assert_eq!(buffer.sort_glyph_name(1), Some("C"));
     }
 
     #[test]

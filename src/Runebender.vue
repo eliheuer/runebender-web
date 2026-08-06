@@ -1509,6 +1509,7 @@ type Editor = {
   clearTextBuffer(): void;
   insertTextGlyph(name: string, codepoint: number, advanceWidth: number): void;
   insertInactiveTextGlyph(name: string, codepoint: number, advanceWidth: number): void;
+  insertTextGlyphAfterActive(name: string, codepoint: number, advanceWidth: number): number;
   activateTextSort(index: number): boolean;
   insertTextCharacter(codepoint: number): boolean;
   updateTextGlyph(index: number, name: string, codepoint: number, advanceWidth: number): boolean;
@@ -2223,10 +2224,10 @@ function applyCanvasTheme() {
       bg: resolveHostColor("--rb-canvas-background", [0x10, 0x10, 0x10, 0xff]),
       pathStroke: resolveHostColor("--rb-canvas-path-stroke", [0xb0, 0xb0, 0xb0, 0xff]),
       previewFill: resolveHostColor("--rb-glyph-preview", [0x80, 0x80, 0x80, 0xff]),
-      componentFill: resolveHostColor("--rb-canvas-component", [0x66, 0x99, 0xcc, 0xff]),
+      componentFill: resolveHostColor("--rb-canvas-component", [0x8c, 0x6c, 0xff, 0xff]),
       componentSelectedFill: resolveHostColor(
         "--rb-canvas-component-selected",
-        [0x88, 0xbb, 0xff, 0xff],
+        [0xe8, 0x6a, 0xb8, 0xff],
       ),
       handleLine: primaryText,
       pointSmoothInner: resolveHostColor("--rb-canvas-point-smooth-inner", [0x18, 0x18, 0x18, 0xff]),
@@ -5186,6 +5187,20 @@ function insertInactiveTextGlyphByName(glyphName: string): boolean {
   return true;
 }
 
+/** Open a glyph beside the one being edited, and edit it. This is what
+ *  double-clicking a component does: its base belongs next to the glyph
+ *  that uses it, not wherever the cursor was left. */
+function openTextGlyphBesideActive(glyphName: string): boolean {
+  if (!editor) return false;
+  const { codepoint, advanceWidth } = textGlyphPayload(glyphName);
+  editor.insertTextGlyphAfterActive(glyphName, codepoint, advanceWidth);
+  refreshTextStateFromEditor();
+  selectedGlyph.value = glyphName;
+  selectedGlyphs.value = new Set([glyphName]);
+  loadActiveTextSortGlyphIntoEditor();
+  return true;
+}
+
 function seedTextBufferWithGlyph(glyphName: string) {
   if (!editor) return;
   const metadata = glyphMetadataMap.value.get(glyphName);
@@ -5787,7 +5802,7 @@ function onCanvasDoubleClick(e: MouseEvent) {
   }
   const baseName = editor.componentBaseAt(c[0], c[1]);
   if (baseName && hasTextBufferSession.value && activeMasterData.value?.glyphBytes.has(baseName)) {
-    insertInactiveTextGlyphByName(baseName);
+    openTextGlyphBesideActive(baseName);
     editor.clearComponentSelection();
     refreshSelectionState();
     requestRender();
@@ -10678,8 +10693,10 @@ onBeforeUnmount(() => {
   --rb-canvas-background:         #0c0c0c;
   --rb-canvas-path-stroke:        #b0b0b0;
   --rb-canvas-selection:          #ff980f;
-  --rb-canvas-component:          #6699cc;
-  --rb-canvas-component-selected: #88bbff;
+  /* Purple and pink from the mark-colour palette the glyph grid uses,
+     rather than a blue that belongs to no other part of the editor. */
+  --rb-canvas-component:          #8c6cff;
+  --rb-canvas-component-selected: #e86ab8;
   --rb-canvas-point-smooth-inner: #181818;
   --rb-canvas-point-smooth-outer: #18b86f;
   --rb-canvas-point-corner-inner: #181818;

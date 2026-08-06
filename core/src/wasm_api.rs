@@ -2107,6 +2107,29 @@ impl GlyphEditor {
             .insert_glyph(name, codepoint, advance_width);
     }
 
+    /// Insert a glyph immediately after the sort being edited and make
+    /// it the active one. Used when a component is double-clicked, so
+    /// its base opens beside the glyph it belongs to.
+    #[wasm_bindgen(js_name = insertTextGlyphAfterActive)]
+    pub fn insert_text_glyph_after_active(
+        &mut self,
+        name: &str,
+        codepoint: u32,
+        advance_width: f64,
+    ) -> usize {
+        let codepoint = text_codepoint_from_wasm(codepoint);
+        let snapshot = self.discrete_edit_snapshot();
+        let index = self
+            .state
+            .text_buffer
+            .insert_glyph_after_active(name, codepoint, advance_width);
+        self.state.has_text_session = true;
+        self.state.text_buffer.shape_arabic_if_rtl();
+        self.state.bump_edit_revision();
+        self.undo.add_undo_group(snapshot);
+        index
+    }
+
     #[wasm_bindgen(js_name = insertInactiveTextGlyph)]
     pub fn insert_inactive_text_glyph(&mut self, name: &str, codepoint: u32, advance_width: f64) {
         let codepoint = text_codepoint_from_wasm(codepoint);

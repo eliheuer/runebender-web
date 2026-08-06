@@ -53,6 +53,7 @@ export const glypheditor_harmonizeSelection: (a: number) => number;
 export const glypheditor_insertInactiveTextGlyph: (a: number, b: number, c: number, d: number, e: number) => void;
 export const glypheditor_insertTextCharacter: (a: number, b: number) => number;
 export const glypheditor_insertTextGlyph: (a: number, b: number, c: number, d: number, e: number) => void;
+export const glypheditor_insertTextGlyphAfterActive: (a: number, b: number, c: number, d: number, e: number) => number;
 export const glypheditor_insertTextLineBreak: (a: number) => void;
 export const glypheditor_intersectSelection: (a: number) => number;
 export const glypheditor_leftSidebearing: (a: number) => number;

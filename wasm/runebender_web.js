@@ -360,6 +360,21 @@ export class GlyphEditor {
         const len0 = WASM_VECTOR_LEN;
         wasm.glypheditor_insertTextGlyph(this.__wbg_ptr, ptr0, len0, codepoint, advance_width);
     }
+    /**
+     * Insert a glyph immediately after the sort being edited and make
+     * it the active one. Used when a component is double-clicked, so
+     * its base opens beside the glyph it belongs to.
+     * @param {string} name
+     * @param {number} codepoint
+     * @param {number} advance_width
+     * @returns {number}
+     */
+    insertTextGlyphAfterActive(name, codepoint, advance_width) {
+        const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.glypheditor_insertTextGlyphAfterActive(this.__wbg_ptr, ptr0, len0, codepoint, advance_width);
+        return ret >>> 0;
+    }
     insertTextLineBreak() {
         wasm.glypheditor_insertTextLineBreak(this.__wbg_ptr);
     }
