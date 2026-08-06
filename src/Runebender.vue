@@ -68,6 +68,7 @@ import GlyphInfoSidebar from "./components/GlyphInfoSidebar.vue";
 import SketchPanel from "./components/SketchPanel.vue";
 import SelectPanel from "./components/SelectPanel.vue";
 import CurvePanel from "./components/CurvePanel.vue";
+import LayersPanel from "./components/LayersPanel.vue";
 import MarkColorPanel from "./components/MarkColorPanel.vue";
 import TopBar from "./components/TopBar.vue";
 import TransformPanel, {
@@ -346,6 +347,15 @@ type MasterData = {
   glyphFileHandles: Map<string, FileSystemFileHandle>;
   contentsPath: string | null;
   contentsBytes: Uint8Array | null;
+  /// The glyph background layer, if this UFO has one. `.glif` bytes per
+  /// glyph name, plus what is needed to write the layer back.
+  background: BackgroundLayer | null;
+  /// layercontents.plist, so a new layer can be added without
+  /// disturbing the layers already listed there.
+  layerContentsPath: string | null;
+  layerContentsText: string | null;
+  /// UFO format version from metainfo.plist. Layers need UFO 3.
+  ufoFormatVersion: number;
   contentsFileHandle: FileSystemFileHandle | null;
   groupsPath: string | null;
   groupsFileHandle: FileSystemFileHandle | null;
@@ -670,6 +680,7 @@ const hasDirtyChanges = computed(
     dirtyKerningMasters.value.size > 0 ||
     dirtyGroupsMasters.value.size > 0 ||
     dirtyLibMasters.value.size > 0 ||
+    dirtyBackgroundMasters.value.size > 0 ||
     designspaceDirty.value,
 );
 const designspaceSummary = computed(() => {
@@ -1659,6 +1670,8 @@ type Editor = {
   setComponentGlyphs(glyphXmlByName: string): void;
   setComponentGlyph(name: string, bytes: Uint8Array): void;
   deleteComponentGlyph(name: string): void;
+  setBackgroundOutline(outline: string): void;
+  setReferenceOutline(outline: string): void;
   setGlyphGlifWithComponents(bytes: Uint8Array, glyphXmlByName: string): void;
   setGlyphGlifWithComponentsPreserveHistory(bytes: Uint8Array, glyphXmlByName: string): void;
   setGlyphGlifWithCachedComponents(bytes: Uint8Array): void;
@@ -5061,6 +5074,228 @@ function ensureTextSessionForCurrentGlyph() {
 }
 
 // ---------------------------------------------------------------------
+// Background layer and reference glyph
+//
+// Two different things sit behind the glyph you are drawing:
+//
+//   - the background layer, this glyph's own scratch copy, stored in the
+//     UFO under `public.background` (see BACKGROUND_LAYER_NAME). Drawn
+//     as an outline, the way Glyphs shows a background.
+//   - a reference glyph, any other glyph in the font, drawn as a ghost
+//     fill so it never reads as the background.
+//
+// Neither is editable in place. To change a background you send the
+// drawing to it, swap the two, or clear it — the same three moves
+// Glyphs and RoboFont's Layers popover offer.
+// ---------------------------------------------------------------------
+
+const showBackgroundLayer = ref(true);
+/** Glyph shown behind the current one, or "" for none. */
+const referenceGlyphName = ref("");
+/** Masters whose background layer has unsaved changes. */
+const dirtyBackgroundMasters = ref<Set<string>>(new Set());
+
+/** SVG path data for a glyph's outline, in design units. */
+function outlinePathData(bytes: Uint8Array | undefined): string {
+  if (!bytes) return "";
+  try {
+    return /<path\b[^>]*\sd="([^"]+)"/.exec(glifToSvg(bytes))?.[1] ?? "";
+  } catch (e) {
+    console.warn("failed to read outline:", e);
+    return "";
+  }
+}
+
+/** The background glif for a glyph in this master, if the layer has one. */
+function backgroundBytesFor(glyphName: string): Uint8Array | undefined {
+  return activeMasterData.value?.background?.bytes.get(glyphName);
+}
+
+const referenceGlyphKnown = computed(
+  () =>
+    !referenceGlyphName.value ||
+    !!activeMasterData.value?.glyphBytes.has(referenceGlyphName.value),
+);
+
+const currentGlyphHasBackground = computed(() =>
+  !!currentGlyph.value && !!backgroundBytesFor(currentGlyph.value),
+);
+
+/** Push what goes behind the glyph to the renderer. */
+function refreshUnderlays() {
+  if (!editor) return;
+  const glyphName = currentGlyph.value;
+  const background =
+    showBackgroundLayer.value && glyphName ? backgroundBytesFor(glyphName) : undefined;
+  editor.setBackgroundOutline(outlinePathData(background));
+
+  const reference = referenceGlyphName.value;
+  const referenceBytes =
+    reference && reference !== glyphName
+      ? activeMasterData.value?.glyphBytes.get(reference)
+      : undefined;
+  editor.setReferenceOutline(outlinePathData(referenceBytes));
+  requestRender({ refreshDerivedState: false });
+}
+
+watch([showBackgroundLayer, referenceGlyphName], () => refreshUnderlays());
+
+function markBackgroundDirty() {
+  const master = activeMasterName.value;
+  if (!master) return;
+  dirtyBackgroundMasters.value = new Set(dirtyBackgroundMasters.value).add(master);
+}
+
+/** Copy the glyph as it stands now into its background layer. */
+function sendGlyphToBackground() {
+  const data = activeMasterData.value;
+  const glyphName = currentGlyph.value;
+  if (!data || !glyphName) return;
+  flushDeferredGlyphSync();
+  const bytes = data.glyphBytes.get(glyphName);
+  if (!bytes) return;
+  setBackgroundGlyph(data, glyphName, bytes);
+  status.value = `${glyphName} copied to the background`;
+}
+
+/** Trade the drawing and its background. */
+function swapGlyphWithBackground() {
+  const data = activeMasterData.value;
+  const glyphName = currentGlyph.value;
+  if (!data || !glyphName || !editor) return;
+  flushDeferredGlyphSync();
+  const foreground = data.glyphBytes.get(glyphName);
+  const background = data.background?.bytes.get(glyphName);
+  if (!foreground || !background) return;
+  try {
+    // Outlines trade places; everything else about the glyph — name,
+    // unicodes, anchors, mark colour — stays where it was.
+    const nextForeground = glifWithOutlinesFrom(background, foreground);
+    setBackgroundGlyph(data, glyphName, foreground);
+    installGlyphOutlineBytes(data, glyphName, nextForeground);
+    status.value = `${glyphName} swapped with its background`;
+  } catch (e) {
+    console.warn("swap with background failed:", e);
+    status.value = `swap failed: ${e}`;
+  }
+}
+
+/** Empty the glyph's background, keeping the layer entry. */
+function clearGlyphBackground() {
+  const data = activeMasterData.value;
+  const glyphName = currentGlyph.value;
+  if (!data || !glyphName) return;
+  const background = data.background?.bytes.get(glyphName);
+  if (!background) return;
+  try {
+    // Written as an empty glyph rather than deleted: the host can create
+    // and overwrite files, not remove them, and an empty background is
+    // what "cleared" means to every editor that reads it.
+    setBackgroundGlyph(data, glyphName, emptyGlifFor(background));
+    status.value = `${glyphName} background cleared`;
+  } catch (e) {
+    console.warn("clearing the background failed:", e);
+    status.value = `clear failed: ${e}`;
+  }
+}
+
+/** Replace a glyph's outlines everywhere the app shows them. */
+function installGlyphOutlineBytes(
+  data: MasterData,
+  glyphName: string,
+  bytes: Uint8Array,
+) {
+  const info = parseGlyphInfo(bytes);
+  const metadata = {
+    name: glyphName,
+    width: info.width,
+    contours: info.contours,
+    unicode: info.unicode,
+    unicodes: info.unicodes,
+  };
+  setGlyphBytes(data, glyphName, bytes);
+  data.glyphMetadata.set(glyphName, metadata);
+  refreshGridGlyphSvg(data, glyphName, bytes);
+  if (hasTextBufferSession.value) {
+    syncTextSortsForGlyph(glyphName, glyphName, metadata);
+  }
+  markGlyphDirty(glyphName);
+  masterDataMap.value = new Map(masterDataMap.value);
+  if (glyphName === currentGlyph.value && editor) {
+    ensureEditorComponentGlyphs(data);
+    if (!editor.setGlyphNameWithCachedComponents(glyphName)) {
+      editor.setGlyphGlifWithCachedComponents(bytes);
+    }
+    editorGlyphNeedsSync = false;
+    applyEditorPanelState(editor.editorPanelState());
+    updateCompatibilityErrors();
+  }
+  if (hasTextBufferSession.value) {
+    syncTextKerningModelToEditor();
+    bumpTextPreviewRevision();
+  }
+  requestRender();
+}
+
+/** A copy of a glif with no contours or components. */
+function emptyGlifFor(bytes: Uint8Array): Uint8Array {
+  const text = new TextDecoder().decode(bytes);
+  const stripped = text
+    .replace(/<outline>[\s\S]*?<\/outline>/g, "<outline/>")
+    .replace(/<outline\s*\/>/g, "<outline/>");
+  return new TextEncoder().encode(stripped);
+}
+
+/** Put bytes into the master's background layer, creating it if needed. */
+function setBackgroundGlyph(data: MasterData, glyphName: string, bytes: Uint8Array) {
+  const layer = data.background ?? createBackgroundLayer(data);
+  if (!layer) return;
+  data.background = layer;
+  layer.bytes.set(glyphName, bytes);
+  layer.dirty.add(glyphName);
+  if (!layer.paths.has(glyphName)) {
+    layer.paths.set(glyphName, `${layer.directory}/${backgroundFileName(layer, glyphName)}`);
+  }
+  masterDataMap.value = new Map(masterDataMap.value);
+  markBackgroundDirty();
+  refreshUnderlays();
+}
+
+/** A file name for a new background glyph, unique within the layer. */
+function backgroundFileName(layer: BackgroundLayer, glyphName: string): string {
+  const used = new Set(Array.from(layer.paths.values()).map((p) => p.split("/").pop()));
+  const base = safeGlyphFileBase(glyphName);
+  let name = `${base}.glif`;
+  let suffix = 2;
+  while (used.has(name)) {
+    name = `${base}.${suffix}.glif`;
+    suffix += 1;
+  }
+  return name;
+}
+
+/** Start a background layer for a UFO that has none. */
+function createBackgroundLayer(data: MasterData): BackgroundLayer | null {
+  // UFO 2 has no layers at all — a glyphs.background directory there
+  // would be a file nothing else could read.
+  if (data.ufoFormatVersion < 3) {
+    status.value = "this UFO is format 2, which has no layers — save it as UFO 3 first";
+    return null;
+  }
+  const glyphsDir = glyphPathDirectory(data);
+  if (!glyphsDir) return null;
+  const ufoRoot = glyphsDir.replace(/\/glyphs$/i, "");
+  return {
+    name: BACKGROUND_LAYER_NAME,
+    directory: `${ufoRoot}/${BACKGROUND_LAYER_DIR}`,
+    bytes: new Map(),
+    paths: new Map(),
+    contentsText: null,
+    dirty: new Set(),
+  };
+}
+
+// ---------------------------------------------------------------------
 // Text tabs
 //
 // Glyphs keeps every text you have been working with as a tab across the
@@ -6974,6 +7209,7 @@ async function loadGlifFiles(
   dirtyKerningMasters.value = new Set();
   dirtyGroupsMasters.value = new Set();
   dirtyLibMasters.value = new Set();
+  dirtyBackgroundMasters.value = new Set();
   textTabs.value = [];
   activeTextTab.value = null;
   lastSavedDisplay.value = null;
@@ -7350,6 +7586,70 @@ async function loadSingleUfo(
   status.value = "ready";
 }
 
+// ---------------------------------------------------------------------
+// Background layer
+//
+// UFO 3 reserves the layer name `public.background` for exactly this:
+// "background reference layers such as the Template layer in
+// Fontographer, the Mask layer in FontLab and the Background layer in
+// FontForge". glyphsLib writes a master's background there too, so a
+// background made here is the background Glyphs shows.
+//
+// RoboFont has no privileged background — it has a general layer set,
+// and people name one `background` by convention. So we read
+// `public.background` first and fall back to `background`, which covers
+// both worlds without asking.
+//
+// Layers live in their own directory (`glyphs.something/`) with their
+// own contents.plist, and a glyph is in the layer only if it has an
+// entry there. Nothing else about the UFO changes.
+// ---------------------------------------------------------------------
+
+/// The UFO layer name we write. Anything else we only read.
+const BACKGROUND_LAYER_NAME = "public.background";
+/// Directory for the layer we create, per the UFO rule that a layer
+/// directory begins with "glyphs.".
+const BACKGROUND_LAYER_DIR = "glyphs.background";
+/// Layer names we will show as a background, best first.
+const BACKGROUND_LAYER_CANDIDATES = [BACKGROUND_LAYER_NAME, "background"];
+
+type BackgroundLayer = {
+  /** UFO layer name, e.g. "public.background". */
+  name: string;
+  /** Layer directory relative to the workspace, e.g. "Font.ufo/glyphs.background". */
+  directory: string;
+  /** `.glif` bytes by glyph name. */
+  bytes: Map<string, Uint8Array>;
+  /** File path by glyph name, within the layer directory. */
+  paths: Map<string, string>;
+  /** The layer's own contents.plist, verbatim. Null when we made the layer up. */
+  contentsText: string | null;
+  /** Glyphs changed since the last save. */
+  dirty: Set<string>;
+};
+
+/** Layer name → directory, in the order layercontents.plist lists them. */
+function parseLayerContents(text: string): Array<[string, string]> {
+  const layers: Array<[string, string]> = [];
+  // Each layer is an <array> of exactly two strings: name, then
+  // directory. The outer array holds those, so read pairs in order.
+  for (const [, body] of text.matchAll(/<array>([\s\S]*?)<\/array>/g)) {
+    const strings = Array.from(body.matchAll(/<string>([\s\S]*?)<\/string>/g)).map(
+      ([, value]) => plistUnescape(value),
+    );
+    if (strings.length === 2) layers.push([strings[0], strings[1]]);
+  }
+  return layers;
+}
+
+function plistUnescape(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&");
+}
+
 /// Read every .glif in `ufoFiles` (filtered to the `glyphs/` layer),
 /// parse glyph metadata + render SVGs, and bundle everything along
 /// with the matching fontinfo.plist bytes into a MasterData.
@@ -7443,6 +7743,23 @@ async function buildMasterData(
   const libPath = libFile ? relPath(libFile) : null;
   const libFileHandle = libPath ? (fileHandles.get(libPath) ?? null) : null;
 
+  const layerContentsFile = ufoFiles.find((f) =>
+    /\/layercontents\.plist$/i.test(relPath(f)),
+  );
+  const layerContentsPath = layerContentsFile ? relPath(layerContentsFile) : null;
+  const layerContentsText = layerContentsFile ? await layerContentsFile.text() : null;
+  const background = await readBackgroundLayer(
+    ufoFiles,
+    layerContentsPath,
+    layerContentsText,
+  );
+
+  const metaInfoFile = ufoFiles.find((f) => /\/metainfo\.plist$/i.test(relPath(f)));
+  const metaInfoText = metaInfoFile ? await metaInfoFile.text() : null;
+  const ufoFormatVersion = metaInfoText
+    ? Number(/<key>formatVersion<\/key>\s*<integer>(\d+)<\/integer>/.exec(metaInfoText)?.[1] ?? 3)
+    : 3;
+
   const glyphSvgs = await buildGridSvgsForMap(glyphBytes, unitsPerEm);
 
   const contentsFile = ufoFiles.find((f) =>
@@ -7487,6 +7804,10 @@ async function buildMasterData(
     contentsPath,
     contentsBytes,
     contentsFileHandle,
+    background,
+    layerContentsPath,
+    layerContentsText,
+    ufoFormatVersion,
     groupsPath,
     groupsFileHandle,
     kerningPath,
@@ -7506,6 +7827,62 @@ async function buildMasterData(
     libText,
     libPath,
     libFileHandle,
+  };
+}
+
+/// The UFO's background layer, or null if it has none.
+///
+/// TODO: a designspace `<source>` can point at a layer (sparse masters).
+/// Such a layer is a master, not scratch space, and must never be
+/// offered as a background. Nothing names one "background" in practice,
+/// so this reads the name alone until the designspace is consulted here.
+async function readBackgroundLayer(
+  ufoFiles: File[],
+  layerContentsPath: string | null,
+  layerContentsText: string | null,
+): Promise<BackgroundLayer | null> {
+  if (!layerContentsPath || !layerContentsText) return null;
+  const layers = parseLayerContents(layerContentsText);
+  const ufoRoot = layerContentsPath.replace(/\/layercontents\.plist$/i, "");
+
+  let chosen: [string, string] | undefined;
+  for (const candidate of BACKGROUND_LAYER_CANDIDATES) {
+    chosen = layers.find(([name]) => name === candidate);
+    if (chosen) break;
+  }
+  if (!chosen) return null;
+  const [name, dirName] = chosen;
+  const directory = `${ufoRoot}/${dirName}`;
+
+  const bytes = new Map<string, Uint8Array>();
+  const paths = new Map<string, string>();
+  const glifs = ufoFiles.filter(
+    (f) => /\.glif$/i.test(f.name) && relPath(f).startsWith(`${directory}/`),
+  );
+  await Promise.all(
+    glifs.map(async (f) => {
+      const raw = new Uint8Array(await f.arrayBuffer());
+      try {
+        const info = parseGlyphInfo(raw);
+        if (!info.name) return;
+        bytes.set(info.name, raw);
+        paths.set(info.name, relPath(f));
+      } catch (e) {
+        console.warn(`skipping malformed background glyph ${relPath(f)}:`, e);
+      }
+    }),
+  );
+
+  const contentsFile = ufoFiles.find(
+    (f) => relPath(f) === `${directory}/contents.plist`,
+  );
+  return {
+    name,
+    directory,
+    bytes,
+    paths,
+    contentsText: contentsFile ? await contentsFile.text() : null,
+    dirty: new Set(),
   };
 }
 
@@ -8121,6 +8498,7 @@ function loadGlyphIntoEditor(
       syncTextKerningModelToEditor();
       seedTextBufferWithGlyph(name);
     }
+    refreshUnderlays();
     if (options.refreshCompatibility !== false) {
       updateCompatibilityErrors();
     }
@@ -8805,6 +9183,14 @@ async function onSave(options: { force?: boolean } = {}): Promise<boolean> {
     if (unsavedLib.length > 0) {
       console.warn("[runebender] text tabs not saved for", unsavedLib.join(", "));
     }
+    const unsavedBackgrounds = await persistDirtyBackgrounds();
+    if (unsavedBackgrounds.length > 0) {
+      console.warn(
+        "[runebender] background layer not saved for",
+        unsavedBackgrounds.join(", "),
+      );
+      status.value = `background layer not saved (${unsavedBackgrounds.join(", ")})`;
+    }
     if (unsavedGlyphs.length === 0 && unsavedGroups.length === 0 && unsavedKerning.length === 0 && designspaceSaved) {
       lastSavedDisplay.value = formatLastSavedDisplay();
     }
@@ -9206,6 +9592,115 @@ async function persistDirtyGroups(): Promise<string[]> {
     }
   }
   return unsaved;
+}
+
+/// Write every changed background layer. Returns the masters that did
+/// not make it, so a failure here reads as a warning rather than
+/// failing the whole save.
+async function persistDirtyBackgrounds(): Promise<string[]> {
+  const unsaved: string[] = [];
+  for (const masterName of Array.from(dirtyBackgroundMasters.value)) {
+    const data = masterDataMap.value.get(masterName);
+    if (!data || !(await persistBackgroundLayer(data))) {
+      unsaved.push(masterName);
+      continue;
+    }
+    const next = new Set(dirtyBackgroundMasters.value);
+    next.delete(masterName);
+    dirtyBackgroundMasters.value = next;
+  }
+  return unsaved;
+}
+
+async function persistBackgroundLayer(data: MasterData): Promise<boolean> {
+  const layer = data.background;
+  if (!layer || layer.dirty.size === 0) return true;
+  const decoder = new TextDecoder();
+
+  // The glyphs themselves.
+  const written: string[] = [];
+  for (const glyphName of Array.from(layer.dirty)) {
+    const bytes = layer.bytes.get(glyphName);
+    const path = layer.paths.get(glyphName);
+    if (!bytes || !path) continue;
+    const res = await runebenderHost.writeWorkspaceFile(path, decoder.decode(bytes));
+    await recordWorkspaceWriteResult(res);
+    if (!res.ok) return false;
+    written.push(glyphName);
+  }
+
+  // The layer's own contents.plist: a glyph is in a layer only if it is
+  // listed here, so this is what makes the files count.
+  const entries = Array.from(layer.paths).map(([name, path]) => ({
+    name,
+    fileName: path.split("/").pop() ?? `${name}.glif`,
+  }));
+  const contentsText = addContentsPlistEntries(
+    layer.contentsText ?? emptyPlistDict(),
+    entries,
+  );
+  const contentsRes = await runebenderHost.writeWorkspaceFile(
+    `${layer.directory}/contents.plist`,
+    contentsText,
+  );
+  await recordWorkspaceWriteResult(contentsRes);
+  if (!contentsRes.ok) return false;
+  layer.contentsText = contentsText;
+
+  // And layercontents.plist, which is what tells a reader the layer is
+  // there at all.
+  if (!(await persistLayerContents(data, layer))) return false;
+
+  for (const glyphName of written) layer.dirty.delete(glyphName);
+  return true;
+}
+
+/** Make sure layercontents.plist lists the background layer. */
+async function persistLayerContents(
+  data: MasterData,
+  layer: BackgroundLayer,
+): Promise<boolean> {
+  const path =
+    data.layerContentsPath ??
+    `${layer.directory.replace(/\/[^/]+$/, "")}/layercontents.plist`;
+  const existing = data.layerContentsText ?? defaultLayerContents();
+  const dirName = layer.directory.split("/").pop() ?? BACKGROUND_LAYER_DIR;
+  if (parseLayerContents(existing).some(([name]) => name === layer.name)) {
+    return true;
+  }
+  const entry = `\t<array>\n\t\t<string>${xmlEscape(layer.name)}</string>\n\t\t<string>${xmlEscape(dirName)}</string>\n\t</array>`;
+  const text = existing.replace(/\s*<\/array>\s*<\/plist>\s*$/, `\n${entry}\n</array>\n</plist>\n`);
+  const res = await runebenderHost.writeWorkspaceFile(path, text);
+  await recordWorkspaceWriteResult(res);
+  if (!res.ok) return false;
+  data.layerContentsPath = path;
+  data.layerContentsText = text;
+  return true;
+}
+
+function emptyPlistDict(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+</dict>
+</plist>
+`;
+}
+
+/** layercontents.plist for a UFO that somehow has none: just the default layer. */
+function defaultLayerContents(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<array>
+\t<array>
+\t\t<string>public.default</string>
+\t\t<string>glyphs</string>
+\t</array>
+</array>
+</plist>
+`;
 }
 
 async function persistDirtyLib(): Promise<string[]> {
@@ -10873,6 +11368,17 @@ onBeforeUnmount(() => {
               v-if="editorPanelsVisible && selectActive"
               class="helper-overlay select-stack"
             >
+              <LayersPanel
+                :show="showBackgroundLayer"
+                :has-background="currentGlyphHasBackground"
+                :reference="referenceGlyphName"
+                :reference-known="referenceGlyphKnown"
+                @update:show="(v: boolean) => (showBackgroundLayer = v)"
+                @update:reference="(v: string) => (referenceGlyphName = v)"
+                @send="sendGlyphToBackground"
+                @swap="swapGlyphWithBackground"
+                @clear="clearGlyphBackground"
+              />
               <SelectPanel
                 :colorize="measureColorize"
                 :handles="measureHandles"
@@ -11522,6 +12028,7 @@ onBeforeUnmount(() => {
 }
 /* The panels inside the tool stack were sized for a floating palette. */
 .editor-right-col > .helper-overlay :deep(.select-panel),
+.editor-right-col > .helper-overlay :deep(.layers-panel),
 .editor-right-col > .helper-overlay :deep(.curve-panel) {
   width: 100%;
   box-sizing: border-box;
@@ -11777,6 +12284,14 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Three panels can outrun a short window. Scroll inside the tile
+     instead of spilling out under the ones below it. */
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.select-stack::-webkit-scrollbar {
+  display: none;
 }
 
 .stage.editor-bottom-preview-visible .helper-overlay {

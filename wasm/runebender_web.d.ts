@@ -243,6 +243,16 @@ export class GlyphEditor {
      */
     selectionState(): Float64Array;
     setAdvanceWidth(width: number): boolean;
+    /**
+     * Outlines drawn behind the glyph being edited, as SVG path data in
+     * design units — the same string form the text buffer takes. An
+     * empty string clears it.
+     *
+     * `background` is the glyph's own background layer; `reference` is
+     * another glyph shown behind for comparison. Neither is editable:
+     * the host owns them, and the tools never see them.
+     */
+    setBackgroundOutline(outline: string): void;
     setComponentGlyph(name: string, bytes: Uint8Array): void;
     setComponentGlyphs(glyph_xml_by_name: string): void;
     setCoordinateQuadrant(quadrant: string): void;
@@ -293,6 +303,7 @@ export class GlyphEditor {
      * because nothing here is editable (Glyphs does the same).
      */
     setPreviewRender(on: boolean): void;
+    setReferenceOutline(outline: string): void;
     setRightSidebearing(value: number): boolean;
     setShapeShiftLocked(locked: boolean): boolean;
     setShapeTool(shape: string): boolean;
@@ -595,6 +606,7 @@ export interface InitOutput {
     readonly glypheditor_selectionCount: (a: number) => number;
     readonly glypheditor_selectionState: (a: number) => [number, number];
     readonly glypheditor_setAdvanceWidth: (a: number, b: number) => number;
+    readonly glypheditor_setBackgroundOutline: (a: number, b: number, c: number) => void;
     readonly glypheditor_setComponentGlyph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly glypheditor_setComponentGlyphs: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_setCoordinateQuadrant: (a: number, b: number, c: number) => void;
@@ -614,6 +626,7 @@ export interface InitOutput {
     readonly glypheditor_setMeasureOptions: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly glypheditor_setOffset: (a: number, b: number, c: number) => void;
     readonly glypheditor_setPreviewRender: (a: number, b: number) => void;
+    readonly glypheditor_setReferenceOutline: (a: number, b: number, c: number) => void;
     readonly glypheditor_setRightSidebearing: (a: number, b: number) => number;
     readonly glypheditor_setShapeShiftLocked: (a: number, b: number) => number;
     readonly glypheditor_setShapeTool: (a: number, b: number, c: number) => number;

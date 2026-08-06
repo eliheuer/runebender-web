@@ -98,7 +98,7 @@ linked for shaping — so a first TTF export is less far off than it looks.
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Per-glyph background layer | none | Nothing to draw against or toggle |
+| Per-glyph background layer | have | UFO `public.background`; send/swap/clear, plus a reference glyph behind |
 | Layers panel (masters, backups, brace layers) | none | |
 | Global and local guides | none | Only metric lines |
 | Measurement guides | partial | Measure tool, no persistent guides |

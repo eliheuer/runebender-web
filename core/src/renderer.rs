@@ -108,6 +108,12 @@ const ACTIVE_GLYPH_FILL_ALPHA: f32 = 0.16;
 /// Inactive sorts stay solid while zoomed out, and thin to this once the
 /// design grid appears — at that zoom you are drawing, not reading.
 const INACTIVE_GLYPH_FILL_ALPHA: f32 = 0.34;
+/// The glyph's background layer: a quiet outline behind the drawing,
+/// the way Glyphs shows a background.
+const BACKGROUND_LAYER_STROKE: Srgb = srgb(theme::base::F);
+/// Another glyph shown behind for comparison: a ghost fill, so it never
+/// reads as the background layer's outline.
+const REFERENCE_GLYPH_FILL: Srgb = srgb(theme::base::C);
 const TEXT_CURSOR: Srgb = srgb(theme::selection::RECT_STROKE);
 const TEXT_KERN_ACTIVE: Srgb = srgb(theme::kerning::ACTIVE_GLYPH);
 const TEXT_KERN_PREVIOUS: Srgb = srgb(theme::kerning::PREVIOUS_GLYPH);
@@ -914,6 +920,11 @@ impl Renderer {
             if !has_text_session {
                 self.draw_metric_guides(state, glyph_view);
             }
+        }
+
+        // Reference art goes under everything the tools draw.
+        if !preview_mode {
+            self.draw_underlays(state, glyph_view);
         }
 
         if has_text_session {
@@ -1888,6 +1899,27 @@ impl Renderer {
         }
 
         combined
+    }
+
+    /// The background layer and the reference glyph, under the glyph
+    /// being edited. The background is an outline and the reference is a
+    /// fill, so at a glance the two are never confused with each other
+    /// or with what you are drawing.
+    fn draw_underlays(&mut self, state: &EditorState, glyph_view: Affine) {
+        if let Some(path) = state.reference_outline.as_ref() {
+            self.scene
+                .fill(Fill::NonZero, glyph_view, REFERENCE_GLYPH_FILL, None, path);
+        }
+        if let Some(path) = state.background_outline.as_ref() {
+            let screen_path = glyph_view * path;
+            self.scene.stroke(
+                &Stroke::new(self.px(LINE_PX)),
+                Affine::IDENTITY,
+                BACKGROUND_LAYER_STROKE,
+                None,
+                &screen_path,
+            );
+        }
     }
 
     fn text_preview_path(&mut self, glyph_name: &str, outline: &str) -> Option<Rc<BezPath>> {

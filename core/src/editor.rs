@@ -225,6 +225,15 @@ pub struct EditorState {
     /// Monotonic counter for geometric edits. The wasm boundary uses
     /// this to tell selection-only pointer gestures from glyph edits.
     pub edit_revision: u64,
+
+    /// Reference outlines drawn behind the glyph being edited, in its
+    /// own coordinates. `background` is the glyph's background layer
+    /// (UFO `public.background`, Glyphs' background, FontLab's mask);
+    /// `reference` is another glyph shown behind for comparison. Both
+    /// are read-only here — they are set by the host and never edited
+    /// through the tools.
+    pub background_outline: Option<BezPath>,
+    pub reference_outline: Option<BezPath>,
 }
 
 impl Default for EditorState {
@@ -254,6 +263,8 @@ impl Default for EditorState {
             text_buffer: TextBuffer::default(),
             has_text_session: false,
             edit_revision: 0,
+            background_outline: None,
+            reference_outline: None,
         }
     }
 }

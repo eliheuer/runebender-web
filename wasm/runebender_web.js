@@ -851,6 +851,21 @@ export class GlyphEditor {
         return ret !== 0;
     }
     /**
+     * Outlines drawn behind the glyph being edited, as SVG path data in
+     * design units — the same string form the text buffer takes. An
+     * empty string clears it.
+     *
+     * `background` is the glyph's own background layer; `reference` is
+     * another glyph shown behind for comparison. Neither is editable:
+     * the host owns them, and the tools never see them.
+     * @param {string} outline
+     */
+    setBackgroundOutline(outline) {
+        const ptr0 = passStringToWasm0(outline, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.glypheditor_setBackgroundOutline(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
      * @param {string} name
      * @param {Uint8Array} bytes
      */
@@ -1061,6 +1076,14 @@ export class GlyphEditor {
      */
     setPreviewRender(on) {
         wasm.glypheditor_setPreviewRender(this.__wbg_ptr, on);
+    }
+    /**
+     * @param {string} outline
+     */
+    setReferenceOutline(outline) {
+        const ptr0 = passStringToWasm0(outline, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.glypheditor_setReferenceOutline(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @param {number} value

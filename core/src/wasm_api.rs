@@ -1596,6 +1596,23 @@ impl GlyphEditor {
         Ok(())
     }
 
+    /// Outlines drawn behind the glyph being edited, as SVG path data in
+    /// design units — the same string form the text buffer takes. An
+    /// empty string clears it.
+    ///
+    /// `background` is the glyph's own background layer; `reference` is
+    /// another glyph shown behind for comparison. Neither is editable:
+    /// the host owns them, and the tools never see them.
+    #[wasm_bindgen(js_name = setBackgroundOutline)]
+    pub fn set_background_outline(&mut self, outline: &str) {
+        self.state.background_outline = parse_underlay_outline(outline);
+    }
+
+    #[wasm_bindgen(js_name = setReferenceOutline)]
+    pub fn set_reference_outline(&mut self, outline: &str) {
+        self.state.reference_outline = parse_underlay_outline(outline);
+    }
+
     /// Replace the displayed glyph from a UFO `.glif` file's raw
     /// bytes. Parses via `norad`, then walks the result into the
     /// editor's own contour representation. Clears undo history.
@@ -3613,6 +3630,17 @@ fn to_norad_anchor(anchor: &AnchorPoint) -> Result<norad::Anchor, JsValue> {
         anchor.identifier.clone(),
         anchor.lib.clone(),
     ))
+}
+
+/// SVG path data for an underlay (background or reference glyph). Bad
+/// path data clears the underlay rather than failing the caller: it is
+/// reference art, and the glyph on top has to keep working.
+fn parse_underlay_outline(outline: &str) -> Option<kurbo::BezPath> {
+    let trimmed = outline.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    kurbo::BezPath::from_svg(trimmed).ok().filter(|path| !path.elements().is_empty())
 }
 
 fn to_norad_point(pt: &WsContourPoint) -> norad::ContourPoint {
