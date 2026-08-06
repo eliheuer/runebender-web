@@ -205,8 +205,10 @@ defineEmits<{
 /* Top line: the name, then how it stands with the disk. */
 .file-line {
   display: flex;
-  flex: 0 0 auto;
-  align-items: baseline;
+  /* Takes whatever the tab row leaves, so the name sits in open space
+     rather than pressed against the top of the tile. */
+  flex: 1 1 auto;
+  align-items: center;
   gap: 8px;
   min-width: 0;
   padding: 0 4px;
@@ -267,7 +269,7 @@ defineEmits<{
 .text-tabs {
   display: flex;
   flex: 0 0 auto;
-  height: 26px;
+  height: 22px;
   align-items: stretch;
   gap: 4px;
   min-width: 0;
