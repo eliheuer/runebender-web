@@ -11191,6 +11191,26 @@ onBeforeUnmount(() => {
 .editor-side-col > * {
   position: static;
 }
+/* One locked column width, and every tile fills it. Panels carry their
+   own widths from when they floated over the canvas — left alone, a
+   content-sized one (the coordinate panel) sits narrower than its
+   neighbours and the bento grid stops lining up. */
+.editor-right-col {
+  width: 232px;
+  box-sizing: border-box;
+}
+.editor-right-col > * {
+  width: auto;
+  min-width: 0;
+  align-self: stretch;
+  box-sizing: border-box;
+}
+/* The panels inside the tool stack were sized for a floating palette. */
+.editor-right-col > .helper-overlay :deep(.select-panel),
+.editor-right-col > .helper-overlay :deep(.curve-panel) {
+  width: 100%;
+  box-sizing: border-box;
+}
 .editor-right-col > .transform-overlay,
 .editor-right-col > .anchor-overlay,
 .editor-right-col > .coordinate-overlay {
@@ -11201,8 +11221,6 @@ onBeforeUnmount(() => {
    the canvas). In the column it wraps to two: the name across the top,
    X and Y beneath — otherwise it pushes the column off the grid. */
 .editor-right-col > .anchor-overlay {
-  width: 232px;
-  box-sizing: border-box;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .editor-right-col > .anchor-overlay :deep(.name-field) {
@@ -11216,8 +11234,6 @@ onBeforeUnmount(() => {
    buttons wrapping in a grid instead of one long row. */
 .editor-right-col > .shapes-toolbar,
 .editor-right-col > .text-direction-toolbar {
-  width: 232px;
-  box-sizing: border-box;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   padding: 8px;
@@ -11236,8 +11252,6 @@ onBeforeUnmount(() => {
 /* Geometry operations as a full-width bento tile: the transform grid
    stretches to the column, four buttons per row. */
 .editor-right-col > .transform-overlay {
-  width: 232px;
-  box-sizing: border-box;
   padding: 8px;
 }
 .editor-right-col > .transform-overlay :deep(.actions) {
