@@ -1435,7 +1435,7 @@ onBeforeUnmount(() => glyphPreviewResizeObserver?.disconnect());
 const GLYPH_WATERFALL_RATIO = 0.62;
 /** Smaller than this and the glyph is a smudge, so the waterfall stops. */
 const GLYPH_WATERFALL_MIN = 18;
-const GLYPH_WATERFALL_GAP = 8;
+const GLYPH_WATERFALL_GAP = 18;
 /** Below this the tile only has room for one. */
 const GLYPH_WATERFALL_MIN_TILE = 150;
 
@@ -12026,7 +12026,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 18px;
   overflow: hidden;
 }
 

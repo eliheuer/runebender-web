@@ -292,14 +292,15 @@ const TEXT_METRIC_CROSS_MIN_SIZE: f64 = 1.5;
 /// A cross is this fraction of the sort's on-screen height, so it shrinks
 /// with the text instead of staying a fixed size while the glyphs get
 /// smaller — which turned a page of text into a mesh of green crosses.
-const TEXT_METRIC_CROSS_FRACTION: f64 = 0.03;
+const TEXT_METRIC_CROSS_FRACTION: f64 = 0.05;
 /// Crosses fade out between these on-screen sizes: fully gone below the
 /// first, full strength above the second. Anything smaller is stipple.
-const TEXT_METRIC_CROSS_FADE_MIN_PX: f64 = 4.0;
-const TEXT_METRIC_CROSS_FADE_MAX_PX: f64 = 9.0;
+const TEXT_METRIC_CROSS_FADE_MIN_PX: f64 = 2.0;
+const TEXT_METRIC_CROSS_FADE_MAX_PX: f64 = 5.0;
 /// Metric lines for the sorts that are not being edited: just lighter
 /// than the canvas, so the boxes read as structure behind the crosses
-/// without competing with the glyphs.
+/// without competing with the glyphs. They fade out with the crosses —
+/// at a zoom where the crosses are gone the boxes are noise too.
 const TEXT_SORT_METRIC_QUIET: Srgb = AlphaColor::from_rgba8(0x24, 0x24, 0x24, 0xff);
 const DESIGN_GRID_MID_MIN_ZOOM: f64 = 0.8;
 const DESIGN_GRID_MID_FINE: f64 = 8.0;
@@ -1581,16 +1582,21 @@ impl Renderer {
                 } else {
                     &mut guide_metric_path
                 };
-                append_text_sort_metric_box(
-                    &mut quiet_metric_path,
-                    item.x,
-                    item.y,
-                    item.advance_width,
-                    state,
-                    sort_top,
-                    sort_bottom,
-                    view,
-                );
+                // Only the sorts nobody is editing: the active one draws
+                // its own metrics, and a grey box on top of those is what
+                // made them look wrong.
+                if !sort_active {
+                    append_text_sort_metric_box(
+                        &mut quiet_metric_path,
+                        item.x,
+                        item.y,
+                        item.advance_width,
+                        state,
+                        sort_top,
+                        sort_bottom,
+                        view,
+                    );
+                }
                 append_text_sort_minimal_metrics(
                     metric_path,
                     item.x,
@@ -1605,8 +1611,14 @@ impl Renderer {
                 );
             }
             let stroke = Stroke::new(self.px(METRIC_LINE_PX));
-            self.stroke_metric_batch(&quiet_metric_path, TEXT_SORT_METRIC_QUIET, &stroke);
             let fade = self.text_metric_cross_alpha(cross_size);
+            if fade > 0.0 {
+                self.stroke_metric_batch(
+                    &quiet_metric_path,
+                    TEXT_SORT_METRIC_QUIET.multiply_alpha(fade),
+                    &stroke,
+                );
+            }
             if fade > 0.0 {
                 self.stroke_metric_batch(
                     &guide_metric_path,
