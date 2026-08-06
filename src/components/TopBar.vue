@@ -191,8 +191,11 @@ defineEmits<{
 
 .file-info {
   flex: 1;
-  padding: 4px 8px;
-  gap: 2px;
+  /* Padding, the gap between the two lines, and the space inside a tab
+     are all in the same range, so the tile reads as evenly spaced from
+     top to bottom. */
+  padding: 7px 8px;
+  gap: 6px;
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
@@ -202,15 +205,17 @@ defineEmits<{
 /* Top line: the name, then how it stands with the disk. */
 .file-line {
   display: flex;
+  flex: 0 0 auto;
   align-items: baseline;
   gap: 8px;
   min-width: 0;
   padding: 0 4px;
+  line-height: 1.15;
   white-space: nowrap;
 }
 .file-path {
   color: var(--rb-muted-text, #808080);
-  font: var(--rb-ui-title-size, 16px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
@@ -224,7 +229,7 @@ defineEmits<{
 }
 .demo-note {
   color: var(--rb-secondary-text, #707070);
-  font: var(--rb-ui-title-size, 16px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
@@ -233,7 +238,7 @@ defineEmits<{
 
 .save-status {
   color: var(--rb-warning, #ffdc32);
-  font: var(--rb-ui-title-size, 16px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
   display: flex;
   flex: 0 1 auto;
   min-width: 0;
@@ -261,7 +266,8 @@ defineEmits<{
 /* Bottom line: the tabs, sharing the width of the tile. */
 .text-tabs {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  height: 26px;
   align-items: stretch;
   gap: 4px;
   min-width: 0;
