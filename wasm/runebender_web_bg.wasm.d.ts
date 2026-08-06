@@ -126,6 +126,7 @@ export const glypheditor_setShapeTool: (a: number, b: number, c: number) => numb
 export const glypheditor_setStartPointAt: (a: number, b: number, c: number) => number;
 export const glypheditor_setTextDirection: (a: number, b: number, c: number) => void;
 export const glypheditor_setTextGlyphInventory: (a: number, b: number, c: number) => [number, number];
+export const glypheditor_setTextGlyphOutline: (a: number, b: number, c: number, d: number, e: number) => void;
 export const glypheditor_setTextKerningModel: (a: number, b: number, c: number) => [number, number];
 export const glypheditor_setTheme: (a: number, b: number, c: number) => [number, number];
 export const glypheditor_setTool: (a: number, b: number, c: number) => number;

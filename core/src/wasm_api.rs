@@ -1953,6 +1953,14 @@ impl GlyphEditor {
         Ok(())
     }
 
+    /// Update one glyph's outline in the text inventory. Editing a base
+    /// glyph changes every composite that places it, and rebuilding the
+    /// whole inventory for that is far too much work per edit.
+    #[wasm_bindgen(js_name = setTextGlyphOutline)]
+    pub fn set_text_glyph_outline(&mut self, name: &str, outline: &str) {
+        self.state.text_buffer.set_glyph_outline(name, outline);
+    }
+
     #[wasm_bindgen(js_name = shapeTextBuffer)]
     pub fn shape_text_buffer(&mut self) -> bool {
         self.state.text_buffer.shape_arabic_if_rtl()

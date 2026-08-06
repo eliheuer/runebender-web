@@ -363,6 +363,9 @@ type MasterData = {
   unitsPerEm: number;
   /** The master's features.fea, for OpenType shaping. */
   featuresText: string | null;
+  /** base glyph -> glyphs that place it as a component. Built on first
+   *  use; kept current as glyphs are edited. */
+  componentUsers: Map<string, Set<string>> | null;
 };
 
 type GlyphMetadata = {
@@ -1500,6 +1503,7 @@ type Editor = {
   setTextKerningModel(json: string): void;
   textKerningModel(): string;
   setTextGlyphInventory(json: string): void;
+  setTextGlyphOutline(name: string, outline: string): void;
   shapeTextBuffer(): boolean;
   textBufferSnapshot(): string;
   textBufferLayout(lineHeight: number): string;
@@ -6416,6 +6420,53 @@ function gridGlyphSvgWithComponents(
   return glifToSvgWithComponents(bytes, glyphXmlByName) || glifToSvg(bytes);
 }
 
+const COMPONENT_BASE_RE = /<component[^>]*\bbase="([^"]+)"/g;
+
+/** Glyph names this glyph places as components. */
+function componentBasesOf(bytes: Uint8Array): string[] {
+  const xml = new TextDecoder().decode(bytes);
+  const bases: string[] = [];
+  for (const match of xml.matchAll(COMPONENT_BASE_RE)) bases.push(match[1]);
+  return bases;
+}
+
+/** base -> glyphs that place it, built once per master. */
+function componentUsersIndex(data: MasterData): Map<string, Set<string>> {
+  if (data.componentUsers) return data.componentUsers;
+  const index = new Map<string, Set<string>>();
+  for (const [name, bytes] of data.glyphBytes) {
+    for (const base of componentBasesOf(bytes)) {
+      let users = index.get(base);
+      if (!users) index.set(base, (users = new Set()));
+      users.add(name);
+    }
+  }
+  data.componentUsers = index;
+  return index;
+}
+
+/** Keep the index true after a glyph's own components change. */
+function updateComponentUsers(data: MasterData, name: string, bytes: Uint8Array | null) {
+  const index = data.componentUsers;
+  if (!index) return;
+  for (const users of index.values()) users.delete(name);
+  if (!bytes) return;
+  for (const base of componentBasesOf(bytes)) {
+    let users = index.get(base);
+    if (!users) index.set(base, (users = new Set()));
+    users.add(name);
+  }
+}
+
+/**
+ * Rebuild the thumbnail for a glyph, and for every composite that places
+ * it — recursively, since composites nest.
+ *
+ * Grid cells and the glyphs beside the one being edited draw a flattened
+ * SVG built when the font loaded, not live components. Without this a
+ * composite kept showing the old shape of a base you had just edited
+ * until something else happened to rebuild it.
+ */
 function refreshGridGlyphSvg(
   data: MasterData,
   glyphName: string,
@@ -6431,7 +6482,36 @@ function refreshGridGlyphSvg(
   } else {
     data.glyphSvgs.delete(glyphName);
   }
+  updateComponentUsers(data, glyphName, bytes);
+  refreshCompositesUsing(data, glyphName, new Set([glyphName]));
   return svg;
+}
+
+function refreshCompositesUsing(data: MasterData, base: string, seen: Set<string>) {
+  const users = componentUsersIndex(data).get(base);
+  if (!users?.size) return;
+  const xml = cachedGlyphXmlByName(data);
+  for (const user of users) {
+    if (seen.has(user)) continue;
+    seen.add(user);
+    const userBytes = data.glyphBytes.get(user);
+    if (!userBytes) continue;
+    const userSvg = gridGlyphSvgWithComponents(userBytes, xml, data.unitsPerEm);
+    if (userSvg) {
+      data.glyphSvgs.set(user, userSvg);
+    } else {
+      data.glyphSvgs.delete(user);
+    }
+    // The text line draws its other sorts from the same outlines.
+    if (data === activeMasterData.value) {
+      try {
+        editor?.setTextGlyphOutline(user, userSvg ?? "");
+      } catch (e) {
+        console.warn("[runebender] refreshing composite outline failed:", e);
+      }
+    }
+    refreshCompositesUsing(data, user, seen);
+  }
 }
 
 type SourceChoice = { kind: "designspace" | "ufo"; path: string };
@@ -7121,6 +7201,7 @@ async function buildMasterData(
     fontInfoBytes,
     unitsPerEm,
     featuresText,
+    componentUsers: null,
   };
 }
 
@@ -7210,6 +7291,8 @@ function deleteGlyphBytes(data: MasterData, name: string): boolean {
     data.glyphXmlByName = null;
     data.glyphXmlVersion += 1;
     syncEditorComponentGlyphCacheEntry(data, name, null);
+    updateComponentUsers(data, name, null);
+    refreshCompositesUsing(data, name, new Set([name]));
   }
   return deleted;
 }

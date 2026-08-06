@@ -297,6 +297,12 @@ export class GlyphEditor {
      */
     setTextDirection(direction: string): void;
     setTextGlyphInventory(json: string): void;
+    /**
+     * Update one glyph's outline in the text inventory. Editing a base
+     * glyph changes every composite that places it, and rebuilding the
+     * whole inventory for that is far too much work per edit.
+     */
+    setTextGlyphOutline(name: string, outline: string): void;
     setTextKerningModel(json: string): void;
     setTheme(theme_json: string): void;
     setTool(tool_id: string): boolean;
@@ -607,6 +613,7 @@ export interface InitOutput {
     readonly glypheditor_setStartPointAt: (a: number, b: number, c: number) => number;
     readonly glypheditor_setTextDirection: (a: number, b: number, c: number) => void;
     readonly glypheditor_setTextGlyphInventory: (a: number, b: number, c: number) => [number, number];
+    readonly glypheditor_setTextGlyphOutline: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly glypheditor_setTextKerningModel: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_setTheme: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_setTool: (a: number, b: number, c: number) => number;

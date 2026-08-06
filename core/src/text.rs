@@ -375,6 +375,19 @@ impl TextBuffer {
         &self.kerning
     }
 
+    /// Replace one glyph's outline without rebuilding the whole
+    /// inventory. Used when an edit to a base glyph changes every
+    /// composite that places it.
+    pub fn set_glyph_outline(&mut self, name: &str, outline: &str) {
+        if outline.is_empty() {
+            self.glyph_inventory.outlines.remove(name);
+        } else {
+            self.glyph_inventory
+                .outlines
+                .insert(name.to_string(), outline.to_string());
+        }
+    }
+
     pub fn set_glyph_inventory(&mut self, glyph_inventory: TextGlyphInventory) {
         self.glyph_inventory = glyph_inventory;
         // Advances, codepoints and features all feed the shaping font.

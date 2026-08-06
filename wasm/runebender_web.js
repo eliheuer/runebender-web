@@ -1111,6 +1111,20 @@ export class GlyphEditor {
         }
     }
     /**
+     * Update one glyph's outline in the text inventory. Editing a base
+     * glyph changes every composite that places it, and rebuilding the
+     * whole inventory for that is far too much work per edit.
+     * @param {string} name
+     * @param {string} outline
+     */
+    setTextGlyphOutline(name, outline) {
+        const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(outline, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.glypheditor_setTextGlyphOutline(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+    }
+    /**
      * @param {string} json
      */
     setTextKerningModel(json) {
