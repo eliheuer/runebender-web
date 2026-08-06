@@ -5177,10 +5177,24 @@ function captureActiveTextTab() {
   markTextTabsDirty();
 }
 
+/** Text tabs belong to the font, not to one master, so every master's
+ *  lib.plist gets them. Otherwise which tabs you see on reopening would
+ *  depend on which master happened to load first. */
 function markTextTabsDirty() {
-  const master = activeMasterName.value;
-  if (!master || !masterDataMap.value.get(master)?.libPath) return;
-  dirtyLibMasters.value = new Set(dirtyLibMasters.value).add(master);
+  const next = new Set(dirtyLibMasters.value);
+  for (const [name, data] of masterDataMap.value) {
+    if (data.libPath) next.add(name);
+  }
+  dirtyLibMasters.value = next;
+}
+
+/** The tabs stored in the source: the first master that has any. */
+function storedTextTabs(): string[] {
+  for (const data of masterDataMap.value.values()) {
+    const strings = parseDisplayStrings(data.libText);
+    if (strings.length > 0) return strings;
+  }
+  return [];
 }
 
 function selectTextTab(index: number | null) {
@@ -7627,9 +7641,10 @@ function activateMaster(name: string) {
   activeMasterName.value = name;
   const data = masterDataMap.value.get(name);
   if (!data || !editor) return;
-  // Text tabs come from the master's lib.plist, the same key Glyphs uses.
+  // Text tabs come from lib.plist, the same key Glyphs uses. They are a
+  // font-level thing, so any master that carries them will do.
   if (textTabs.value.length === 0) {
-    textTabs.value = parseDisplayStrings(data.libText);
+    textTabs.value = storedTextTabs();
   }
   syncTextKerningModelToEditor();
   // Push the master's fontinfo so the metric guides reflect it.
