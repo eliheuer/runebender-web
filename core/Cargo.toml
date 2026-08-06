@@ -96,10 +96,32 @@ opt-level = 3
 codegen-units = 1
 lto = true
 
+# The font-compiler stack runs once per feature-file change, not per
+# frame, so it is optimised for size instead. Together with wasm-opt -Oz
+# this is worth a few hundred KB of the download.
+[profile.release.package.fea-rs]
+opt-level = "z"
+[profile.release.package.write-fonts]
+opt-level = "z"
+[profile.release.package.read-fonts]
+opt-level = "z"
+[profile.release.package.fontdrasil]
+opt-level = "z"
+[profile.release.package.norad]
+opt-level = "z"
+[profile.release.package.image]
+opt-level = "z"
+[profile.release.package.imageproc]
+opt-level = "z"
+[profile.release.package.regex]
+opt-level = "z"
+[profile.release.package.regex-automata]
+opt-level = "z"
+
 [package.metadata.wasm-pack.profile.release]
 # Default is ["-O"], which is wasm-opt level 1. Bump to -O3 to match
 # the Rust-side opt-level 3 and squeeze more out of the wasm binary.
-wasm-opt = ["-O3"]
+wasm-opt = ["-Oz"]
 
 # Linebender canonical lint set (https://linebender.org/wiki/canonical-lints/).
 # Heavy lints (missing_docs, unreachable_pub, …) are warned here and deferred
