@@ -63,6 +63,7 @@ glyphslib = "0.2.7"
 fea-rs = "0.22"
 harfrust = "0.5"
 write-fonts = "0.44"
+unicode-bidi = { version = "0.3.18", default-features = false, features = ["hardcoded-data"] }
 
 # Enable WebGPU canvas surface support for wasm32 targets. Vello pulls
 # in wgpu but with default-features off and no `webgpu`, so the
