@@ -1438,6 +1438,8 @@ const GLYPH_WATERFALL_MIN = 18;
 const GLYPH_WATERFALL_GAP = 18;
 /** Below this the tile only has room for one. */
 const GLYPH_WATERFALL_MIN_TILE = 150;
+/** Fewer steps than this reads as a mistake rather than a waterfall. */
+const GLYPH_WATERFALL_MIN_STEPS = 3;
 
 const glyphWaterfallSizes = computed<number[]>(() => {
   const height = glyphPreviewTileHeight.value;
@@ -1452,7 +1454,9 @@ const glyphWaterfallSizes = computed<number[]>(() => {
     remaining -= size + GLYPH_WATERFALL_GAP;
     size *= GLYPH_WATERFALL_RATIO;
   }
-  return sizes.length ? sizes : [height];
+  // Two sizes is not a waterfall, it is one glyph with a small one under
+  // it. Below three, show the glyph as large as the tile allows.
+  return sizes.length >= GLYPH_WATERFALL_MIN_STEPS ? sizes : [height];
 });
 
 const editorBottomPreviewStyle = computed(() => ({
