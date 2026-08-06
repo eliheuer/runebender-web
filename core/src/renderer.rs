@@ -1530,6 +1530,32 @@ impl Renderer {
         }
     }
 
+    /// Is this sort anywhere near the canvas? A page of text is mostly
+    /// off screen, and an off-screen sort costs as much to build as a
+    /// visible one — path, transform, fill and all.
+    fn text_item_visible(
+        &self,
+        item: &TextLayoutItem,
+        sort_top: f64,
+        sort_bottom: f64,
+        view: Affine,
+    ) -> bool {
+        // A sort's ink can reach past its metric box, so keep a margin of
+        // roughly one line either side rather than culling to the pixel.
+        let slack = (sort_top - sort_bottom).abs().max(1.0);
+        let box_rect = Rect::new(
+            item.x - slack,
+            item.y + sort_bottom - slack,
+            item.x + item.advance_width + slack,
+            item.y + sort_top + slack,
+        );
+        let screen = view.transform_rect_bbox(box_rect);
+        screen.x1 >= 0.0
+            && screen.y1 >= 0.0
+            && screen.x0 <= self.width as f64
+            && screen.y0 <= self.height as f64
+    }
+
     fn draw_text_buffer(
         &mut self,
         state: &EditorState,
@@ -1567,6 +1593,9 @@ impl Renderer {
                     .sort(item.index)
                     .map(|sort| sort.active)
                     .unwrap_or(false);
+                if !sort_active && !self.text_item_visible(item, sort_top, sort_bottom, view) {
+                    continue;
+                }
                 if !text_mode_active && sort_active {
                     // Drawn after the quiet boxes below: sorts share edges,
                     // so a neighbour's grey box would otherwise paint over
@@ -1647,6 +1676,9 @@ impl Renderer {
             let Some(sort) = state.text_buffer.sort(item.index) else {
                 continue;
             };
+            if !sort.active && !self.text_item_visible(item, sort_top, sort_bottom, view) {
+                continue;
+            }
             let render_active_editable = !preview_mode && sort.active && !text_mode_active;
             if render_active_editable {
                 for component in &state.component_previews {
