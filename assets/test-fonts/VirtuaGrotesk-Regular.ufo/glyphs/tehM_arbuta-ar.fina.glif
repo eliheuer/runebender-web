@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <glyph name="tehMarbuta-ar.fina" format="2">
-	<advance width="600"/>
+	<advance width="704"/>
 	<outline>
 		<component base="heh-ar.fina"/>
-		<component base="twodotshorizontalabove-ar"/>
+		<component base="twodotshorizontalabove-ar" xOffset="168" yOffset="-144"/>
 	</outline>
+	<anchor name="bottom" x="288" y="-16"/>
+	<anchor name="top" x="288" y="704"/>
+	<lib>
+		<dict>
+			<key>public.markColor</key>
+			<string>0,0.67,0.91,1</string>
+		</dict>
+	</lib>
 </glyph>

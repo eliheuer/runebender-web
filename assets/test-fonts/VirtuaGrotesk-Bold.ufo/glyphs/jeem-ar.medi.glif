@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <glyph name="jeem-ar.medi" format="2">
-	<advance width="600"/>
+	<advance width="800"/>
 	<outline>
-		<component base="hah-ar"/>
-		<component base="dotbelow-ar"/>
+		<component base="hah-ar.medi"/>
+		<component base="dotbelow-ar" xOffset="276"/>
 	</outline>
+	<anchor name="bottom" x="400" y="-300"/>
+	<anchor name="top" x="324" y="574"/>
+	<lib>
+		<dict>
+			<key>public.markColor</key>
+			<string>0,0.67,0.91,1</string>
+		</dict>
+	</lib>
 </glyph>

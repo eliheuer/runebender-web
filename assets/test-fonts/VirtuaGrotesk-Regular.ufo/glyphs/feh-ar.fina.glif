@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <glyph name="feh-ar.fina" format="2">
-	<advance width="600"/>
+	<advance width="976"/>
 	<outline>
 		<component base="fehDotless-ar.fina"/>
-		<component base="dotabove-ar"/>
+		<component base="dotabove-ar" xOffset="368" yOffset="-168"/>
 	</outline>
+	<anchor name="bottom" x="608" y="-16"/>
+	<anchor name="top" x="608" y="680"/>
+	<lib>
+		<dict>
+			<key>public.markColor</key>
+			<string>0,0.67,0.91,1</string>
+		</dict>
+	</lib>
 </glyph>

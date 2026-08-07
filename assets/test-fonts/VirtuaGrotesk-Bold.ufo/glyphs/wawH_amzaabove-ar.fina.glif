@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <glyph name="wawHamzaabove-ar.fina" format="2">
-	<advance width="600"/>
+	<advance width="568"/>
+	<outline>
+		<component base="waw-ar.fina"/>
+		<component base="hamzaabove-ar" xOffset="64" yOffset="-336"/>
+	</outline>
+	<anchor name="bottom" x="176" y="-332"/>
+	<anchor name="top" x="176" y="716"/>
+	<lib>
+		<dict>
+			<key>public.markColor</key>
+			<string>0,0.67,0.91,1</string>
+		</dict>
+	</lib>
 </glyph>

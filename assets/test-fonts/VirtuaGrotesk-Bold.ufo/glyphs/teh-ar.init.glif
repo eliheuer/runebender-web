@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <glyph name="teh-ar.init" format="2">
-	<advance width="368"/>
+	<advance width="344"/>
 	<outline>
 		<contour>
 			<point x="80" y="0" type="line"/>
-			<point x="208" y="0"/>
-			<point x="272" y="80"/>
-			<point x="272" y="208" type="curve" smooth="yes"/>
-			<point x="272" y="416" type="line"/>
-			<point x="256" y="432" type="line"/>
-			<point x="192" y="432" type="line"/>
-			<point x="176" y="416" type="line"/>
-			<point x="176" y="208" type="line" smooth="yes"/>
-			<point x="176" y="144"/>
-			<point x="144" y="112"/>
-			<point x="80" y="112" type="curve"/>
-			<point x="0" y="112" type="line"/>
-			<point x="-16" y="96" type="line"/>
+			<point x="236" y="0"/>
+			<point x="308" y="80"/>
+			<point x="308" y="208" type="curve" smooth="yes"/>
+			<point x="308" y="424" type="line"/>
+			<point x="274" y="460" type="line"/>
+			<point x="174" y="460" type="line"/>
+			<point x="140" y="424" type="line"/>
+			<point x="140" y="208" type="line" smooth="yes"/>
+			<point x="148" y="160"/>
+			<point x="144" y="176"/>
+			<point x="80" y="176" type="curve"/>
+			<point x="0" y="176" type="line"/>
+			<point x="-16" y="160" type="line"/>
 			<point x="-16" y="16" type="line"/>
 			<point x="0" y="0" type="line"/>
 		</contour>

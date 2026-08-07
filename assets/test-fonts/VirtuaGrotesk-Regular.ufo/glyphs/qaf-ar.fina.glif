@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <glyph name="qaf-ar.fina" format="2">
-	<advance width="600"/>
+	<advance width="1000"/>
 	<outline>
 		<component base="qafDotless-ar.fina"/>
-		<component base="twodotshorizontalabove-ar"/>
+		<component base="twodotshorizontalabove-ar" xOffset="472" yOffset="32"/>
 	</outline>
+	<anchor name="bottom" x="232" y="-304"/>
+	<anchor name="top" x="624" y="880"/>
+	<lib>
+		<dict>
+			<key>public.markColor</key>
+			<string>0,0.67,0.91,1</string>
+		</dict>
+	</lib>
 </glyph>

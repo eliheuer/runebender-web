@@ -4,18 +4,68 @@
 <dict>
 	<key>com.schriftgestaltung.DisplayStrings</key>
 	<array>
-		<string>أشه</string>
-		<string>س/seen-ar.fina</string>
-		<string>س</string>
-		<string>ا</string>
-		<string>/dal-ar.fina</string>
-		<string>/heh-ar.fina</string>
-		<string>/seen-ar.init</string>
+		<string>أشهد يا إلهي بأنك خلق/teh-ar.medi /noon-ar.medi ي لعرفانك وعبادتك
+أشهد في هذا الحين بعجزي وقوتك وضعفي واقتدارك وفقري وغنائك
+لا إله إلا أنت المهيمن القيوم</string>
+		<string>Call me Ishmael. Some years ago—never mind how long precisely—having 
+little or no money in my purse, and nothing particular to interest me on shore, 
+I thought I would sail about a little and see the watery part of the world. It is a 
+way I have of driving off the spleen and regulating the circulation. Whenever 
+I find myself growing grim about the mouth; whenever it is a damp, drizzly 
+November in my soul; whenever I find myself involuntarily pausing before 
+coffin warehouses, and bringing up the rear of every funeral I meet; and 
+especially whenever my hypos get such an upper hand of me, that it requires 
+a strong moral principle to prevent me from deliberately stepping into the 
+street, and methodically knocking people’s hats off—then, I account it high 
+time to get to sea as soon as I can. This is my substitute for pistol and ball. 
+With a philosophical flourish Cato throws himself upon his sword; I quietly take 
+to the ship. There is nothing surprising in this. If they but knew it, almost all men 
+in their degree, some time or other, cherish very nearly the same feelings 
+towards the ocean with me.</string>
+		<string>بسم الله الرحمن الرحيم 
+الحمد لله رب العالمين 
+الرحمن الرحيم 
+مالك يوم الدين 
+إياك نعبد وإياك نستعين 
+اهدنا الصراط المستقيم 
+صراط الذين أنعمت عليهم غير المغضوب عليهم ولا الضالين</string>
+		<string>/kaf-ar.init  ت/twodotshorizontalabove-ar اب</string>
+		<string>ال/beh-ar.medi /behDotless-ar.medi اب مفتوح — the door is open
+الباب مغلق — the door is closed
+هذا بيت — this is a house
+البيت جمي/lam-ar.fina  — the house is beautiful
+الشمس كبيرة — the sun is big
+القمر جميل — the moon is beautiful
+الماء بارد — the water is cold
+الولد يشرب الماء — the boy drinks the water
+البنت في البيت — the girl is in the house
+الأم في البيت — the mother is in the house
+الأب يقرأ — the father reads
+القط صغير — the cat is small
+القط تحت الطاولة — the cat is under the table
+الكلب كبير — the dog is big
+أنا سعيد — I am happy</string>
 	</array>
 	<key>com.schriftgestaltung.appVersion</key>
 	<string>3436</string>
+	<key>com.schriftgestaltung.customParameter.GSFontMaster.customValue</key>
+	<integer>0</integer>
+	<key>com.schriftgestaltung.customParameter.GSFontMaster.customValue1</key>
+	<integer>0</integer>
+	<key>com.schriftgestaltung.customParameter.GSFontMaster.customValue2</key>
+	<integer>0</integer>
+	<key>com.schriftgestaltung.customParameter.GSFontMaster.customValue3</key>
+	<integer>0</integer>
+	<key>com.schriftgestaltung.customParameter.GSFontMaster.iconName</key>
+	<string>Regular</string>
+	<key>com.schriftgestaltung.customParameter.GSFontMaster.weightValue</key>
+	<integer>400</integer>
+	<key>com.schriftgestaltung.customParameter.GSFontMaster.widthValue</key>
+	<integer>100</integer>
 	<key>com.schriftgestaltung.disablesAutomaticAlignment</key>
 	<false/>
+	<key>com.schriftgestaltung.fontMasterOrder</key>
+	<integer>0</integer>
 	<key>com.schriftgestaltung.formatVersion</key>
 	<integer>3</integer>
 	<key>com.schriftgestaltung.gridSize</key>
@@ -28,6 +78,10 @@
 	<false/>
 	<key>com.schriftgestaltung.useNiceNames</key>
 	<false/>
+	<key>com.schriftgestaltung.weightValue</key>
+	<integer>400</integer>
+	<key>com.schriftgestaltung.widthValue</key>
+	<integer>100</integer>
 	<key>public.glyphOrder</key>
 	<array>
 		<string>A</string>
@@ -375,6 +429,43 @@
 		<string>F001</string>
 		<string>F002</string>
 		<string>F003</string>
+		<string>ring-ar</string>
+		<string>Ebreve</string>
+		<string>ebreve</string>
+		<string>Ibreve</string>
+		<string>ibreve</string>
+		<string>Obreve</string>
+		<string>obreve</string>
+		<string>Omacron</string>
+		<string>omacron</string>
+		<string>Ubreve</string>
+		<string>ubreve</string>
+		<string>Ldot</string>
+		<string>ldot</string>
+		<string>Itilde</string>
+		<string>itilde</string>
+		<string>Utilde</string>
+		<string>utilde</string>
+		<string>Etilde</string>
+		<string>etilde</string>
+		<string>Acaron</string>
+		<string>acaron</string>
+		<string>Ucaron</string>
+		<string>ucaron</string>
+		<string>Gcaron</string>
+		<string>gcaron</string>
+		<string>Kcaron</string>
+		<string>kcaron</string>
+		<string>Hcaron</string>
+		<string>hcaron</string>
+		<string>Scircumflex</string>
+		<string>scircumflex</string>
+		<string>Rcedilla</string>
+		<string>rcedilla</string>
+		<string>Tcedilla</string>
+		<string>tcedilla</string>
+		<string>Oslashacute</string>
+		<string>oslashacute</string>
 		<string>.notdef</string>
 	</array>
 	<key>public.postscriptNames</key>

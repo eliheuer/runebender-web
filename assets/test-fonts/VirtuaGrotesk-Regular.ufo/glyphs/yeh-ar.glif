@@ -1,9 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <glyph name="yeh-ar" format="2">
 	<unicode hex="064A"/>
-	<advance width="600"/>
+	<advance width="944"/>
 	<outline>
 		<component base="alefMaksura-ar"/>
-		<component base="twodotshorizontalbelow-ar"/>
+		<component base="twodotshorizontalbelow-ar" xOffset="304"/>
 	</outline>
+	<anchor name="bottom" x="456" y="-272"/>
+	<anchor name="top" x="456" y="448"/>
+	<lib>
+		<dict>
+			<key>public.kern1</key>
+			<string>public.kern1.yeh-ar</string>
+			<key>public.kern2</key>
+			<string>public.kern2.yeh-ar</string>
+			<key>public.markColor</key>
+			<string>0,0.67,0.91,1</string>
+			<key>public.objectLibs</key>
+			<dict>
+				<key>2a704859-0aec-43dd-8495-5b8a01c57823</key>
+				<dict>
+					<key>com.glyphsapp.component.alignment</key>
+					<integer>-1</integer>
+				</dict>
+			</dict>
+		</dict>
+	</lib>
 </glyph>

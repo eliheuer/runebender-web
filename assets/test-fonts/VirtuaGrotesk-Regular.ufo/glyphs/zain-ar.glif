@@ -4,6 +4,14 @@
 	<advance width="600"/>
 	<outline>
 		<component base="reh-ar"/>
-		<component base="dotabove-ar"/>
+		<component base="dotabove-ar" xOffset="116" yOffset="-144"/>
 	</outline>
+	<anchor name="bottom" x="268" y="-256"/>
+	<anchor name="top" x="268" y="704"/>
+	<lib>
+		<dict>
+			<key>public.markColor</key>
+			<string>0,0.67,0.91,1</string>
+		</dict>
+	</lib>
 </glyph>

@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <glyph name="shaddaFathatan-ar" format="2">
-	<advance width="300"/>
+	<advance width="224"/>
+	<outline>
+		<component base="shadda-ar"/>
+		<component base="fatha-ar" yOffset="214"/>
+		<component base="fatha-ar" yOffset="-290"/>
+	</outline>
+	<anchor name="bottom" x="112" y="374"/>
+	<anchor name="top" x="112" y="1094"/>
+	<lib>
+		<dict>
+			<key>public.markColor</key>
+			<string>0,0.67,0.91,1</string>
+		</dict>
+	</lib>
 </glyph>
