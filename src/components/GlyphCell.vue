@@ -4,10 +4,7 @@
 // glyph name + Unicode codepoint stacked underneath.
 //
 // Colors come from xilem's theme.rs:
-//   GRID_CELL_BACKGROUND          #1C1C1C
-//   GRID_CELL_OUTLINE / BASE_F    #606060
-//   GRID_CELL_SELECTED_OUTLINE    #FFFFFF
-//   GRID_CELL_TEXT / BASE_H       #808080
+//   Colour comes from themes/runebender.theme.json.
 
 import { computed } from "vue";
 import { cssForLabel } from "./markColors";
@@ -72,9 +69,9 @@ const cellStyle = computed(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--rb-grid-cell-background, #0c0c0c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-grid-cell-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   cursor: pointer;
   overflow: hidden;
   scroll-snap-align: start;
@@ -83,19 +80,19 @@ const cellStyle = computed(() => {
     border-color 0.08s;
 }
 .cell:hover {
-  background: var(--rb-grid-cell-hover-background, #181818);
+  background: var(--rb-grid-cell-hover-background);
 }
 .cell:focus {
   outline: none;
 }
 .cell:focus-visible {
-  border-color: var(--rb-grid-selected, #ffffff);
+  border-color: var(--rb-grid-selected);
 }
 .cell.marked:not(.selected) {
   border-color: var(--mark-color);
 }
 .cell.selected {
-  border-color: var(--rb-grid-selected, #ffffff);
+  border-color: var(--rb-grid-selected);
 }
 
 .cell-glyph {
@@ -103,7 +100,7 @@ const cellStyle = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--rb-muted-text, #808080);
+  color: var(--rb-muted-text);
   padding: 8px;
   min-height: 0;
 }
@@ -111,7 +108,7 @@ const cellStyle = computed(() => {
   color: var(--mark-color);
 }
 .cell.selected .cell-glyph {
-  color: var(--rb-grid-selected, #ffffff);
+  color: var(--rb-grid-selected);
 }
 /* The grid SVG carries a constant em-based viewBox (same vertical
    extent for every glyph) and a per-glyph horizontal extent. Scaling
@@ -137,17 +134,17 @@ const cellStyle = computed(() => {
 }
 .cell-name {
   font: 16px ui-sans-serif, system-ui, sans-serif;
-  color: var(--rb-muted-text, #808080);
+  color: var(--rb-muted-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .cell.selected .cell-name {
-  color: var(--rb-grid-selected, #ffffff);
+  color: var(--rb-grid-selected);
 }
 .cell-unicode {
   font: 16px ui-sans-serif, system-ui, sans-serif;
-  color: var(--rb-muted-text, #808080);
+  color: var(--rb-muted-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -157,6 +154,6 @@ const cellStyle = computed(() => {
   color: var(--mark-color);
 }
 .cell.selected .cell-unicode {
-  color: var(--rb-grid-selected, #ffffff);
+  color: var(--rb-grid-selected);
 }
 </style>

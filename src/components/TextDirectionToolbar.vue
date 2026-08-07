@@ -60,9 +60,9 @@ const DIRECTION_ICONS: Record<TextDirection, string> = {
 
 <style scoped>
 .text-direction-toolbar {
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   padding: 6px;
   display: flex;
   flex-direction: row;
@@ -76,7 +76,7 @@ const DIRECTION_ICONS: Record<TextDirection, string> = {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-label-size) ui-sans-serif, system-ui, sans-serif;
   line-height: 1;
 }
 .auto-resolved {
@@ -90,10 +90,10 @@ const DIRECTION_ICONS: Record<TextDirection, string> = {
   font: inherit;
   width: 48px;
   height: 48px;
-  background: var(--rb-button-background, #181818);
-  color: var(--rb-glyph-preview, #808080);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
+  background: var(--rb-button-background);
+  color: var(--rb-glyph-preview);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -103,8 +103,8 @@ const DIRECTION_ICONS: Record<TextDirection, string> = {
 
 .direction-btn:hover,
 .direction-btn.active {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 
 </style>

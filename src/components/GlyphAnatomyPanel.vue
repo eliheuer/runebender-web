@@ -24,9 +24,9 @@ defineProps<{
 
 <style scoped>
 .anatomy {
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -40,7 +40,7 @@ defineProps<{
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--rb-glyph-preview, #a0a0a0);
+  color: var(--rb-glyph-preview);
 }
 .canvas :deep(svg) {
   max-width: 100%;

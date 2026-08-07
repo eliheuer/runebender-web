@@ -83,23 +83,14 @@ function iconFor(id: ToolId): ToolbarIcon {
 <style scoped>
 /*
  * Colors / sizes from xilem theme.rs:
- *   PANEL_BACKGROUND               #1C1C1C
- *   TOOLBAR_BUTTON_OUTLINE / BASE_F #606060
- *   TOOLBAR_ICON_UNSELECTED         #606060
- *   TOOLBAR_ICON_HOVERED            #18B86F
- *   TOOLBAR_ICON_SELECTED           #18B86F
- *   TOOLBAR_ITEM_SIZE               48 px
- *   TOOLBAR_ITEM_SPACING            6 px
- *   TOOLBAR_PADDING                 6 px
- *   TOOLBAR_ICON_PADDING             8 px  (icon target = 48 − 16 = 32)
- *   TOOLBAR_BUTTON_RADIUS           6 px
- *   TOOLBAR_BORDER_WIDTH            1.5 px
+ * Colour comes from themes/runebender.theme.json via the --rb-*
+ * custom properties on the host element. Nothing here names a colour.
  */
 
 .edit-mode-toolbar {
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   padding: 6px;
   display: flex;
   flex-direction: row;
@@ -113,10 +104,10 @@ function iconFor(id: ToolId): ToolbarIcon {
   font: inherit;
   width: 48px;
   height: 48px;
-  background: var(--rb-button-background, #181818);
-  color: var(--rb-glyph-preview, #808080);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
+  background: var(--rb-button-background);
+  color: var(--rb-glyph-preview);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -124,11 +115,11 @@ function iconFor(id: ToolId): ToolbarIcon {
   padding: 0;
 }
 .tool-btn:hover {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
 }
 .tool-btn.active {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 
 .tool-icon {

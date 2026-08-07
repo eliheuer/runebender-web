@@ -46,9 +46,9 @@ const SHAPE_ICONS: Record<ShapeKind, string> = {
 
 <style scoped>
 .shapes-toolbar {
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   padding: 6px;
   display: flex;
   flex-direction: row;
@@ -62,10 +62,10 @@ const SHAPE_ICONS: Record<ShapeKind, string> = {
   font: inherit;
   width: 48px;
   height: 48px;
-  background: var(--rb-button-background, #181818);
-  color: var(--rb-glyph-preview, #808080);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
+  background: var(--rb-button-background);
+  color: var(--rb-glyph-preview);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -75,8 +75,8 @@ const SHAPE_ICONS: Record<ShapeKind, string> = {
 
 .shape-btn:hover,
 .shape-btn.active {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 
 </style>

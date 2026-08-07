@@ -2,7 +2,7 @@
 
 What Glyphs 4 does that Runebender web does not, as of August 2026.
 
-Glyphs 4.0 shipped on 27 July 2026. The goal here is not a pixel copy —
+Glyphs 4.0 was released on 27 July 2026. The goal here is not a pixel copy —
 it is that a designer moving between the two apps is never stopped by a
 missing capability. This list is the working backlog for that.
 
@@ -18,7 +18,7 @@ Status marks:
 
 Runebender cannot produce a font binary. There is no TTF, OTF, WOFF2 or
 variable-font export, no instance generation, and no hinting. A designer
-can draw here but has to leave to ship anything.
+can draw here but has to leave to produce a usable font.
 
 | Feature | Status | Notes |
 | --- | --- | --- |
@@ -169,7 +169,7 @@ Worth keeping in view so parity work does not trade these away.
 
 ## Suggested order
 
-1. **Export.** Nothing else matters if the work cannot ship. A static
+1. **Export.** Nothing else matters if the work cannot leave the editor. A static
    TTF first, then variable.
 2. **Font Info and masters/axes/instances editing.** Needed before export
    is genuinely useful, and it unblocks intermediate layers.

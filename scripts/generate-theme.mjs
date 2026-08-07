@@ -130,6 +130,19 @@ function tokensFor(definition) {
   t["--rb-canvas-text-preview-fill"] = colorFor(roles.previewFill);
   t["--rb-canvas-background-layer"] = colorFor(roles.background);
   t["--rb-canvas-reference-glyph"] = colorFor(roles.reference);
+  // Casing under points and HUD text: dark on a dark canvas, light on a
+  // light one. A constant here is what stops a light theme working.
+  t["--rb-canvas-halo"] = colorFor(roles.halo);
+  t["--rb-canvas-metric-quiet"] = colorFor(roles.metricQuiet);
+  t["--rb-canvas-point-readonly"] = colorFor(roles.readonlyPoint);
+  t["--rb-canvas-continuity-g2"] = colorFor(roles.continuityG2);
+  t["--rb-canvas-continuity-g1"] = colorFor(roles.continuityG1);
+  t["--rb-canvas-continuity-line"] = colorFor(roles.continuityLine);
+  t["--rb-canvas-continuity-kink"] = colorFor(roles.continuityKink);
+  t["--rb-canvas-popcount-1"] = colorFor(roles.popcount1);
+  t["--rb-canvas-popcount-2"] = colorFor(roles.popcount2);
+  t["--rb-canvas-popcount-3"] = colorFor(roles.popcount3);
+  t["--rb-canvas-popcount-4"] = colorFor(roles.popcount4);
 
   // How a mark is drawn in this theme. A glyph's mark is stored as a
   // label, so this is the whole of what a theme change does to it: the

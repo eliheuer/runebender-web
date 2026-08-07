@@ -161,12 +161,8 @@ defineEmits<{
 <style scoped>
 /*
  * Colors from xilem/src/theme.rs:
- *   PANEL_BACKGROUND       #1C1C1C
- *   PANEL_OUTLINE / BASE_F #606060
- *   PRIMARY_UI_TEXT / BASE_I #909090
- *   SECONDARY_UI_TEXT / BASE_G #707070
- *   GRID_CELL_SELECTED_OUTLINE / TOOLBAR_ICON_HOVERED #18B86F
- *   MARK_YELLOW (Not saved) #FFDD33
+ * Colour comes from themes/runebender.theme.json via the --rb-*
+ * custom properties on the host element. Nothing here names a colour.
  *
  * Sizes:
  *   TOOLBAR_BUTTON_RADIUS  6px
@@ -182,9 +178,9 @@ defineEmits<{
 }
 
 .panel {
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   display: flex;
   align-items: center;
 }
@@ -216,8 +212,8 @@ defineEmits<{
   white-space: nowrap;
 }
 .file-path {
-  color: var(--rb-muted-text, #808080);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-muted-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
@@ -227,11 +223,11 @@ defineEmits<{
   /* Parenthesised rather than a pill: same information, much quieter
      beside the file name. */
   margin-left: 6px;
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
 }
 .demo-note {
-  color: var(--rb-secondary-text, #707070);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-secondary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
@@ -239,27 +235,27 @@ defineEmits<{
 }
 
 .save-status {
-  color: var(--rb-warning, #ffdc32);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-warning);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   display: flex;
   flex: 0 1 auto;
   min-width: 0;
   white-space: nowrap;
 }
 .save-status.saved {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
 }
 .save-state {
   flex: 0 0 auto;
 }
 .notice {
-  color: var(--rb-warning, #ffdc32);
+  color: var(--rb-warning);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .source-label {
-  color: var(--rb-secondary-text, #707070);
+  color: var(--rb-secondary-text);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -285,11 +281,11 @@ defineEmits<{
   min-width: 0;
   max-width: 260px;
   padding: 0 10px;
-  background: var(--rb-button-background, #181818);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  background: var(--rb-button-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -298,12 +294,12 @@ defineEmits<{
   flex: 0 0 auto;
 }
 .text-tab:hover {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 .text-tab.active {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 .text-tab-label {
   overflow: hidden;
@@ -327,24 +323,24 @@ defineEmits<{
 .master-btn {
   appearance: none;
   font: inherit;
-  background: var(--rb-button-background, #181818);
-  color: var(--rb-glyph-preview, #808080);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
+  background: var(--rb-button-background);
+  color: var(--rb-glyph-preview);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
   width: 48px;
   height: 48px;
   cursor: pointer;
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .master-btn:hover {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
 }
 .master-btn.active {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 
 .master-preview {

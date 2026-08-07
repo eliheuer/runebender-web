@@ -128,20 +128,17 @@ function blurOnEnter(event: KeyboardEvent) {
 <style scoped>
 /*
  * Colors / sizes mirror xilem/src/theme.rs coordinate_panel:
- *   PANEL_BACKGROUND       #1C1C1C
- *   PANEL_OUTLINE / BASE_F #606060
- *   PANEL_LINE / BASE_I    #909090
- *   DOT_SELECTED_INNER     #808080
- *   DOT_UNSELECTED_INNER   #303030
+ * Colour comes from themes/runebender.theme.json via the --rb-*
+ * custom properties on the host element. Nothing here names a colour.
  */
 
 .coordinate-panel {
   width: auto;
   height: auto;
   box-sizing: border-box;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   padding: 8px 8px 8px 14px;
   display: flex;
   align-items: center;
@@ -160,7 +157,7 @@ function blurOnEnter(event: KeyboardEvent) {
   height: 58px;
   box-sizing: border-box;
   position: relative;
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
 }
 
 .quadrant-picker::before,
@@ -168,12 +165,12 @@ function blurOnEnter(event: KeyboardEvent) {
   content: "";
   position: absolute;
   z-index: 0;
-  background: var(--rb-panel-outline, #606060);
+  background: var(--rb-panel-outline);
   pointer-events: none;
 }
 
 .quadrant-picker::before {
-  width: var(--rb-stroke-width, 1px);
+  width: var(--rb-stroke-width);
   top: 0;
   bottom: 0;
   left: 50%;
@@ -181,7 +178,7 @@ function blurOnEnter(event: KeyboardEvent) {
 }
 
 .quadrant-picker::after {
-  height: var(--rb-stroke-width, 1px);
+  height: var(--rb-stroke-width);
   left: 0;
   right: 0;
   top: 50%;
@@ -198,8 +195,8 @@ function blurOnEnter(event: KeyboardEvent) {
   padding: 0;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: var(--rb-control-background, #303030);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  background: var(--rb-control-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
   box-sizing: border-box;
   cursor: pointer;
 }
@@ -234,10 +231,10 @@ function blurOnEnter(event: KeyboardEvent) {
   top: 100%;
 }
 .quadrant-dot.active {
-  background: #808080;
+  background: var(--rb-muted-text);
 }
 .quadrant-dot:hover {
-  border-color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
 }
 
 .fields {
@@ -257,13 +254,13 @@ function blurOnEnter(event: KeyboardEvent) {
   grid-template-columns: 14px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
-  background: var(--rb-app-background, #101010);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
+  background: var(--rb-app-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
 }
 .coord-field span {
-  color: var(--rb-muted-text, #808080);
-  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-muted-text);
+  font: var(--rb-ui-label-size) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0;
 }
 
@@ -277,8 +274,8 @@ function blurOnEnter(event: KeyboardEvent) {
   padding: 0;
   background: transparent;
   border: 0;
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-monospace, monospace;
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-monospace, monospace;
   text-align: right;
   outline: none;
 }
@@ -288,9 +285,9 @@ function blurOnEnter(event: KeyboardEvent) {
   margin: 0;
 }
 .coord-input::placeholder {
-  color: var(--rb-subdued-text, #505050);
+  color: var(--rb-subdued-text);
 }
 .coord-field:focus-within {
-  border-color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
 }
 </style>

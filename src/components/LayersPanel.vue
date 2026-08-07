@@ -89,13 +89,13 @@ const emit = defineEmits<{
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  background: var(--rb-panel-bg, rgba(24, 24, 24, 0.92));
-  border: 1px solid var(--rb-panel-border, rgba(255, 255, 255, 0.08));
+  background: var(--rb-panel-bg);
+  border: 1px solid var(--rb-panel-border);
   border-radius: 8px;
   pointer-events: auto;
 }
 .label {
-  font-size: var(--rb-ui-label-size, 11px);
+  font-size: var(--rb-ui-label-size);
   letter-spacing: 0.02em;
   opacity: 0.5;
   margin-top: 2px;
@@ -107,10 +107,10 @@ const emit = defineEmits<{
 .row-btn {
   font: inherit;
   white-space: nowrap;
-  font-size: var(--rb-ui-label-size, 11px);
+  font-size: var(--rb-ui-label-size);
   color: inherit;
-  background: var(--rb-button-background, #1d1d1d);
-  border: 1px solid var(--rb-panel-outline, #404040);
+  background: var(--rb-button-background);
+  border: 1px solid var(--rb-panel-outline);
   border-radius: 6px;
   padding: 6px 8px;
   cursor: pointer;
@@ -128,22 +128,22 @@ const emit = defineEmits<{
 .row-btn.on {
   /* Same "on" look as every other toggle in the editor: accent text and
      border, no fill. */
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 .field {
   font: inherit;
-  font-size: var(--rb-ui-label-size, 11px);
+  font-size: var(--rb-ui-label-size);
   color: inherit;
   /* Typed-into fields sit darker than the panel; buttons sit lighter. */
-  background: var(--rb-field-background, #141414);
-  border: 1px solid var(--rb-panel-outline, #404040);
+  background: var(--rb-field-background);
+  border: 1px solid var(--rb-panel-outline);
   border-radius: 6px;
   padding: 6px 8px;
   min-width: 0;
 }
 .field.unknown {
   /* No such glyph — say so quietly rather than clearing what was typed. */
-  border-color: var(--rb-warning, #ffdc32);
+  border-color: var(--rb-warning);
 }
 </style>

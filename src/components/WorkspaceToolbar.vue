@@ -28,9 +28,9 @@ const emit = defineEmits<{
 .workspace-toolbar {
   box-sizing: border-box;
   padding: 6px;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -43,10 +43,10 @@ const emit = defineEmits<{
   height: 48px;
   box-sizing: border-box;
   padding: 0;
-  background: var(--rb-button-background, #181818);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
-  color: var(--rb-glyph-preview, #808080);
+  background: var(--rb-button-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
+  color: var(--rb-glyph-preview);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -54,7 +54,7 @@ const emit = defineEmits<{
 }
 
 .workspace-btn:hover {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
 }
 
 </style>

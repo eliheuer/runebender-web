@@ -229,9 +229,9 @@ onBeforeUnmount(() => {
 .system-menu-panel {
   box-sizing: border-box;
   padding: 6px;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -244,37 +244,37 @@ onBeforeUnmount(() => {
   padding: 8px 10px;
   background: transparent;
   border: none;
-  border-radius: var(--rb-button-radius, 8px);
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  border-radius: var(--rb-button-radius);
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .system-menu-panel button:not(:disabled):hover {
-  color: var(--rb-accent, #18b86f);
-  background: var(--rb-button-background, #181818);
+  color: var(--rb-accent);
+  background: var(--rb-button-background);
 }
 .system-menu-panel button:disabled {
   opacity: 0.55;
   cursor: default;
 }
 .system-menu-panel button.accent {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
 }
 
 .group-label {
   margin: 4px 10px 2px;
-  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-label-size) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.02em;
-  color: var(--rb-secondary-text, #707070);
+  color: var(--rb-secondary-text);
 }
 
 .separator {
   height: 1px;
   margin: 4px 6px;
-  background: var(--rb-panel-outline, #606060);
+  background: var(--rb-panel-outline);
   opacity: 0.5;
 }
 </style>

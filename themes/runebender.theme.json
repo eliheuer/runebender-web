@@ -114,7 +114,18 @@
         "pathStroke": "neutral.76",
         "previewFill": "neutral.60",
         "background": "neutral.37",
-        "reference": "neutral.26"
+        "reference": "neutral.26",
+        "halo": "neutral.15",
+        "metricQuiet": "neutral.26",
+        "readonlyPoint": "neutral.60",
+        "continuityG2": "teal.base",
+        "continuityG1": "yellow.base",
+        "continuityLine": "neutral.55",
+        "continuityKink": "red.base",
+        "popcount1": "green.base",
+        "popcount2": "yellow.base",
+        "popcount3": "orange.base",
+        "popcount4": "red.base"
       }
     },
 
@@ -162,7 +173,18 @@
         "pathStroke": "neutral.71",
         "previewFill": "neutral.49",
         "background": "neutral.26",
-        "reference": "neutral.21"
+        "reference": "neutral.21",
+        "halo": "neutral.15",
+        "metricQuiet": "neutral.21",
+        "readonlyPoint": "neutral.49",
+        "continuityG2": "teal.dim",
+        "continuityG1": "yellow.dim",
+        "continuityLine": "neutral.43",
+        "continuityKink": "red.dim",
+        "popcount1": "green.dim",
+        "popcount2": "yellow.dim",
+        "popcount3": "orange.dim",
+        "popcount4": "red.dim"
       }
     },
 
@@ -210,7 +232,18 @@
         "pathStroke": "neutral.26",
         "previewFill": "neutral.49",
         "background": "neutral.55",
-        "reference": "neutral.81"
+        "reference": "neutral.81",
+        "halo": "neutral.96",
+        "metricQuiet": "neutral.81",
+        "readonlyPoint": "neutral.55",
+        "continuityG2": "teal.dim",
+        "continuityG1": "yellow.dim",
+        "continuityLine": "neutral.55",
+        "continuityKink": "red.dim",
+        "popcount1": "green.dim",
+        "popcount2": "yellow.dim",
+        "popcount3": "orange.dim",
+        "popcount4": "red.dim"
       }
     }
   },

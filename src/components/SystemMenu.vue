@@ -54,9 +54,9 @@ function onMenuButtonClick() {
   position: relative;
   box-sizing: border-box;
   padding: 6px;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   display: flex;
   align-items: center;
   flex: 0 0 auto;
@@ -72,7 +72,7 @@ function onMenuButtonClick() {
   padding: 3px;
   background: transparent;
   border: none;
-  border-radius: var(--rb-button-radius, 8px);
+  border-radius: var(--rb-button-radius);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -165,9 +165,9 @@ function runAction(
 .transform-panel {
   width: 117px;
   box-sizing: border-box;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   padding: 6px;
   pointer-events: auto;
 }
@@ -185,32 +185,32 @@ function runAction(
 }
 
 .action-btn.preview-toggle.on {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 
 .action-btn {
   appearance: none;
   width: 48px;
   height: 48px;
-  background: var(--rb-button-background, #181818);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
+  background: var(--rb-button-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
   /* Neutral gray by default, green only on hover — same as the tool
      palette and xilem's transform buttons. Enabled buttons should not
      glow green just for being usable. */
-  color: var(--rb-glyph-preview, #808080);
+  color: var(--rb-glyph-preview);
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .action-btn:not(.disabled):hover {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 .action-btn.disabled {
-  color: var(--rb-glyph-preview, #808080);
+  color: var(--rb-glyph-preview);
   opacity: 0.55;
 }
 

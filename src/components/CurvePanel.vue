@@ -100,13 +100,13 @@ function setAll(value: boolean) {
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  background: var(--rb-panel-bg, rgba(24, 24, 24, 0.92));
-  border: 1px solid var(--rb-panel-border, rgba(255, 255, 255, 0.08));
+  background: var(--rb-panel-bg);
+  border: 1px solid var(--rb-panel-border);
   border-radius: 8px;
   pointer-events: auto;
 }
 .label {
-  font-size: var(--rb-ui-label-size, 11px);
+  font-size: var(--rb-ui-label-size);
   letter-spacing: 0.02em;
   opacity: 0.5;
   margin-top: 2px;
@@ -118,12 +118,12 @@ function setAll(value: boolean) {
 .row-btn {
   font: inherit;
   white-space: nowrap;
-  font-size: var(--rb-ui-label-size, 11px);
+  font-size: var(--rb-ui-label-size);
   color: inherit;
   /* Buttons sit lighter than the panel they're on; typed-into fields
      sit darker. Same tokens as the rest of the editor chrome. */
-  background: var(--rb-button-background, #1d1d1d);
-  border: 1px solid var(--rb-panel-outline, #404040);
+  background: var(--rb-button-background);
+  border: 1px solid var(--rb-panel-outline);
   border-radius: 6px;
   padding: 6px 8px;
   cursor: pointer;
@@ -145,8 +145,8 @@ function setAll(value: boolean) {
 .row-btn.on {
   /* Same "on" look as every other toggle in the editor — accent text and
      border, no fill. See .master-btn.active in TopBar. */
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 .legend {
   /* Two columns: four one-line keys stacked was a lot of height for a
@@ -160,7 +160,7 @@ function setAll(value: boolean) {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: var(--rb-ui-label-size, 11px);
+  font-size: var(--rb-ui-label-size);
   opacity: 0.85;
 }
 .ring {
@@ -170,17 +170,19 @@ function setAll(value: boolean) {
   border: 1.75px solid;
   flex: none;
 }
+/* The same four the renderer draws the rings in — see
+   draw_continuity_markers — so the key cannot drift from the canvas. */
 .ring.g2 {
-  border-color: #21d4a6;
+  border-color: var(--rb-canvas-continuity-g2);
 }
 .ring.g1 {
-  border-color: #ffd140;
+  border-color: var(--rb-canvas-continuity-g1);
 }
 .ring.line {
-  border-color: #808ca3;
+  border-color: var(--rb-canvas-continuity-line);
 }
 .ring.kink {
-  border-color: #ff453b;
+  border-color: var(--rb-canvas-continuity-kink);
 }
 .slider {
   display: flex;
@@ -191,7 +193,7 @@ function setAll(value: boolean) {
 .slider-head {
   display: flex;
   justify-content: space-between;
-  font-size: var(--rb-ui-label-size, 11px);
+  font-size: var(--rb-ui-label-size);
   opacity: 0.7;
 }
 .slider-head .val {

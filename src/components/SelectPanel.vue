@@ -98,13 +98,13 @@ function setAll(value: boolean) {
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  background: var(--rb-panel-bg, rgba(24, 24, 24, 0.92));
-  border: 1px solid var(--rb-panel-border, rgba(255, 255, 255, 0.08));
+  background: var(--rb-panel-bg);
+  border: 1px solid var(--rb-panel-border);
   border-radius: 8px;
   pointer-events: auto;
 }
 .label {
-  font-size: var(--rb-ui-label-size, 11px);
+  font-size: var(--rb-ui-label-size);
   letter-spacing: 0.02em;
   opacity: 0.5;
   margin-top: 2px;
@@ -116,12 +116,12 @@ function setAll(value: boolean) {
 .row-btn {
   font: inherit;
   white-space: nowrap;
-  font-size: var(--rb-ui-label-size, 11px);
+  font-size: var(--rb-ui-label-size);
   color: inherit;
   /* Buttons sit lighter than the panel they're on; typed-into fields
      sit darker. Same tokens as the rest of the editor chrome. */
-  background: var(--rb-button-background, #1d1d1d);
-  border: 1px solid var(--rb-panel-outline, #404040);
+  background: var(--rb-button-background);
+  border: 1px solid var(--rb-panel-outline);
   border-radius: 6px;
   padding: 6px 8px;
   cursor: pointer;
@@ -143,7 +143,7 @@ function setAll(value: boolean) {
 .row-btn.on {
   /* Same "on" look as every other toggle in the editor — accent text and
      border, no fill. See .master-btn.active in TopBar. */
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 </style>

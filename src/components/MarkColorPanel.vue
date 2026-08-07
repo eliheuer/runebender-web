@@ -87,18 +87,17 @@ defineEmits<{
 <style scoped>
 /*
  * Colors from xilem theme.rs:
- *   PANEL_BACKGROUND               #1C1C1C
- *   PANEL_OUTLINE / BASE_F         #606060
- *   SECONDARY_UI_TEXT / BASE_G     #707070
+ * Colour comes from themes/runebender.theme.json via the --rb-*
+ * custom properties on the host element. Nothing here names a colour.
  */
 
 .mark-color-panel {
   width: 100%;
   min-height: 76px;
   box-sizing: border-box;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -117,8 +116,8 @@ defineEmits<{
 }
 
 .header {
-  color: var(--rb-accent, #18b86f);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-accent);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   font-weight: 400;
   line-height: 16px;
 }
@@ -127,8 +126,8 @@ defineEmits<{
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--rb-muted-text, #808080);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-muted-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   line-height: 18px;
   cursor: pointer;
   user-select: none;
@@ -143,9 +142,9 @@ defineEmits<{
   width: 22px;
   height: 12px;
   box-sizing: border-box;
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
   border-radius: 999px;
-  background: var(--rb-panel-background, #1c1c1c);
+  background: var(--rb-panel-background);
   display: flex;
   align-items: center;
   flex: 0 0 auto;
@@ -156,18 +155,18 @@ defineEmits<{
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--rb-secondary-text, #707070);
+  background: var(--rb-secondary-text);
   transform: translateX(0);
   transition: transform 0.08s, background 0.08s;
 }
 .all-masters-toggle.active {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
 }
 .all-masters-toggle.active .toggle-track {
-  border-color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
 }
 .all-masters-toggle.active .toggle-thumb {
-  background: var(--rb-accent, #18b86f);
+  background: var(--rb-accent);
   transform: translateX(10px);
 }
 
@@ -184,7 +183,7 @@ defineEmits<{
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: var(--rb-stroke-width, 1px) solid transparent;
+  border: var(--rb-stroke-width) solid transparent;
   cursor: pointer;
   padding: 0;
   display: flex;
@@ -192,7 +191,7 @@ defineEmits<{
   justify-content: center;
 }
 .swatch:hover:not(:disabled) {
-  outline: var(--rb-stroke-width, 1px) solid var(--rb-mark-hover-ring, #bbbbbb);
+  outline: var(--rb-stroke-width) solid var(--rb-mark-hover-ring);
   outline-offset: 0;
 }
 .swatch:disabled {
@@ -200,16 +199,16 @@ defineEmits<{
 }
 
 .swatch.clear {
-  background: var(--rb-panel-background, #1c1c1c);
-  border-color: var(--rb-panel-outline, #606060);
+  background: var(--rb-panel-background);
+  border-color: var(--rb-panel-outline);
 }
 .swatch.clear svg {
   width: 12px;
   height: 12px;
-  stroke: var(--rb-secondary-text, #707070);
+  stroke: var(--rb-secondary-text);
   stroke-width: 1.5;
 }
 .swatch.clear:hover:not(:disabled) svg {
-  stroke: var(--rb-accent, #18b86f);
+  stroke: var(--rb-accent);
 }
 </style>

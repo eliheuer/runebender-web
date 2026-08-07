@@ -84,11 +84,8 @@ function displayGroup(group: string | undefined, prefix: string): string {
 <style scoped>
 /*
  * Colors from xilem/src/theme.rs:
- *   PANEL_BACKGROUND               #1C1C1C
- *   PANEL_OUTLINE / BASE_F         #606060
- *   PRIMARY_UI_TEXT / BASE_I       #909090
- *   SECONDARY_UI_TEXT / BASE_G     #707070
- *   GRID_CELL_SELECTED_OUTLINE     #18B86F (used for labels)
+ * Colour comes from themes/runebender.theme.json via the --rb-*
+ * custom properties on the host element. Nothing here names a colour.
  *
  * Width matches xilem's GLYPH_INFO_PANEL_WIDTH (220px).
  */
@@ -96,9 +93,9 @@ function displayGroup(group: string | undefined, prefix: string): string {
 .info-sidebar {
   width: 220px;
   flex-shrink: 0;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -119,18 +116,18 @@ function displayGroup(group: string | undefined, prefix: string): string {
 }
 
 .label {
-  color: var(--rb-accent, #18b86f);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-accent);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 .value {
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .value.mono {
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 
 .kerning-row {
@@ -139,11 +136,11 @@ function displayGroup(group: string | undefined, prefix: string): string {
   gap: 12px;
 }
 .kerning-side {
-  color: var(--rb-secondary-text, #707070);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-secondary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 .kerning-val {
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 </style>

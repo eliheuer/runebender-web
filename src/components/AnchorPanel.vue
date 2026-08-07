@@ -77,9 +77,9 @@ function blurOnEnter(event: KeyboardEvent) {
 <style scoped>
 .anchor-panel {
   box-sizing: border-box;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   padding: 8px;
   display: grid;
   grid-template-columns: 126px 66px 66px;
@@ -96,9 +96,9 @@ function blurOnEnter(event: KeyboardEvent) {
   grid-template-columns: 34px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
-  background: var(--rb-app-background, #101010);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
+  background: var(--rb-app-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
 }
 
 .anchor-field:not(.name-field) {
@@ -106,8 +106,8 @@ function blurOnEnter(event: KeyboardEvent) {
 }
 
 .anchor-field span {
-  color: var(--rb-muted-text, #808080);
-  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-muted-text);
+  font: var(--rb-ui-label-size) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0;
 }
 
@@ -121,8 +121,8 @@ function blurOnEnter(event: KeyboardEvent) {
   padding: 0;
   background: transparent;
   border: 0;
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-monospace, monospace;
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-monospace, monospace;
   outline: none;
 }
 
@@ -137,6 +137,6 @@ function blurOnEnter(event: KeyboardEvent) {
 }
 
 .anchor-field:focus-within {
-  border-color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
 }
 </style>

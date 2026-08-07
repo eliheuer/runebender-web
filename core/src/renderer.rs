@@ -147,6 +147,27 @@ struct CanvasTheme {
     text_cursor: Srgb,
     text_kern_active: Srgb,
     text_kern_previous: Srgb,
+    /// Casing drawn under points, rings and HUD text so they stay
+    /// legible over whatever is behind them. Dark on a dark canvas,
+    /// light on a light one — which is why it cannot be a constant.
+    halo: Srgb,
+    /// Metric box of a sort nobody is editing.
+    metric_quiet: Srgb,
+    /// The glyph's background layer, and another glyph shown behind it.
+    background_layer: Srgb,
+    reference_glyph: Srgb,
+    /// Continuity rings: G2/G3, G1, line-to-curve, kink.
+    continuity_g2: Srgb,
+    continuity_g1: Srgb,
+    continuity_line: Srgb,
+    continuity_kink: Srgb,
+    /// Popcount tiers, one power through four or more.
+    popcount_1: Srgb,
+    popcount_2: Srgb,
+    popcount_3: Srgb,
+    popcount_4: Srgb,
+    /// Points shown read-only: components, interpolated instances.
+    point_readonly_outer: Srgb,
 }
 
 impl Default for CanvasTheme {
@@ -179,6 +200,19 @@ impl Default for CanvasTheme {
             text_cursor: TEXT_CURSOR,
             text_kern_active: TEXT_KERN_ACTIVE,
             text_kern_previous: TEXT_KERN_PREVIOUS,
+            halo: HALO_COLOR,
+            metric_quiet: TEXT_SORT_METRIC_QUIET,
+            background_layer: BACKGROUND_LAYER_STROKE,
+            reference_glyph: REFERENCE_GLYPH_FILL,
+            continuity_g2: CONTINUITY_G2,
+            continuity_g1: CONTINUITY_G1,
+            continuity_line: CONTINUITY_LINE,
+            continuity_kink: CONTINUITY_KINK,
+            popcount_1: POPCOUNT_1,
+            popcount_2: POPCOUNT_2,
+            popcount_3: POPCOUNT_3,
+            popcount_4: POPCOUNT_4,
+            point_readonly_outer: POINT_READONLY_OUTER,
         }
     }
 }
@@ -213,6 +247,19 @@ struct CanvasThemeInput {
     text_cursor: Option<[u8; 4]>,
     text_kern_active: Option<[u8; 4]>,
     text_kern_previous: Option<[u8; 4]>,
+    halo: Option<[u8; 4]>,
+    metric_quiet: Option<[u8; 4]>,
+    background_layer: Option<[u8; 4]>,
+    reference_glyph: Option<[u8; 4]>,
+    continuity_g2: Option<[u8; 4]>,
+    continuity_g1: Option<[u8; 4]>,
+    continuity_line: Option<[u8; 4]>,
+    continuity_kink: Option<[u8; 4]>,
+    popcount_1: Option<[u8; 4]>,
+    popcount_2: Option<[u8; 4]>,
+    popcount_3: Option<[u8; 4]>,
+    popcount_4: Option<[u8; 4]>,
+    point_readonly_outer: Option<[u8; 4]>,
 }
 
 impl CanvasTheme {
@@ -251,6 +298,19 @@ impl CanvasTheme {
         apply_color!(text_cursor);
         apply_color!(text_kern_active);
         apply_color!(text_kern_previous);
+        apply_color!(halo);
+        apply_color!(metric_quiet);
+        apply_color!(background_layer);
+        apply_color!(reference_glyph);
+        apply_color!(continuity_g2);
+        apply_color!(continuity_g1);
+        apply_color!(continuity_line);
+        apply_color!(continuity_kink);
+        apply_color!(popcount_1);
+        apply_color!(popcount_2);
+        apply_color!(popcount_3);
+        apply_color!(popcount_4);
+        apply_color!(point_readonly_outer);
     }
 }
 
@@ -313,6 +373,16 @@ const TEXT_SORT_MARK_HIDE_BELOW_PX: f64 = 3.0;
 /// without competing with the glyphs. They switch off with the marks —
 /// at a zoom where the marks are gone the boxes are noise too.
 const TEXT_SORT_METRIC_QUIET: Srgb = AlphaColor::from_rgba8(0x24, 0x24, 0x24, 0xff);
+/// Continuity rings and popcount tiers. Defaults only: the host sends
+/// the theme's own, so they follow a theme switch like everything else.
+const CONTINUITY_G2: Srgb = AlphaColor::new([0.13, 0.83, 0.65, 1.0]);
+const CONTINUITY_G1: Srgb = AlphaColor::new([1.0, 0.82, 0.25, 1.0]);
+const CONTINUITY_LINE: Srgb = AlphaColor::new([0.50, 0.55, 0.64, 0.9]);
+const CONTINUITY_KINK: Srgb = AlphaColor::new([1.0, 0.27, 0.23, 1.0]);
+const POPCOUNT_1: Srgb = AlphaColor::new([0.09, 0.72, 0.44, 1.0]);
+const POPCOUNT_2: Srgb = AlphaColor::new([1.0, 0.86, 0.2, 1.0]);
+const POPCOUNT_3: Srgb = AlphaColor::new([1.0, 0.6, 0.06, 1.0]);
+const POPCOUNT_4: Srgb = AlphaColor::new([1.0, 0.29, 0.24, 1.0]);
 const DESIGN_GRID_MID_MIN_ZOOM: f64 = 0.8;
 const DESIGN_GRID_MID_FINE: f64 = 8.0;
 // Mid zoom shows the machine lattice plainly: a line every 8 units,
@@ -1243,10 +1313,10 @@ impl Renderer {
     /// editor's point palette (see the legend in CurvePanel). Drawn on top.
     fn draw_continuity_markers(&mut self, state: &EditorState, glyph_view: Affine) {
         if self.curve_options.continuity {
-            let g2: Srgb = AlphaColor::new([0.13, 0.83, 0.65, 1.0]); // teal-green
-            let g1: Srgb = AlphaColor::new([1.0, 0.82, 0.25, 1.0]); // yellow
-            let line: Srgb = AlphaColor::new([0.50, 0.55, 0.64, 0.9]); // slate
-            let kink: Srgb = AlphaColor::new([1.0, 0.27, 0.23, 1.0]); // red
+            let g2 = self.theme.continuity_g2;
+            let g1 = self.theme.continuity_g1;
+            let line = self.theme.continuity_line;
+            let kink = self.theme.continuity_kink;
             // Ring geometry follows the same zoom curve the points do,
             // so the gap between a ring and the point inside it stays
             // constant however far you zoom.
@@ -1269,7 +1339,7 @@ impl Renderer {
                 self.scene.stroke(
                     &Stroke::new(ring.width + HALO_PX),
                     Affine::IDENTITY,
-                    HALO_COLOR,
+                    self.theme.halo,
                     None,
                     &circle,
                 );
@@ -1295,14 +1365,14 @@ impl Renderer {
         }
         let t32 = t as f32;
 
-        // Popcount tiers on Runebender's glyph-grid mark colors: 1 power is
-        // structural (green), 2 an elegant sum (yellow), 3 acceptable
-        // (orange), 4+ a flagged correction (red). Values match
-        // themeTokens.ts THEME_MARK_COLORS byte for byte.
-        let green: Srgb = AlphaColor::new([0.09, 0.72, 0.44, 1.0]);
-        let yellow: Srgb = AlphaColor::new([1.0, 0.86, 0.2, 1.0]);
-        let orange: Srgb = AlphaColor::new([1.0, 0.6, 0.06, 1.0]);
-        let red: Srgb = AlphaColor::new([1.0, 0.29, 0.24, 1.0]);
+        // Popcount tiers on the glyph grid's own mark colours: 1 power
+        // is structural (green), 2 an elegant sum (yellow), 3 acceptable
+        // (orange), 4+ a flagged correction (red). The host sends the
+        // theme's versions of those four.
+        let green = self.theme.popcount_1;
+        let yellow = self.theme.popcount_2;
+        let orange = self.theme.popcount_3;
+        let red = self.theme.popcount_4;
         let tier = |pc: u32| match pc {
             0 | 1 => green,
             2 => yellow,
@@ -1664,7 +1734,7 @@ impl Renderer {
             }
             let stroke = Stroke::new(self.px(METRIC_LINE_PX));
             if self.text_metric_marks_visible(mark_size) {
-                self.stroke_metric_batch(&quiet_metric_path, TEXT_SORT_METRIC_QUIET, &stroke);
+                self.stroke_metric_batch(&quiet_metric_path, self.theme.metric_quiet, &stroke);
                 self.stroke_metric_batch(&guide_metric_path, self.theme.metric_guide, &stroke);
                 self.stroke_metric_batch(
                     &active_metric_path,
@@ -1908,14 +1978,14 @@ impl Renderer {
     fn draw_underlays(&mut self, state: &EditorState, glyph_view: Affine) {
         if let Some(path) = state.reference_outline.as_ref() {
             self.scene
-                .fill(Fill::NonZero, glyph_view, REFERENCE_GLYPH_FILL, None, path);
+                .fill(Fill::NonZero, glyph_view, self.theme.reference_glyph, None, path);
         }
         if let Some(path) = state.background_outline.as_ref() {
             let screen_path = glyph_view * path;
             self.scene.stroke(
                 &Stroke::new(self.px(LINE_PX)),
                 Affine::IDENTITY,
-                BACKGROUND_LAYER_STROKE,
+                self.theme.background_layer,
                 None,
                 &screen_path,
             );
@@ -2111,7 +2181,7 @@ impl Renderer {
                 self.scene.stroke(
                     &Stroke::new(self.px(HANDLE_LINE_PX) + HALO_PX),
                     Affine::IDENTITY,
-                    HALO_COLOR,
+                    self.theme.halo,
                     None,
                     &controls.handle_lines,
                 );
@@ -2127,7 +2197,7 @@ impl Renderer {
                 self.scene.stroke(
                     &Stroke::new(self.px(PATH_STROKE_PX) + HALO_PX),
                     Affine::IDENTITY,
-                    HALO_COLOR,
+                    self.theme.halo,
                     None,
                     &controls.outline,
                 );
@@ -2410,7 +2480,7 @@ impl Renderer {
         self.scene.stroke(
             &Stroke::new(stroke.width + HALO_PX),
             Affine::IDENTITY,
-            HALO_COLOR,
+            self.theme.halo,
             None,
             path,
         );

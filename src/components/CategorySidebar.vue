@@ -338,9 +338,9 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 .category-sidebar {
   width: 280px;
   flex-shrink: 0;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   display: flex;
   flex-direction: column;
   overflow: visible;
@@ -363,7 +363,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: var(--rb-accent, #00d084);
+  color: var(--rb-accent);
   font: inherit;
   font-size: 20px;
   line-height: 20px;
@@ -374,8 +374,8 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 
 .missing-action:hover,
 .missing-action:focus-visible {
-  background: var(--rb-button-hover, rgba(255, 255, 255, 0.08));
-  border-color: var(--rb-panel-outline, #606060);
+  background: var(--rb-button-hover);
+  border-color: var(--rb-panel-outline);
   outline: none;
 }
 
@@ -385,9 +385,9 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   align-items: center;
   margin: 6px 8px 6px;
   height: 30px;
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
   border-radius: 7px;
-  background: var(--rb-canvas-background, #0c0c0c);
+  background: var(--rb-canvas-background);
 }
 
 .sort-toggle {
@@ -396,9 +396,9 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   gap: 4px;
   margin: 8px 8px 0;
   padding: 3px;
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
   border-radius: 7px;
-  background: var(--rb-canvas-background, #0c0c0c);
+  background: var(--rb-canvas-background);
 }
 
 .sort-btn {
@@ -406,17 +406,17 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   height: 24px;
   min-width: 0;
   padding: 0 8px;
-  border: var(--rb-stroke-width, 1px) solid transparent;
+  border: var(--rb-stroke-width) solid transparent;
   border-radius: 5px;
   background: transparent;
-  color: var(--rb-primary-text, #909090);
+  color: var(--rb-primary-text);
   cursor: pointer;
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 
 .sort-btn.active {
-  border-color: var(--rb-accent, #18b86f);
-  color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
+  color: var(--rb-accent);
 }
 
 .sort-btn:focus {
@@ -424,12 +424,12 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 }
 
 .sort-btn:focus-visible {
-  outline: var(--rb-stroke-width, 1px) solid var(--rb-accent, #18b86f);
-  outline-offset: var(--rb-stroke-width, 1px);
+  outline: var(--rb-stroke-width) solid var(--rb-accent);
+  outline-offset: var(--rb-stroke-width);
 }
 
 .search-wrap:focus-within {
-  border-color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
 }
 
 .search-mode,
@@ -439,7 +439,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--rb-primary-text, #909090);
+  color: var(--rb-primary-text);
   cursor: pointer;
 }
 
@@ -456,15 +456,15 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 .clear-search:focus-visible,
 .section-action:focus-visible,
 .disclosure:focus-visible {
-  outline: var(--rb-stroke-width, 1px) solid var(--rb-accent, #18b86f);
-  outline-offset: var(--rb-stroke-width, 1px);
+  outline: var(--rb-stroke-width) solid var(--rb-accent);
+  outline-offset: var(--rb-stroke-width);
   border-radius: 4px;
 }
 
 .row:focus-visible,
 .search-menu-row:focus-visible {
   outline: none;
-  border-color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
 }
 
 .search-mode {
@@ -500,12 +500,12 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--rb-primary-text, #e8e8e8);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 
 .search-input::placeholder {
-  color: var(--rb-muted-text, #707070);
+  color: var(--rb-muted-text);
 }
 
 .clear-search {
@@ -524,7 +524,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   width: 146px;
   padding: 6px 0;
   background: #222;
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
   border-radius: 7px;
   box-shadow: 0 12px 24px rgb(0 0 0 / 45%);
 }
@@ -538,15 +538,15 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   padding: 0 14px;
   border: 0;
   background: transparent;
-  color: var(--rb-primary-text, #e8e8e8);
+  color: var(--rb-primary-text);
   cursor: pointer;
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 
 .search-menu-separator {
   height: 1px;
   margin: 6px 14px;
-  background: var(--rb-panel-outline, #606060);
+  background: var(--rb-panel-outline);
 }
 
 .check {
@@ -564,7 +564,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 
 .sidebar-footer {
   padding: 8px;
-  border-top: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border-top: var(--rb-stroke-width) solid var(--rb-panel-outline);
 }
 
 .copy-selection-btn {
@@ -576,18 +576,18 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   height: 30px;
   min-width: 0;
   padding: 0 8px;
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
   border-radius: 7px;
-  background: var(--rb-canvas-background, #0c0c0c);
-  color: var(--rb-primary-text, #e8e8e8);
+  background: var(--rb-canvas-background);
+  color: var(--rb-primary-text);
   cursor: pointer;
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   text-align: left;
 }
 
 .copy-selection-btn:not(:disabled):hover {
-  border-color: var(--rb-accent, #18b86f);
-  color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
+  color: var(--rb-accent);
 }
 
 .copy-selection-btn:disabled {
@@ -600,14 +600,14 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 }
 
 .copy-selection-btn:focus-visible {
-  outline: var(--rb-stroke-width, 1px) solid var(--rb-accent, #18b86f);
-  outline-offset: var(--rb-stroke-width, 1px);
+  outline: var(--rb-stroke-width) solid var(--rb-accent);
+  outline-offset: var(--rb-stroke-width);
 }
 
 .copy-icon {
   flex: 0 0 20px;
-  color: var(--rb-accent, #18b86f);
-  font-size: var(--rb-ui-font-size, 13px);
+  color: var(--rb-accent);
+  font-size: var(--rb-ui-font-size);
   line-height: 1;
   text-align: center;
 }
@@ -629,17 +629,17 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 }
 
 .scroll::-webkit-scrollbar-thumb {
-  border-width: var(--rb-stroke-width, 1px);
+  border-width: var(--rb-stroke-width);
 }
 
 .scroll::-webkit-scrollbar-thumb:hover {
-  border-width: var(--rb-stroke-width, 1px);
+  border-width: var(--rb-stroke-width);
 }
 
 .section-title {
   margin: 12px 0 5px;
-  color: var(--rb-muted-text, #808080);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-muted-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: 0;
 }
@@ -714,12 +714,12 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   min-width: 0;
   height: 24px;
   padding: 0 8px;
-  border: var(--rb-stroke-width, 1px) solid transparent;
+  border: var(--rb-stroke-width) solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: var(--rb-primary-text, #e8e8e8);
+  color: var(--rb-primary-text);
   cursor: pointer;
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   text-align: left;
 }
 
@@ -730,8 +730,8 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 
 .row.active {
   background: transparent;
-  border-color: var(--rb-accent, #18b86f);
-  color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
+  color: var(--rb-accent);
 }
 
 .top-row {
@@ -740,7 +740,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 
 .icon {
   flex: 0 0 22px;
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
   font-weight: 700;
   text-align: center;
 }
@@ -767,7 +767,7 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
   height: 18px;
   padding: 0 6px;
   color: inherit;
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-font-size);
   line-height: 18px;
   text-align: center;
 }
@@ -779,6 +779,6 @@ function missingCountFor(filter: GlyphSidebarFilter): number {
 .subrow {
   height: 22px;
   padding-left: 34px;
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-font-size);
 }
 </style>

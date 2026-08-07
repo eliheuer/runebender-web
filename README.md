@@ -8,7 +8,7 @@ extracted from
 [runebender-comfy](https://github.com/eliheuer/runebender-comfy), which
 now imports this package for its ComfyUI widget.
 
-The editor opens UFO/designspace sources and ships with
+The editor opens UFO/designspace sources and includes
 [Virtua Grotesk](https://github.com/eliheuer/virtua-grotesk) as a demo
 font that loads automatically.
 

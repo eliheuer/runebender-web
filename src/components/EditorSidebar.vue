@@ -355,9 +355,9 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   max-height: 46vh;
   display: flex;
   flex-direction: column;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   overflow: hidden;
 }
 
@@ -372,9 +372,9 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   flex: 1;
   height: 34px;
   border: 1px solid transparent;
-  border-radius: var(--rb-button-radius, 8px);
+  border-radius: var(--rb-button-radius);
   background: transparent;
-  color: var(--rb-secondary-text, #707070);
+  color: var(--rb-secondary-text);
   /* These are glyph icons, not label text, so they don't follow the UI
      type scale — at body size they were too small to read. */
   font-size: 22px;
@@ -392,9 +392,9 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   padding: 0 0 1.5px;
 }
 .tabs button.active {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-panel-outline, #606060);
-  background: var(--rb-button-background, #181818);
+  color: var(--rb-accent);
+  border-color: var(--rb-panel-outline);
+  background: var(--rb-button-background);
 }
 
 .tab-body {
@@ -408,9 +408,9 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 }
 
 .side-label {
-  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-label-size) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.02em;
-  color: var(--rb-secondary-text, #707070);
+  color: var(--rb-secondary-text);
 }
 
 .search {
@@ -422,28 +422,28 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   padding: 7px 9px;
   /* Typed-into fields sit darker than the panel; buttons sit lighter
      (see .back-to-grid). Same split as the font-info fields. */
-  background: var(--rb-app-background, #0c0c0c);
-  border: 1px solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  background: var(--rb-app-background);
+  border: 1px solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 
 .back-to-grid {
   box-sizing: border-box;
   width: 100%;
   padding: 7px 9px;
-  background: var(--rb-button-background, #181818);
-  border: 1px solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  background: var(--rb-button-background);
+  border: 1px solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
   text-align: left;
 }
 .back-to-grid:hover {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 
 /* The chat tab scrolls its own log, so the tile itself must not. */
@@ -495,14 +495,14 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   padding: 0;
   background: none;
   border: none;
-  color: var(--rb-secondary-text, #707070);
-  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-secondary-text);
+  font: var(--rb-ui-label-size) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.02em;
   cursor: pointer;
 }
 .all-masters.active,
 .all-masters:hover {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
 }
 
 .swatch-row {
@@ -529,27 +529,27 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   /* The selection is one solid ring in the swatch's own color,
      separated from the disc by the tile background. */
   box-shadow:
-    0 0 0 2px var(--rb-panel-background, #1c1c1c),
+    0 0 0 2px var(--rb-panel-background),
     0 0 0 3px currentColor;
 }
 .swatch-row .swatch:hover:not(:disabled) {
   box-shadow:
-    0 0 0 2px var(--rb-panel-background, #1c1c1c),
-    0 0 0 3px var(--rb-mark-hover-ring, #bbbbbb);
+    0 0 0 2px var(--rb-panel-background),
+    0 0 0 3px var(--rb-mark-hover-ring);
 }
 .swatch-row .swatch.clear {
   /* A filled disc like the others — an outlined one reads smaller. */
-  background: var(--rb-panel-outline, #606060);
+  background: var(--rb-panel-outline);
   border-color: transparent;
-  color: var(--rb-panel-background, #1c1c1c);
-  font-size: var(--rb-ui-label-size, 11px);
+  color: var(--rb-panel-background);
+  font-size: var(--rb-ui-label-size);
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .swatch-row .swatch.clear:hover:not(:disabled) {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
 }
 
 /* The mini grid reuses the main overview's GlyphCell, scaled down:
@@ -590,18 +590,18 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   padding: 7px 8px;
   background: transparent;
   border: none;
-  border-radius: var(--rb-button-radius, 8px);
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  border-radius: var(--rb-button-radius);
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
   text-align: left;
 }
 .shape-row:hover {
-  background: var(--rb-button-background, #181818);
-  color: var(--rb-accent, #18b86f);
+  background: var(--rb-button-background);
+  color: var(--rb-accent);
 }
 .shape-kind {
-  color: var(--rb-secondary-text, #707070);
+  color: var(--rb-secondary-text);
 }
 .shape-label {
   flex: 1;
@@ -610,18 +610,18 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   white-space: nowrap;
 }
 .shape-detail {
-  color: var(--rb-secondary-text, #707070);
+  color: var(--rb-secondary-text);
   font-variant-numeric: tabular-nums;
 }
 
 .axis-head {
   display: flex;
   justify-content: space-between;
-  color: #a9a9a9;
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 .axis-range {
-  color: var(--rb-secondary-text, #707070);
+  color: var(--rb-secondary-text);
   font-variant-numeric: tabular-nums;
 }
 .axis input[type="range"] {
@@ -633,11 +633,11 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   align-items: center;
   gap: 8px;
   padding: 7px 9px;
-  background: var(--rb-button-background, #181818);
-  border: 1px solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  background: var(--rb-button-background);
+  border: 1px solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
   text-align: left;
 }
@@ -645,13 +645,13 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--rb-panel-outline, #606060);
+  background: var(--rb-panel-outline);
 }
 .master-row.active {
-  border-color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
 }
 .master-row.active .dot {
-  background: var(--rb-accent, #18b86f);
+  background: var(--rb-accent);
 }
 
 .axis-preview {
@@ -681,10 +681,10 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
 }
 
 .hint {
-  font: var(--rb-ui-font-size, 13px)/1.45 ui-sans-serif, system-ui, sans-serif;
-  color: var(--rb-secondary-text, #707070);
+  font: var(--rb-ui-font-size)/1.45 ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-secondary-text);
   border: 1px dashed rgba(96, 96, 96, 0.6);
-  border-radius: var(--rb-button-radius, 8px);
+  border-radius: var(--rb-button-radius);
   padding: 8px 9px;
 }
 </style>

@@ -45,9 +45,9 @@ function labelFor(name: string): string {
 .master-toolbar {
   box-sizing: border-box;
   padding: 6px;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -60,24 +60,24 @@ function labelFor(name: string): string {
   height: 48px;
   box-sizing: border-box;
   padding: 0;
-  background: var(--rb-button-background, #181818);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
-  color: var(--rb-glyph-preview, #808080);
+  background: var(--rb-button-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
+  color: var(--rb-glyph-preview);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 
 .master-btn:hover {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
 }
 
 .master-btn.active {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 
 .master-preview {

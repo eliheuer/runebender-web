@@ -5,7 +5,7 @@
 // An earlier version of this file called the Anthropic API straight
 // from the browser with a key the user pasted in (see git history for
 // the working version). That works, but asking people to paste an API
-// key into a website is not something to ship. The direction is a local
+// key into a website is not something to release. The direction is a local
 // model over an OpenAI-compatible endpoint — Ollama, LM Studio — which
 // needs no key, no server of ours, and sends nothing off the machine.
 </script>
@@ -42,17 +42,17 @@
   flex: 0 0 auto;
   align-self: flex-start;
   padding: 4px 8px;
-  border: 1px dashed var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
-  color: var(--rb-secondary-text, #707070);
-  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
+  border: 1px dashed var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
+  color: var(--rb-secondary-text);
+  font: var(--rb-ui-label-size) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.02em;
 }
 
 .copy {
   margin: 0;
-  color: var(--rb-secondary-text, #707070);
-  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-secondary-text);
+  font: var(--rb-ui-label-size) ui-sans-serif, system-ui, sans-serif;
   line-height: 1.5;
 }
 </style>

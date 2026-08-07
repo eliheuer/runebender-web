@@ -44,21 +44,21 @@ defineEmits<{
   justify-content: flex-start;
   gap: 8px;
   text-align: left;
-  color: var(--rb-secondary-text, #707070);
+  color: var(--rb-secondary-text);
 }
 
 .title {
   font: 48px ui-sans-serif, system-ui, sans-serif;
-  color: var(--rb-primary-text, #909090);
+  color: var(--rb-primary-text);
   line-height: 1;
 }
 .subtitle {
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
-  color: var(--rb-panel-outline, #606060);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-panel-outline);
 }
 .prompt {
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
-  color: var(--rb-primary-text, #909090);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-primary-text);
   line-height: 1.4;
 }
 
@@ -66,26 +66,26 @@ button {
   width: 200px;
   height: 32px;
   margin-top: 8px;
-  color: var(--rb-primary-text, #909090);
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-primary-text);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   text-align: center;
   cursor: pointer;
 }
 button:hover {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 button.reopen {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
   margin-top: 0;
 }
 code {
-  font: var(--rb-ui-font-size, 13px) ui-monospace, monospace;
-  color: var(--rb-accent, #18b86f);
-  background: color-mix(in srgb, var(--rb-panel-background, #1c1c1c) 70%, transparent);
+  font: var(--rb-ui-font-size) ui-monospace, monospace;
+  color: var(--rb-accent);
+  background: color-mix(in srgb, var(--rb-panel-background) 70%, transparent);
   padding: 1px 5px;
   border-radius: 3px;
 }

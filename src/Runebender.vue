@@ -2319,6 +2319,13 @@ function parseCssColor(color: string, fallback: Rgba, alpha?: number): Rgba {
   return [fallback[0], fallback[1], fallback[2], alpha ?? fallback[3]];
 }
 
+/** A theme variable as a CSS colour string, for canvas 2D contexts. */
+function hostColorValue(variableName: string, fallback: string): string {
+  const host = hostEl.value;
+  if (!host) return fallback;
+  return getComputedStyle(host).getPropertyValue(variableName).trim() || fallback;
+}
+
 function resolveHostColor(variableName: string, fallback: Rgba, alpha?: number): Rgba {
   const host = canvas.value?.closest(".runebender-host") ?? document.documentElement;
   const probe = document.createElement("span");
@@ -2424,6 +2431,20 @@ function applyCanvasTheme() {
       textCursor: resolveHostColor("--rb-canvas-text-cursor", [0xff, 0x98, 0x0f, 0xff]),
       textKernActive: resolveHostColor("--rb-canvas-kern-active", [0x45, 0x6f, 0xff, 0xff]),
       textKernPrevious: resolveHostColor("--rb-canvas-kern-previous", [0xff, 0x98, 0x0f, 0xff]),
+      // The casing keeps its alpha: it is a scrim, not a fill.
+      halo: resolveHostColor("--rb-canvas-halo", [0x0c, 0x0c, 0x0c, 0xd8], 0xd8),
+      metricQuiet: resolveHostColor("--rb-canvas-metric-quiet", [0x24, 0x24, 0x24, 0xff]),
+      backgroundLayer: resolveHostColor("--rb-canvas-background-layer", [0x40, 0x40, 0x40, 0xff]),
+      referenceGlyph: resolveHostColor("--rb-canvas-reference-glyph", [0x24, 0x24, 0x24, 0xff]),
+      pointReadonlyOuter: resolveHostColor("--rb-canvas-point-readonly", [0x8a, 0x8a, 0x8a, 0xff]),
+      continuityG2: resolveHostColor("--rb-canvas-continuity-g2", [0x21, 0xd4, 0xa6, 0xff]),
+      continuityG1: resolveHostColor("--rb-canvas-continuity-g1", [0xff, 0xd1, 0x40, 0xff]),
+      continuityLine: resolveHostColor("--rb-canvas-continuity-line", [0x80, 0x8c, 0xa3, 0xe6], 0xe6),
+      continuityKink: resolveHostColor("--rb-canvas-continuity-kink", [0xff, 0x45, 0x3b, 0xff]),
+      popcount1: resolveHostColor("--rb-canvas-popcount-1", [0x18, 0xb8, 0x6f, 0xff]),
+      popcount2: resolveHostColor("--rb-canvas-popcount-2", [0xff, 0xdc, 0x32, 0xff]),
+      popcount3: resolveHostColor("--rb-canvas-popcount-3", [0xff, 0x98, 0x0f, 0xff]),
+      popcount4: resolveHostColor("--rb-canvas-popcount-4", [0xff, 0x4a, 0x3d, 0xff]),
     }),
   );
 }
@@ -2867,7 +2888,7 @@ function repaintSketchOverlay() {
   // display tint: mid-gray so ink reads on the dark stage; the offscreen
   // store keeps pure black for the tracer
   ctx.globalCompositeOperation = "source-in";
-  ctx.fillStyle = "#9a9a9a";
+  ctx.fillStyle = hostColorValue("--rb-primary-text", "#8f8f8f");
   ctx.fillRect(0, 0, overlay.width, overlay.height);
   ctx.globalCompositeOperation = "source-over";
 }
@@ -9461,6 +9482,11 @@ async function chooseDestinationFolder(): Promise<string | null> {
 function requestSaveAsDestination(defaultValue: string): Promise<SaveAsDestination | null> {
   return new Promise((resolve) => {
     const backdrop = document.createElement("div");
+    // The dialog is appended to <body>, outside the host element the
+    // theme's variables live on, so it takes a copy of them.
+    for (const [name, value] of Object.entries(THEMES[activeThemeId.value].tokens)) {
+      backdrop.style.setProperty(name, value);
+    }
     backdrop.style.position = "fixed";
     backdrop.style.inset = "0";
     backdrop.style.zIndex = "2147483647";
@@ -9473,9 +9499,9 @@ function requestSaveAsDestination(defaultValue: string): Promise<SaveAsDestinati
     panel.style.padding = "20px";
     panel.style.border = "1px solid rgba(255, 255, 255, 0.18)";
     panel.style.borderRadius = "12px";
-    panel.style.background = "#202124";
+    panel.style.background = "var(--rb-panel-background)";
     panel.style.boxShadow = "0 18px 60px rgba(0, 0, 0, 0.5)";
-    panel.style.color = "#f1f3f4";
+    panel.style.color = "var(--rb-overlay-text)";
     panel.style.font = "13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
 
     const title = document.createElement("div");
@@ -9486,7 +9512,7 @@ function requestSaveAsDestination(defaultValue: string): Promise<SaveAsDestinati
 
     const help = document.createElement("div");
     help.textContent = "Choose a destination directory for the current designspace/UFO source copy.";
-    help.style.color = "#b8bcc2";
+    help.style.color = "var(--rb-secondary-text)";
     help.style.marginBottom = "12px";
 
     const input = document.createElement("input");
@@ -9498,8 +9524,8 @@ function requestSaveAsDestination(defaultValue: string): Promise<SaveAsDestinati
     input.style.padding = "10px 12px";
     input.style.border = "1px solid rgba(255, 255, 255, 0.22)";
     input.style.borderRadius = "8px";
-    input.style.background = "#111315";
-    input.style.color = "#ffffff";
+    input.style.background = "var(--rb-field-background)";
+    input.style.color = "var(--rb-overlay-text)";
     input.style.font = "13px ui-monospace, SFMono-Regular, Menlo, monospace";
     input.style.outline = "none";
 
@@ -9508,7 +9534,7 @@ function requestSaveAsDestination(defaultValue: string): Promise<SaveAsDestinati
     relinkRow.style.alignItems = "center";
     relinkRow.style.gap = "8px";
     relinkRow.style.marginTop = "12px";
-    relinkRow.style.color = "#d7dadf";
+    relinkRow.style.color = "var(--rb-primary-text)";
 
     const relink = document.createElement("input");
     relink.type = "checkbox";
@@ -9526,8 +9552,8 @@ function requestSaveAsDestination(defaultValue: string): Promise<SaveAsDestinati
     folderPicker.style.padding = "8px 12px";
     folderPicker.style.border = "1px solid rgba(255, 255, 255, 0.18)";
     folderPicker.style.borderRadius = "8px";
-    folderPicker.style.background = "#2a2d31";
-    folderPicker.style.color = "#f1f3f4";
+    folderPicker.style.background = "var(--rb-button-background)";
+    folderPicker.style.color = "var(--rb-overlay-text)";
     pickerActions.append(folderPicker);
 
     const actions = document.createElement("div");
@@ -9542,17 +9568,17 @@ function requestSaveAsDestination(defaultValue: string): Promise<SaveAsDestinati
     cancel.style.padding = "8px 14px";
     cancel.style.border = "1px solid rgba(255, 255, 255, 0.18)";
     cancel.style.borderRadius = "8px";
-    cancel.style.background = "#2a2d31";
-    cancel.style.color = "#f1f3f4";
+    cancel.style.background = "var(--rb-button-background)";
+    cancel.style.color = "var(--rb-overlay-text)";
 
     const submit = document.createElement("button");
     submit.type = "submit";
     submit.textContent = "Save As";
     submit.style.padding = "8px 14px";
-    submit.style.border = "1px solid #18b86f";
+    submit.style.border = "1px solid var(--rb-accent)";
     submit.style.borderRadius = "8px";
-    submit.style.background = "#121212";
-    submit.style.color = "#18b86f";
+    submit.style.background = "var(--rb-panel-background)";
+    submit.style.color = "var(--rb-accent)";
     submit.style.fontWeight = "700";
 
     actions.append(cancel, submit);
@@ -11704,18 +11730,11 @@ onBeforeUnmount(() => {
  * so it tracks the user's active ComfyUI theme (dark/light/custom).
  * Each fallback hex preserves the runebender-xilem reference theme,
  * so the editor still looks coherent on a ComfyUI build that doesn't
- * ship one of these variables, or when running outside ComfyUI.
+ * define one of these variables, or when running outside ComfyUI.
  *
  * Original xilem palette (preserved as fallbacks below):
- *   APP_BACKGROUND       #101010 (BASE_A)
- *   PANEL_BACKGROUND     #1C1C1C
- *   PANEL_OUTLINE        #606060 (BASE_F)
- *   PRIMARY_UI_TEXT      #909090 (BASE_I)
- *   SECONDARY_UI_TEXT    #707070 (BASE_G)
- *   GRID_CELL_TEXT       #808080 (BASE_H)
- *   GRID_GLYPH_COLOR     #a0a0a0 (BASE_J)
- *   ACCENT (METRICS_GUIDE / SELECTED_OUTLINE)  #18B86F
- *   SELECTION_RECT_STROKE / TOOL_PREVIEW       #ff980f
+ * Colour comes from themes/runebender.theme.json via the --rb-*
+ * custom properties on the host element. Nothing here names a colour.
  *
  * ComfyUI v1 exposes both generic colors (--bg-color, --fg-color,
  * --border-color, --content-bg, etc.) and PrimeVue tokens (--p-*).
@@ -11779,8 +11798,8 @@ onBeforeUnmount(() => {
   max-height: min(680px, calc(100vh - 48px));
   display: flex;
   flex-direction: column;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: 1px solid var(--rb-panel-outline, #606060);
+  background: var(--rb-panel-background);
+  border: 1px solid var(--rb-panel-outline);
   border-radius: 10px;
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.42);
   overflow: hidden;
@@ -11792,7 +11811,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--rb-panel-outline, #606060);
+  border-bottom: 1px solid var(--rb-panel-outline);
 }
 
 .missing-glyph-header h2 {
@@ -11818,14 +11837,14 @@ onBeforeUnmount(() => {
 
 .missing-glyph-close:hover,
 .missing-glyph-close:focus-visible {
-  background: var(--rb-button-background, rgba(255, 255, 255, 0.08));
+  background: var(--rb-button-background);
   outline: none;
 }
 
 .missing-glyph-subtitle {
   padding: 0 16px 10px;
-  color: var(--rb-secondary-text, #808080);
-  font-size: var(--rb-ui-font-size, 13px);
+  color: var(--rb-secondary-text);
+  font-size: var(--rb-ui-font-size);
 }
 
 .missing-glyph-list {
@@ -11851,11 +11870,11 @@ onBeforeUnmount(() => {
 
 .missing-glyph-row:hover,
 .missing-glyph-row.selected {
-  background: var(--rb-button-background, rgba(255, 255, 255, 0.08));
+  background: var(--rb-button-background);
 }
 
 .missing-glyph-check {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
   text-align: center;
 }
 
@@ -11867,9 +11886,9 @@ onBeforeUnmount(() => {
 }
 
 .missing-glyph-unicode {
-  color: var(--rb-secondary-text, #808080);
+  color: var(--rb-secondary-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-font-size);
 }
 
 .missing-glyph-char {
@@ -11880,14 +11899,14 @@ onBeforeUnmount(() => {
 
 .missing-glyph-actions {
   justify-content: flex-end;
-  border-top: 1px solid var(--rb-panel-outline, #606060);
+  border-top: 1px solid var(--rb-panel-outline);
   border-bottom: 0;
 }
 
 .secondary-btn,
 .primary-btn {
   min-height: 32px;
-  border: 1px solid var(--rb-panel-outline, #606060);
+  border: 1px solid var(--rb-panel-outline);
   border-radius: 6px;
   padding: 0 12px;
   color: inherit;
@@ -11896,12 +11915,12 @@ onBeforeUnmount(() => {
 }
 
 .secondary-btn {
-  background: var(--rb-button-background, rgba(255, 255, 255, 0.06));
+  background: var(--rb-button-background);
 }
 
 .primary-btn {
-  background: #0a84ff;
-  border-color: #0a84ff;
+  background: var(--rb-color-blue-base);
+  border-color: var(--rb-color-blue-base);
   color: #fff;
 }
 
@@ -11960,9 +11979,9 @@ onBeforeUnmount(() => {
 }
 
 .designspace-panel {
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   padding: 10px;
   min-height: 220px;
   flex: 1;
@@ -11980,19 +11999,19 @@ onBeforeUnmount(() => {
 }
 
 .designspace-title {
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 
 .designspace-status {
-  color: var(--rb-muted-text, #808080);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-muted-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
 }
 
 .designspace-path,
 .designspace-summary {
-  color: var(--rb-secondary-text, #707070);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-secondary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -12004,18 +12023,18 @@ onBeforeUnmount(() => {
   width: 100%;
   resize: none;
   box-sizing: border-box;
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
   border-radius: 4px;
-  background: var(--rb-app-background, #101010);
-  color: var(--rb-primary-text, #909090);
+  background: var(--rb-app-background);
+  color: var(--rb-primary-text);
   padding: 8px;
-  font: var(--rb-ui-font-size, 13px) ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font: var(--rb-ui-font-size) ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   line-height: 1.35;
   outline: none;
 }
 
 .designspace-editor:focus {
-  border-color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
 }
 
 /* Stage = the area inside .content where canvas + grid live,
@@ -12035,7 +12054,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: var(--rb-editor-edge-inset, 8px);
+  padding: var(--rb-editor-edge-inset);
   box-sizing: border-box;
 }
 
@@ -12224,7 +12243,7 @@ onBeforeUnmount(() => {
   padding: 0 5px;
 }
 .editor-left-col > .active-glyph-overlay .metric-field input {
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-font-size);
 }
 .editor-left-col > .active-glyph-overlay .glyph-name-field,
 .editor-left-col > .active-glyph-overlay .group-field {
@@ -12242,9 +12261,9 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   width: 232px;
   padding: 10px;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
 }
 /* Inside a column tile the tool panels flatten: no tile-within-tile
    chrome, content stretches the full width, and ruled section titles
@@ -12282,8 +12301,8 @@ onBeforeUnmount(() => {
   inset: auto;
   flex: 1;
   min-height: 0;
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   overflow: hidden;
 }
 /* Inside the pane the canvas always fills it; the pane shrinks when
@@ -12296,26 +12315,26 @@ onBeforeUnmount(() => {
 
 .coordinate-overlay {
   position: absolute;
-  right: var(--rb-editor-edge-inset, 8px);
-  bottom: var(--rb-editor-edge-inset, 8px);
+  right: var(--rb-editor-edge-inset);
+  bottom: var(--rb-editor-edge-inset);
   z-index: 3;
 }
 
 .anchor-overlay {
   position: absolute;
-  right: var(--rb-editor-edge-inset, 8px);
-  bottom: calc(var(--rb-editor-edge-inset, 8px) + 92px);
+  right: var(--rb-editor-edge-inset);
+  bottom: calc(var(--rb-editor-edge-inset) + 92px);
   z-index: 3;
 }
 
 .stage.editor-bottom-preview-visible .coordinate-overlay,
 .stage.editor-bottom-preview-visible .glyph-preview-overlay,
 .stage.editor-bottom-preview-visible .active-glyph-overlay {
-  bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset, 8px));
+  bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset));
 }
 
 .stage.editor-bottom-preview-visible .anchor-overlay {
-  bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset, 8px) + 92px);
+  bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset) + 92px);
 }
 
 /* Bento: the canvas pane already ends above the preview pane, so the
@@ -12323,21 +12342,21 @@ onBeforeUnmount(() => {
    overlays. */
 .stage-bento.editor-bottom-preview-visible .glyph-preview-overlay,
 .stage-bento.editor-bottom-preview-visible .active-glyph-overlay {
-  bottom: var(--rb-editor-edge-inset, 8px);
+  bottom: var(--rb-editor-edge-inset);
 }
 
 .transform-overlay {
   position: absolute;
-  right: var(--rb-editor-edge-inset, 8px);
-  top: calc(var(--rb-editor-edge-inset, 8px) + 70px);
-  bottom: calc(var(--rb-editor-edge-inset, 8px) + 92px);
+  right: var(--rb-editor-edge-inset);
+  top: calc(var(--rb-editor-edge-inset) + 70px);
+  bottom: calc(var(--rb-editor-edge-inset) + 92px);
   height: max-content;
   margin-block: auto;
   z-index: 3;
 }
 
 .stage.editor-bottom-preview-visible .transform-overlay {
-  bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset, 8px) + 92px);
+  bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset) + 92px);
 }
 
 .sketch-overlay {
@@ -12351,9 +12370,9 @@ onBeforeUnmount(() => {
 
 .helper-overlay {
   position: absolute;
-  left: var(--rb-editor-edge-inset, 8px);
-  top: calc(var(--rb-editor-edge-inset, 8px) + 70px);
-  bottom: calc(var(--rb-editor-edge-inset, 8px) + 92px);
+  left: var(--rb-editor-edge-inset);
+  top: calc(var(--rb-editor-edge-inset) + 70px);
+  bottom: calc(var(--rb-editor-edge-inset) + 92px);
   height: max-content;
   margin-block: auto;
   z-index: 3;
@@ -12373,7 +12392,7 @@ onBeforeUnmount(() => {
 }
 
 .stage.editor-bottom-preview-visible .helper-overlay {
-  bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset, 8px) + 92px);
+  bottom: calc(var(--rb-editor-bottom-preview-height) + var(--rb-editor-edge-inset) + 92px);
 }
 
 /* Bento layout: the top row is a normal flex row of tiles, not an
@@ -12439,19 +12458,19 @@ onBeforeUnmount(() => {
   width: min(440px, calc(100vw - 48px));
   box-sizing: border-box;
   padding: 16px;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   display: flex;
   flex-direction: column;
   gap: 10px;
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
-  color: var(--rb-primary-text, #909090);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-primary-text);
 }
 .grant-title {
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-font-size);
   font-weight: 700;
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
 }
 .grant-text {
   line-height: 1.45;
@@ -12465,9 +12484,9 @@ onBeforeUnmount(() => {
 }
 .source-choice-group {
   margin: 6px 0 2px;
-  font-size: var(--rb-ui-label-size, 11px);
+  font-size: var(--rb-ui-label-size);
   letter-spacing: 0.02em;
-  color: var(--rb-secondary-text, #707070);
+  color: var(--rb-secondary-text);
 }
 .source-choice-list button {
   appearance: none;
@@ -12475,17 +12494,17 @@ onBeforeUnmount(() => {
   padding: 8px 10px;
   background: transparent;
   border: none;
-  border-radius: var(--rb-button-radius, 8px);
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-monospace, monospace;
+  border-radius: var(--rb-button-radius);
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-monospace, monospace;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .source-choice-list button:hover {
-  color: var(--rb-accent, #18b86f);
-  background: var(--rb-button-background, #181818);
+  color: var(--rb-accent);
+  background: var(--rb-button-background);
 }
 
 .grant-actions {
@@ -12497,20 +12516,20 @@ onBeforeUnmount(() => {
 .grant-actions button {
   appearance: none;
   padding: 8px 14px;
-  background: var(--rb-button-background, #181818);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-button-radius, 8px);
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  background: var(--rb-button-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-button-radius);
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
 }
 .grant-actions button:hover {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 .grant-actions .grant-primary {
-  color: var(--rb-accent, #18b86f);
-  border-color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
+  border-color: var(--rb-accent);
 }
 .editor-system-menu-panel {
   /* A regular tile in the left column: same width as its neighbours,
@@ -12526,7 +12545,7 @@ onBeforeUnmount(() => {
   user-select: none;
   touch-action: none;
   cursor: move;
-  border: var(--rb-stroke-width, 1px) solid transparent;
+  border: var(--rb-stroke-width) solid transparent;
   box-sizing: border-box;
 }
 .background-image img {
@@ -12564,7 +12583,7 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   pointer-events: auto;
   cursor: pointer;
-  color: var(--rb-overlay-text, #f0f0f0);
+  color: var(--rb-overlay-text);
   background: rgba(18, 18, 18, 0.72);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
   opacity: 0.7;
@@ -12575,11 +12594,11 @@ onBeforeUnmount(() => {
 }
 .background-image-lock-badge:hover {
   opacity: 1;
-  background: var(--rb-accent, #66ee88);
-  color: #0c0c0c;
+  background: var(--rb-accent);
+  color: var(--rb-app-background);
 }
 .background-image.selected {
-  border-color: var(--rb-background-image-selection, #456fff);
+  border-color: var(--rb-background-image-selection);
   border-style: dashed;
   border-width: 2px;
 }
@@ -12590,8 +12609,8 @@ onBeforeUnmount(() => {
   height: 10px;
   margin: -5px 0 0 -5px;
   border-radius: 50%;
-  background: var(--rb-mark-selected-ring, #ffffff);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-background-image-selection, #456fff);
+  background: var(--rb-mark-selected-ring);
+  border: var(--rb-stroke-width) solid var(--rb-background-image-selection);
   box-sizing: border-box;
   touch-action: none;
 }
@@ -12645,8 +12664,8 @@ onBeforeUnmount(() => {
   position: fixed;
   z-index: 20;
   padding: 6px;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
@@ -12656,7 +12675,7 @@ onBeforeUnmount(() => {
   padding: 7px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0)),
-    var(--rb-panel-background, #1c1c1c);
+    var(--rb-panel-background);
   box-shadow:
     0 14px 32px rgba(0, 0, 0, 0.46),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -12670,11 +12689,11 @@ onBeforeUnmount(() => {
 .context-menu button {
   appearance: none;
   width: 100%;
-  color: var(--rb-overlay-text, #f0f0f0);
+  color: var(--rb-overlay-text);
   background: transparent;
   border: 0;
   border-radius: 4px;
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   text-align: left;
   cursor: pointer;
 }
@@ -12696,18 +12715,18 @@ onBeforeUnmount(() => {
 
 .background-image-menu button:hover,
 .context-menu button:hover {
-  background: var(--rb-control-background, #303030);
+  background: var(--rb-control-background);
 }
 
 .background-image-menu button:focus-visible,
 .context-menu button:focus-visible {
-  outline: var(--rb-stroke-width, 1px) solid var(--rb-accent, #66ee88);
+  outline: var(--rb-stroke-width) solid var(--rb-accent);
   outline-offset: 1px;
 }
 
 .background-image-menu button:active,
 .context-menu button:active {
-  background: color-mix(in srgb, var(--rb-control-background, #303030) 76%, var(--rb-accent, #66ee88));
+  background: color-mix(in srgb, var(--rb-control-background) 76%, var(--rb-accent));
 }
 
 /* Trace section: groups the mode controls with the Trace Image action into one
@@ -12716,8 +12735,8 @@ onBeforeUnmount(() => {
   margin-top: 7px;
   padding: 5px;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--rb-accent, #66ee88) 26%, transparent);
-  background: color-mix(in srgb, var(--rb-accent, #66ee88) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--rb-accent) 26%, transparent);
+  background: color-mix(in srgb, var(--rb-accent) 7%, transparent);
 }
 
 /* Trace mode controls: an inline settings strip below the Trace Image action. */
@@ -12731,7 +12750,7 @@ onBeforeUnmount(() => {
 /* Inside the section the Trace Image button reads as the action: a subtle
    persistent fill that strengthens on hover (the existing :hover rule). */
 .trace-section .background-image-menu-item.primary {
-  background: color-mix(in srgb, var(--rb-accent, #66ee88) 13%, transparent);
+  background: color-mix(in srgb, var(--rb-accent) 13%, transparent);
 }
 
 .trace-mode-row {
@@ -12742,8 +12761,8 @@ onBeforeUnmount(() => {
 }
 
 .trace-mode-label {
-  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
-  color: color-mix(in srgb, var(--rb-overlay-text, #f0f0f0) 55%, transparent);
+  font: var(--rb-ui-label-size) ui-sans-serif, system-ui, sans-serif;
+  color: color-mix(in srgb, var(--rb-overlay-text) 55%, transparent);
 }
 
 .trace-mode-seg {
@@ -12751,7 +12770,7 @@ onBeforeUnmount(() => {
   flex: 1;
   border-radius: 5px;
   overflow: hidden;
-  background: var(--rb-control-background, #303030);
+  background: var(--rb-control-background);
 }
 
 /* Override the tall, full-width menu-button defaults for the chips. */
@@ -12763,20 +12782,20 @@ onBeforeUnmount(() => {
   padding: 0;
   text-align: center;
   border-radius: 0;
-  font-size: var(--rb-ui-label-size, 11px);
+  font-size: var(--rb-ui-label-size);
   /* Unselected: dimmed, so the selected one reads by text + outline. */
-  color: color-mix(in srgb, var(--rb-overlay-text, #f0f0f0) 60%, transparent);
+  color: color-mix(in srgb, var(--rb-overlay-text) 60%, transparent);
 }
 
 .background-image-menu .trace-mode-seg button:hover {
-  background: color-mix(in srgb, var(--rb-control-background, #303030) 72%, #fff);
-  color: var(--rb-overlay-text, #f0f0f0);
+  background: color-mix(in srgb, var(--rb-control-background) 72%, #fff);
+  color: var(--rb-overlay-text);
 }
 
 .background-image-menu .trace-mode-seg button.on,
 .background-image-menu .trace-mode-seg button.on:hover {
   background: rgba(255, 255, 255, 0.06);
-  color: var(--rb-overlay-text, #f0f0f0);
+  color: var(--rb-overlay-text);
   font-weight: 600;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
@@ -12788,9 +12807,9 @@ onBeforeUnmount(() => {
   padding: 0 22px 0 8px;
   border: 0;
   border-radius: 5px;
-  background-color: var(--rb-control-background, #303030);
-  color: var(--rb-overlay-text, #f0f0f0);
-  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--rb-control-background);
+  color: var(--rb-overlay-text);
+  font: var(--rb-ui-label-size) ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
   appearance: none;
   background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="%23bbbbbb" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
@@ -12798,15 +12817,15 @@ onBeforeUnmount(() => {
   background-position: right 7px center;
 }
 .trace-mode-select:hover {
-  background-color: color-mix(in srgb, var(--rb-control-background, #303030) 68%, #fff);
+  background-color: color-mix(in srgb, var(--rb-control-background) 68%, #fff);
 }
 .trace-mode-select:focus-visible {
-  outline: var(--rb-stroke-width, 1px) solid var(--rb-accent, #66ee88);
+  outline: var(--rb-stroke-width) solid var(--rb-accent);
   outline-offset: 1px;
 }
 .trace-mode-select option {
-  color: var(--rb-overlay-text, #f0f0f0);
-  background: var(--rb-panel-background, #1c1c1c);
+  color: var(--rb-overlay-text);
+  background: var(--rb-panel-background);
 }
 
 .background-image-menu-item {
@@ -12825,19 +12844,19 @@ onBeforeUnmount(() => {
 }
 
 .background-image-menu-item.primary {
-  color: var(--rb-accent, #66ee88);
+  color: var(--rb-accent);
 }
 
 .background-image-menu-item:hover {
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--rb-accent, #66ee88) 14%, transparent), transparent 78%),
-    var(--rb-control-background, #303030);
+    linear-gradient(90deg, color-mix(in srgb, var(--rb-accent) 14%, transparent), transparent 78%),
+    var(--rb-control-background);
 }
 
 .background-image-menu-item.primary:hover {
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--rb-accent, #66ee88) 22%, transparent), transparent 78%),
-    var(--rb-control-background, #303030);
+    linear-gradient(90deg, color-mix(in srgb, var(--rb-accent) 22%, transparent), transparent 78%),
+    var(--rb-control-background);
 }
 
 .background-image-menu-item:active {
@@ -12849,16 +12868,16 @@ onBeforeUnmount(() => {
   height: 28px;
   display: grid;
   place-items: center;
-  color: var(--rb-primary-text, #b0b0b0);
-  background: var(--rb-button-background, #181818);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  color: var(--rb-primary-text);
+  background: var(--rb-button-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
   border-radius: 5px;
 }
 
 .background-image-menu-item.primary .background-image-menu-icon {
-  color: var(--rb-accent, #66ee88);
-  border-color: color-mix(in srgb, var(--rb-accent, #66ee88) 58%, var(--rb-panel-outline, #606060));
-  background: color-mix(in srgb, var(--rb-accent, #66ee88) 12%, var(--rb-button-background, #181818));
+  color: var(--rb-accent);
+  border-color: color-mix(in srgb, var(--rb-accent) 58%, var(--rb-panel-outline));
+  background: color-mix(in srgb, var(--rb-accent) 12%, var(--rb-button-background));
 }
 
 .background-image-menu-copy {
@@ -12870,18 +12889,18 @@ onBeforeUnmount(() => {
 }
 
 .background-image-menu-copy span {
-  color: var(--rb-overlay-text, #f0f0f0);
-  font-size: var(--rb-ui-font-size, 13px);
+  color: var(--rb-overlay-text);
+  font-size: var(--rb-ui-font-size);
   font-weight: 650;
 }
 
 .background-image-menu-item.primary .background-image-menu-copy span {
-  color: var(--rb-accent, #66ee88);
+  color: var(--rb-accent);
 }
 
 .background-image-menu-copy small {
-  color: var(--rb-primary-text, #909090);
-  font-size: var(--rb-ui-label-size, 11px);
+  color: var(--rb-primary-text);
+  font-size: var(--rb-ui-label-size);
   font-weight: 500;
 }
 
@@ -12891,7 +12910,7 @@ onBeforeUnmount(() => {
   width: 16px;
   height: 16px;
   margin: -8px 0 0 -8px;
-  border: 2px solid var(--rb-danger, #ff4a3d);
+  border: 2px solid var(--rb-danger);
   border-radius: 50%;
   box-sizing: border-box;
   pointer-events: none;
@@ -12912,20 +12931,20 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 2px;
   padding: 6px 12px;
-  background: color-mix(in srgb, var(--rb-panel-background, #1c1c1c) 94%, transparent);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-danger, #ff4a3d);
-  border-radius: var(--rb-panel-radius, 12px);
-  color: var(--rb-overlay-text, #f0f0f0);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  background: color-mix(in srgb, var(--rb-panel-background) 94%, transparent);
+  border: var(--rb-stroke-width) solid var(--rb-danger);
+  border-radius: var(--rb-panel-radius);
+  color: var(--rb-overlay-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   pointer-events: none;
 }
 .compat-badge strong {
-  color: var(--rb-danger-text, #ff4a3d);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-danger-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   font-weight: 700;
 }
 .compat-badge span {
-  color: var(--rb-secondary-text, #707070);
+  color: var(--rb-secondary-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -12935,16 +12954,16 @@ onBeforeUnmount(() => {
 .active-glyph-overlay {
   position: absolute;
   z-index: 3;
-  bottom: var(--rb-editor-edge-inset, 8px);
+  bottom: var(--rb-editor-edge-inset);
   box-sizing: border-box;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   pointer-events: auto;
 }
 
 .glyph-preview-overlay {
-  left: var(--rb-editor-edge-inset, 8px);
+  left: var(--rb-editor-edge-inset);
   width: 235px;
   height: 86px;
   padding: 12px;
@@ -12963,7 +12982,7 @@ onBeforeUnmount(() => {
   height: 100%;
   /* Core palette yellow: the bottom-left preview reads as the current glyph
      highlight rather than another gray panel. */
-  color: var(--rb-warning, #ffdc32);
+  color: var(--rb-warning);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -12977,8 +12996,8 @@ onBeforeUnmount(() => {
 }
 
 .active-glyph-overlay {
-  left: calc(232px + var(--rb-editor-edge-inset, 8px) * 2);
-  right: calc(232px + var(--rb-editor-edge-inset, 8px) * 2);
+  left: calc(232px + var(--rb-editor-edge-inset) * 2);
+  right: calc(232px + var(--rb-editor-edge-inset) * 2);
   width: auto;
   padding: 8px;
   transform: none;
@@ -13019,14 +13038,14 @@ onBeforeUnmount(() => {
   gap: 8px;
   height: 30px;
   padding: 0 10px;
-  background: var(--rb-app-background, #101010);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  background: var(--rb-app-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
   border-radius: 6px;
 }
 
 .metric-field span {
-  color: var(--rb-muted-text, #808080);
-  font: var(--rb-ui-label-size, 11px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-muted-text);
+  font: var(--rb-ui-label-size) ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0;
   white-space: nowrap;
   min-width: 0;
@@ -13047,8 +13066,8 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   background: transparent;
   border: 0;
-  color: var(--rb-primary-text, #909090);
-  font: var(--rb-ui-font-size, 13px) ui-monospace, monospace;
+  color: var(--rb-primary-text);
+  font: var(--rb-ui-font-size) ui-monospace, monospace;
   text-align: right;
   outline: none;
 }
@@ -13060,7 +13079,7 @@ onBeforeUnmount(() => {
 }
 
 .glyph-name-field input {
-  color: var(--rb-accent, #18b86f);
+  color: var(--rb-accent);
   font-weight: 700;
 }
 
@@ -13071,7 +13090,7 @@ onBeforeUnmount(() => {
 
 .unicode-field input {
   text-align: right;
-  font-size: var(--rb-ui-font-size, 13px);
+  font-size: var(--rb-ui-font-size);
 }
 
 .width-field {
@@ -13079,23 +13098,23 @@ onBeforeUnmount(() => {
 }
 
 .metric-field:focus-within {
-  border-color: var(--rb-accent, #18b86f);
+  border-color: var(--rb-accent);
 }
 
 .metric-field input::placeholder {
-  color: var(--rb-subdued-text, #505050);
+  color: var(--rb-subdued-text);
 }
 
 .group-field input {
-  color: var(--rb-secondary-text, #707070);
+  color: var(--rb-secondary-text);
 }
 
 .group-field input:placeholder-shown {
-  color: var(--rb-subdued-text, #505050);
+  color: var(--rb-subdued-text);
 }
 
 .metric-field input:disabled {
-  color: var(--rb-subdued-text, #505050);
+  color: var(--rb-subdued-text);
   opacity: 1;
 }
 .measure-overlay {
@@ -13106,11 +13125,11 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 6px;
   padding: 4px 6px;
-  background: var(--rb-app-background, #101010);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
+  background: var(--rb-app-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
   border-radius: 6px;
-  color: var(--rb-accent, #18b86f);
-  font: var(--rb-ui-label-size, 11px) ui-monospace, monospace;
+  color: var(--rb-accent);
+  font: var(--rb-ui-label-size) ui-monospace, monospace;
   white-space: nowrap;
 }
 
@@ -13130,11 +13149,11 @@ onBeforeUnmount(() => {
   max-width: min(360px, calc(100% - 240px));
   padding: 6px 10px;
   box-sizing: border-box;
-  background: color-mix(in srgb, var(--rb-panel-background, #1c1c1c) 94%, transparent);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-accent, #18b86f);
+  background: color-mix(in srgb, var(--rb-panel-background) 94%, transparent);
+  border: var(--rb-stroke-width) solid var(--rb-accent);
   border-radius: 6px;
-  color: var(--rb-overlay-text, #f0f0f0);
-  font: var(--rb-ui-font-size, 13px) ui-sans-serif, system-ui, sans-serif;
+  color: var(--rb-overlay-text);
+  font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -13152,11 +13171,11 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px var(--rb-editor-edge-inset, 8px) 14px;
+  padding: 12px var(--rb-editor-edge-inset) 14px;
   overflow: hidden;
-  background: var(--rb-panel-background, #1c1c1c);
-  border: var(--rb-stroke-width, 1px) solid var(--rb-panel-outline, #606060);
-  border-radius: var(--rb-panel-radius, 12px);
+  background: var(--rb-panel-background);
+  border: var(--rb-stroke-width) solid var(--rb-panel-outline);
+  border-radius: var(--rb-panel-radius);
   pointer-events: auto;
 }
 
@@ -13184,18 +13203,18 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   top: 6px;
-  height: var(--rb-stroke-width, 1px);
+  height: var(--rb-stroke-width);
   background: transparent;
 }
 
 .editor-bottom-preview-resizer:hover::after {
-  background: var(--rb-accent, #18b86f);
+  background: var(--rb-accent);
 }
 
 .editor-bottom-preview-glyph {
   width: 100%;
   height: 100%;
-  color: var(--rb-warning, #ffdc32);
+  color: var(--rb-warning);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -13225,7 +13244,7 @@ onBeforeUnmount(() => {
 .text-preview-glyphs {
   width: 100%;
   height: 100%;
-  color: var(--rb-warning, #ffdc32);
+  color: var(--rb-warning);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -13271,7 +13290,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 6px;
   scroll-snap-type: y mandatory;
-  background: var(--rb-canvas-background, #0c0c0c);
+  background: var(--rb-canvas-background);
 }
 
 /* ----- Scrollbars -----
