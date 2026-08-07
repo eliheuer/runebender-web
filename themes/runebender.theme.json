@@ -54,42 +54,43 @@
   },
 
   "$comment_neutral": [
-    "Neutrals carry a trace of blue (C 0.006 at hue 255). Dead grey on a",
-    "dark screen reads slightly warm against the coloured labels; this",
-    "is small enough that nobody calls it blue and large enough that the",
-    "greys stop fighting the hues.",
+    "Grey, and actually grey: chroma 0. An earlier version carried a",
+    "trace of blue on the theory that it would sit better beside the",
+    "hues. On a near-black panel it reads as a colour, which is the one",
+    "thing a neutral must not do.",
     "",
-    "Step numbers are lightness in percent, so 8 is L 0.08. They stay",
-    "the same across themes: a light theme reverses which end the",
-    "surfaces come from, not what the numbers mean."
+    "The steps are lightness in percent, chosen so the ramp lands on the",
+    "greys the editor was drawn around — 15 is #0c0c0c, 37 is #404040,",
+    "65 is #909090. They mean the same in every theme: a light theme",
+    "takes its surfaces from the other end, it does not renumber them."
   ],
   "neutral": {
     "hue": 255,
-    "chroma": 0.006,
-    "steps": [4, 8, 11, 14, 18, 24, 32, 42, 52, 62, 72, 82, 92, 97]
+    "chroma": 0,
+    "steps": [15, 17, 18, 21, 23, 26, 31, 37, 43, 49, 55, 60, 65, 71, 76, 81, 91, 96, 99]
   },
 
   "themes": {
     "dark": {
       "name": "Dark",
       "surfaces": {
-        "app": "neutral.4",
-        "panel": "neutral.8",
-        "control": "neutral.11",
-        "button": "neutral.11",
-        "buttonHover": "neutral.14",
-        "field": "neutral.8",
-        "outline": "neutral.24",
-        "divider": "neutral.14",
-        "canvas": "neutral.4"
+        "app": "neutral.15",
+        "panel": "neutral.18",
+        "control": "neutral.31",
+        "button": "neutral.23",
+        "buttonHover": "neutral.26",
+        "field": "neutral.17",
+        "outline": "neutral.37",
+        "divider": "neutral.26",
+        "canvas": "neutral.15"
       },
       "text": {
-        "primary": "neutral.62",
-        "secondary": "neutral.52",
-        "muted": "neutral.52",
-        "subdued": "neutral.32",
-        "overlay": "neutral.92",
-        "glyph": "neutral.62"
+        "primary": "neutral.65",
+        "secondary": "neutral.60",
+        "muted": "neutral.60",
+        "subdued": "neutral.43",
+        "overlay": "neutral.96",
+        "glyph": "neutral.60"
       },
       "markStep": "base",
       "roles": {
@@ -104,15 +105,15 @@
         "pointOffcurve": "purple.base",
         "pointHyper": "teal.base",
         "pointSelected": "yellow.bright",
-        "pointInner": "neutral.8",
+        "pointInner": "neutral.18",
         "startNode": "orange.base",
         "textCursor": "orange.base",
         "kernActive": "teal.base",
         "kernPrevious": "orange.base",
-        "pathStroke": "neutral.72",
-        "previewFill": "neutral.52",
-        "background": "neutral.24",
-        "reference": "neutral.14"
+        "pathStroke": "neutral.76",
+        "previewFill": "neutral.60",
+        "background": "neutral.37",
+        "reference": "neutral.26"
       }
     },
 
@@ -120,23 +121,23 @@
       "name": "Midnight",
       "$comment": "Same palette, deeper surfaces and quieter text — for working at night or on a bright screen.",
       "surfaces": {
-        "app": "neutral.4",
-        "panel": "neutral.4",
-        "control": "neutral.8",
-        "button": "neutral.8",
-        "buttonHover": "neutral.11",
-        "field": "neutral.4",
-        "outline": "neutral.18",
-        "divider": "neutral.11",
-        "canvas": "neutral.4"
+        "app": "neutral.15",
+        "panel": "neutral.15",
+        "control": "neutral.18",
+        "button": "neutral.18",
+        "buttonHover": "neutral.21",
+        "field": "neutral.15",
+        "outline": "neutral.26",
+        "divider": "neutral.21",
+        "canvas": "neutral.15"
       },
       "text": {
-        "primary": "neutral.52",
-        "secondary": "neutral.42",
-        "muted": "neutral.42",
-        "subdued": "neutral.24",
-        "overlay": "neutral.82",
-        "glyph": "neutral.52"
+        "primary": "neutral.60",
+        "secondary": "neutral.49",
+        "muted": "neutral.49",
+        "subdued": "neutral.37",
+        "overlay": "neutral.91",
+        "glyph": "neutral.60"
       },
       "markStep": "base",
       "roles": {
@@ -151,15 +152,15 @@
         "pointOffcurve": "purple.dim",
         "pointHyper": "teal.dim",
         "pointSelected": "yellow.base",
-        "pointInner": "neutral.4",
+        "pointInner": "neutral.15",
         "startNode": "orange.dim",
         "textCursor": "orange.base",
         "kernActive": "teal.dim",
         "kernPrevious": "orange.dim",
-        "pathStroke": "neutral.62",
-        "previewFill": "neutral.42",
-        "background": "neutral.18",
-        "reference": "neutral.11"
+        "pathStroke": "neutral.71",
+        "previewFill": "neutral.49",
+        "background": "neutral.26",
+        "reference": "neutral.21"
       }
     },
 
@@ -167,23 +168,23 @@
       "name": "Light",
       "$comment": "Surfaces come from the other end of the same ramp; the hues drop to their dim step so they hold up on white.",
       "surfaces": {
-        "app": "neutral.92",
-        "panel": "neutral.97",
-        "control": "neutral.92",
-        "button": "neutral.97",
-        "buttonHover": "neutral.92",
-        "field": "neutral.97",
-        "outline": "neutral.72",
-        "divider": "neutral.82",
-        "canvas": "neutral.97"
+        "app": "neutral.91",
+        "panel": "neutral.96",
+        "control": "neutral.91",
+        "button": "neutral.96",
+        "buttonHover": "neutral.91",
+        "field": "neutral.99",
+        "outline": "neutral.71",
+        "divider": "neutral.81",
+        "canvas": "neutral.96"
       },
       "text": {
-        "primary": "neutral.32",
-        "secondary": "neutral.42",
-        "muted": "neutral.42",
-        "subdued": "neutral.62",
-        "overlay": "neutral.11",
-        "glyph": "neutral.32"
+        "primary": "neutral.31",
+        "secondary": "neutral.43",
+        "muted": "neutral.43",
+        "subdued": "neutral.55",
+        "overlay": "neutral.18",
+        "glyph": "neutral.31"
       },
       "markStep": "dim",
       "roles": {
@@ -198,15 +199,15 @@
         "pointOffcurve": "purple.dim",
         "pointHyper": "teal.dim",
         "pointSelected": "orange.dim",
-        "pointInner": "neutral.97",
+        "pointInner": "neutral.99",
         "startNode": "orange.dim",
         "textCursor": "orange.dim",
         "kernActive": "teal.dim",
         "kernPrevious": "orange.dim",
-        "pathStroke": "neutral.24",
-        "previewFill": "neutral.52",
-        "background": "neutral.62",
-        "reference": "neutral.82"
+        "pathStroke": "neutral.26",
+        "previewFill": "neutral.49",
+        "background": "neutral.55",
+        "reference": "neutral.81"
       }
     }
   },
