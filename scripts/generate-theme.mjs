@@ -23,13 +23,9 @@ const theme = JSON.parse(readFileSync(source, "utf8"));
 function buildPalette() {
   const palette = {};
   for (const [hueName, hue] of Object.entries(theme.hues)) {
-    const lift = theme.lift[hueName] ?? 0;
     for (const [stepName, step] of Object.entries(theme.steps)) {
-      palette[`${hueName}.${stepName}`] = oklchToHex(
-        step.lightness + lift,
-        step.chroma,
-        hue,
-      );
+      const { lightness, chroma } = stepColor(hue, step);
+      palette[`${hueName}.${stepName}`] = oklchToHex(lightness, chroma, hue.hue);
     }
   }
   for (const step of theme.neutral.steps) {
@@ -40,6 +36,19 @@ function buildPalette() {
     );
   }
   return palette;
+}
+
+/**
+ * A hue's own lightness and chroma, moved by one step's offsets.
+ *
+ * Lightness stops at 0.93: past that sRGB has almost no chroma left at
+ * any hue, and a "bright yellow" comes back as white.
+ */
+function stepColor(hue, step) {
+  return {
+    lightness: Math.min(0.93, Math.max(0.08, hue.lightness + step.lightness)),
+    chroma: Math.max(0, hue.chroma + step.chroma),
+  };
 }
 
 const palette = buildPalette();
@@ -135,13 +144,13 @@ const themes = Object.fromEntries(
 );
 
 const markColors = theme.markColors.map(({ name, step }) => {
-  const [hue, stepName] = step.split(".");
-  const lift = theme.lift[hue] ?? 0;
-  const { lightness, chroma } = theme.steps[stepName];
+  const [hueName, stepName] = step.split(".");
+  const hue = theme.hues[hueName];
+  const { lightness, chroma } = stepColor(hue, theme.steps[stepName]);
   return {
     name,
     color: colorFor(step),
-    ufoRgba: oklchToUfoRgba(lightness + lift, chroma, theme.hues[hue]),
+    ufoRgba: oklchToUfoRgba(lightness, chroma, hue.hue),
   };
 });
 

@@ -5,50 +5,52 @@
     "every theme switch — both for the CSS custom properties and for the",
     "colours handed to the wasm renderer.",
     "",
-    "Everything is authored in OKLCH. In that space lightness and chroma",
-    "mean the same thing at every hue, so a set of colours written with",
-    "one lightness and one chroma reads as one family. Written in hex,",
-    "the same set drifts: the palette this replaced ran from L 0.56 to",
-    "L 0.94 and from C 0.11 to C 0.30, which is why some colours shouted",
-    "and others disappeared.",
+    "Everything is authored in OKLCH, where lightness and chroma mean the",
+    "same thing at every hue. That is what makes a set of colours read as",
+    "one family instead of a pile: the palette this replaced ran from",
+    "L 0.56 to L 0.94 and from C 0.11 to C 0.30, with three greens and two",
+    "purples nobody had compared.",
     "",
-    "Chroma is deliberately low. C 0.12 is about two thirds of what the",
-    "old palette used, and at that strength eight hues can sit next to",
-    "each other without any of them taking over."
+    "The character is poster paint — Bauhaus blocks, kindergarten",
+    "primaries. Sampling those references in OKLCH says what that means",
+    "in numbers, and it is not a flat ramp:",
+    "",
+    "  warm hues carry high chroma      red C 0.20-0.24, orange C 0.19",
+    "  yellow is light, not just yellow L 0.86 at C 0.17",
+    "  cool hues sit lower in chroma    blue C 0.10-0.15, green C 0.10",
+    "  lightness follows the hue        yellow 0.86, red 0.63, blue 0.55",
+    "",
+    "So each hue gets its own lightness and chroma rather than a shared",
+    "pair. A flat ramp is what made the last attempt look washed out: it",
+    "held every hue to the chroma only blue and green wanted.",
+    "",
+    "The one place we leave the references: cool hues are lifted for a",
+    "dark background. A blue at L 0.55 is a poster colour on white and a",
+    "smudge on near-black."
   ],
 
   "hues": {
-    "red": 25,
-    "orange": 62,
-    "yellow": 98,
-    "green": 152,
-    "teal": 192,
-    "blue": 255,
-    "purple": 300,
-    "pink": 342
+    "red": { "hue": 27, "lightness": 0.64, "chroma": 0.21 },
+    "orange": { "hue": 46, "lightness": 0.71, "chroma": 0.19 },
+    "yellow": { "hue": 96, "lightness": 0.86, "chroma": 0.17 },
+    "green": { "hue": 152, "lightness": 0.72, "chroma": 0.16 },
+    "teal": { "hue": 186, "lightness": 0.73, "chroma": 0.12 },
+    "blue": { "hue": 248, "lightness": 0.67, "chroma": 0.15 },
+    "purple": { "hue": 292, "lightness": 0.64, "chroma": 0.19 },
+    "pink": { "hue": 350, "lightness": 0.71, "chroma": 0.19 }
   },
 
-  "$comment_lift": [
-    "Perceptual uniformity is the starting point, not the finish. A",
-    "yellow at the same lightness as a blue looks muddy — yellow only",
-    "reads as yellow when it is light. Each hue gets a lift, applied to",
-    "every step, which is the tuning a flat ramp needs."
+  "$comment_steps": [
+    "Three steps per hue, as offsets from the hue's own pair. `dim` is",
+    "for light backgrounds and quiet states, `bright` for the few things",
+    "that have to jump off a dark one. Chroma eases off at both ends:",
+    "sRGB has less of it to give away from mid lightness, and forcing it",
+    "there is what produces a colour that looks lit from inside."
   ],
-  "lift": {
-    "red": 0.0,
-    "orange": 0.04,
-    "yellow": 0.1,
-    "green": 0.02,
-    "teal": 0.02,
-    "blue": -0.02,
-    "purple": -0.02,
-    "pink": 0.0
-  },
-
   "steps": {
-    "dim": { "lightness": 0.5, "chroma": 0.085 },
-    "base": { "lightness": 0.7, "chroma": 0.12 },
-    "bright": { "lightness": 0.84, "chroma": 0.115 }
+    "dim": { "lightness": -0.17, "chroma": -0.02 },
+    "base": { "lightness": 0.0, "chroma": 0.0 },
+    "bright": { "lightness": 0.13, "chroma": -0.03 }
   },
 
   "$comment_neutral": [
