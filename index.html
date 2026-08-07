@@ -7,8 +7,10 @@
     <meta name="description" content="Runebender — a WebGPU font editor in the browser, ported from runebender-xilem." />
 
     <!-- The rune, the same icon the menu button uses. -->
-    <link rel="icon" type="image/png" href="favicon.png" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <!-- %BASE_URL% so the icon resolves whether this is served at the
+         root or embedded under /cloud/editor/ on runebender.org. -->
+    <link rel="icon" type="image/png" href="%BASE_URL%favicon.png" />
+    <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon.png" />
 
     <!-- Social cards. Absolute URLs so scrapers resolve them; this
          standalone build is canonical home is runebender.org. -->
