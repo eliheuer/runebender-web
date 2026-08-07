@@ -68,6 +68,12 @@ import GlyphInfoSidebar from "./components/GlyphInfoSidebar.vue";
 import SketchPanel from "./components/SketchPanel.vue";
 import SelectPanel from "./components/SelectPanel.vue";
 import CurvePanel from "./components/CurvePanel.vue";
+import {
+  DEFAULT_THEME_ID,
+  THEMES,
+  THEME_IDS,
+  type ThemeId,
+} from "./themeTokens.generated";
 import LayersPanel from "./components/LayersPanel.vue";
 import MarkColorPanel from "./components/MarkColorPanel.vue";
 import TopBar from "./components/TopBar.vue";
@@ -1807,6 +1813,9 @@ let lastPublishedComfyState = "";
 
 onMounted(async () => {
   if (!canvas.value) return;
+  // Colours before anything paints, so the first frame is already the
+  // theme the user chose last time.
+  restoreTheme();
 
   if (!("gpu" in navigator)) {
     status.value =
@@ -2308,6 +2317,59 @@ function resolveHostColor(variableName: string, fallback: Rgba, alpha?: number):
   const resolved = getComputedStyle(probe).color;
   probe.remove();
   return parseCssColor(resolved, fallback, alpha);
+}
+
+// ---------------------------------------------------------------------
+// Themes
+//
+// One source: themes/runebender.theme.json, authored in OKLCH and
+// generated into themeTokens.generated.ts. A theme is a set of CSS
+// custom properties written onto the host element; everything in the
+// chrome reads those, and applyCanvasTheme() below resolves them and
+// hands the values to the wasm renderer, so the WebGPU scene and the
+// panels around it are always the same theme.
+// ---------------------------------------------------------------------
+
+const THEME_STORAGE_KEY = "runebender.theme";
+
+/** The element the theme's custom properties are written onto. */
+const hostEl = ref<HTMLElement | null>(null);
+
+const activeThemeId = ref<ThemeId>(DEFAULT_THEME_ID);
+const themeChoices = THEME_IDS.map((id) => ({ id, name: THEMES[id].name }));
+
+function applyThemeTokens(id: ThemeId) {
+  const host = hostEl.value;
+  if (!host) return;
+  for (const [name, value] of Object.entries(THEMES[id].tokens)) {
+    host.style.setProperty(name, value);
+  }
+}
+
+function selectTheme(id: string) {
+  if (!(id in THEMES)) return;
+  activeThemeId.value = id as ThemeId;
+  applyThemeTokens(activeThemeId.value);
+  applyCanvasTheme();
+  requestRender();
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, id);
+  } catch {
+    // Private browsing, or storage turned off: the choice just does not
+    // outlive the session.
+  }
+}
+
+function restoreTheme() {
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem(THEME_STORAGE_KEY);
+  } catch {
+    stored = null;
+  }
+  activeThemeId.value =
+    stored && stored in THEMES ? (stored as ThemeId) : DEFAULT_THEME_ID;
+  applyThemeTokens(activeThemeId.value);
 }
 
 function applyCanvasTheme() {
@@ -10629,7 +10691,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="runebender-host" :class="{ 'is-editor-mode': viewMode === 'editor' }">
+  <div
+    ref="hostEl"
+    class="runebender-host"
+    :class="{ 'is-editor-mode': viewMode === 'editor' }"
+  >
     <input
       ref="backgroundImageInput"
       class="hidden-file-input"
@@ -10685,6 +10751,8 @@ onBeforeUnmount(() => {
             :close-enabled="!!props.onCloseRequested"
             :reopen-name="systemMenuReopenName"
             :recents="recentWorkspaces"
+            :themes="themeChoices"
+            :active-theme="activeThemeId"
               :conflicts="conflictedGlyphNames"
             @new-ufo="startNewProject('ufo')"
             @new-designspace="startNewProject('designspace')"
@@ -10696,6 +10764,7 @@ onBeforeUnmount(() => {
               @save-overwriting="onSaveOverwritingDisk"
             @save-as="onSaveAs"
             @close-editor="props.onCloseRequested?.()"
+            @select-theme="selectTheme"
             @dismiss="systemMenuOpen = false"
           />
           <CategorySidebar
@@ -10804,6 +10873,8 @@ onBeforeUnmount(() => {
               :close-enabled="!!props.onCloseRequested"
               :reopen-name="systemMenuReopenName"
               :recents="recentWorkspaces"
+              :themes="themeChoices"
+              :active-theme="activeThemeId"
               :conflicts="conflictedGlyphNames"
               @new-ufo="startNewProject('ufo')"
               @new-designspace="startNewProject('designspace')"
@@ -10815,6 +10886,7 @@ onBeforeUnmount(() => {
               @save-overwriting="onSaveOverwritingDisk"
               @save-as="onSaveAs"
               @close-editor="props.onCloseRequested?.()"
+              @select-theme="selectTheme"
               @dismiss="systemMenuOpen = false"
             />
             <EditorSidebar
@@ -11605,16 +11677,11 @@ onBeforeUnmount(() => {
  */
 
 .runebender-host {
-  /* Surfaces */
-  --rb-app-background:     var(--rb-canvas-background, #0c0c0c);
-  --rb-panel-background:   #121212;
-  --rb-grid-cell-background: var(--rb-panel-background, #121212);
-  --rb-grid-cell-hover-background: #1d1d1d;
-  --rb-button-background:  #1d1d1d;
-  --rb-control-background: var(--comfy-input-bg, #111315);
+  /* Colour is not written here. Every --rb-* colour comes from
+     themes/runebender.theme.json via themeTokens.generated.ts, set on
+     this element at startup and on every theme switch. What stays here
+     is what does not change between themes: metrics and type. */
 
-  /* Borders / outlines */
-  --rb-panel-outline:      #404040;
   --rb-stroke-width:       1.5px;
   --rb-panel-radius:       12px;
   --rb-button-radius:      8px;
@@ -11629,46 +11696,9 @@ onBeforeUnmount(() => {
      whether it is saved. */
   --rb-ui-title-size:      16px;
 
-  /* Text */
-  --rb-primary-text:       #909090;
-  --rb-secondary-text:     #808080;
-  --rb-muted-text:         #808080;
-  --rb-subdued-text:       color-mix(in srgb, var(--rb-primary-text) 35%, transparent);
-  --rb-overlay-text:       var(--rb-primary-text);
-  --rb-glyph-preview:      var(--rb-muted-text);
+  /* Derived from the theme's own colours, so they follow it. */
+  --rb-mark-hover-ring:    color-mix(in srgb, var(--rb-accent) 55%, transparent);
 
-  /* Accents / state */
-  --rb-accent:                     #18b86f;
-  --rb-warning:                    #ffdc32;
-  --rb-danger:                     #ff4a3d;
-  --rb-danger-text:                #ff4a3d;
-  --rb-mark-hover-ring:            color-mix(in srgb, var(--rb-accent) 55%, transparent);
-  --rb-mark-selected-ring:         var(--rb-accent);
-  --rb-background-image-selection: var(--rb-accent);
-
-  /* Canvas theme bridge. Vue resolves these variables and passes the
-   * resulting RGBA values into the Rust renderer, keeping the WebGPU
-   * scene aligned with the surrounding ComfyUI chrome. */
-  --rb-canvas-background:         #0c0c0c;
-  --rb-canvas-path-stroke:        #b0b0b0;
-  --rb-canvas-selection:          #ff980f;
-  /* Purple and pink from the mark-colour palette the glyph grid uses,
-     rather than a blue that belongs to no other part of the editor. */
-  --rb-canvas-component:          #8c6cff;
-  --rb-canvas-component-selected: #e86ab8;
-  --rb-canvas-point-smooth-inner: #181818;
-  --rb-canvas-point-smooth-outer: #18b86f;
-  --rb-canvas-point-corner-inner: #181818;
-  --rb-canvas-point-corner-outer: #ff980f;
-  --rb-canvas-point-offcurve-inner: #181818;
-  --rb-canvas-point-offcurve-outer: #8c6cff;
-  --rb-canvas-point-hyper-inner: #181818;
-  --rb-canvas-point-hyper-outer: #8c6cff;
-  --rb-canvas-start-node:         #ff980f;
-  --rb-canvas-text-cursor:        #ff980f;
-  --rb-canvas-kern-active:        #456fff;
-  --rb-canvas-kern-previous:      #ff980f;
-  --rb-canvas-text-preview-fill:  #808080;
   --rb-editor-edge-inset:         8px;
   --rb-editor-bottom-preview-height: clamp(112px, 15%, 180px);
 

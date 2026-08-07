@@ -21,6 +21,10 @@ withDefaults(
     reopenName?: string | null;
     /** Recently opened folders / .glyphs files, newest first. */
     recents?: { index: number; name: string; kind: "folder" | "file" }[];
+    /** Colour themes to choose from. */
+    themes?: { id: string; name: string }[];
+    /** Which one is on. */
+    activeTheme?: string;
   }>(),
   {
     saveEnabled: false,
@@ -30,6 +34,8 @@ withDefaults(
     closeEnabled: false,
     reopenName: null,
     recents: () => [],
+    themes: () => [],
+    activeTheme: "",
   },
 );
 
@@ -44,8 +50,14 @@ const emit = defineEmits<{
   (e: "saveOverwriting"): void;
   (e: "saveAs"): void;
   (e: "closeEditor"): void;
+  (e: "selectTheme", id: string): void;
   (e: "dismiss"): void;
 }>();
+
+function pickTheme(id: string) {
+  emit("selectTheme", id);
+  emit("dismiss");
+}
 
 function pickRecent(index: number) {
   emit("openRecent", index);
@@ -189,6 +201,21 @@ onBeforeUnmount(() => {
     >
       Save As...
     </button>
+    <template v-if="themes.length">
+      <div class="separator" />
+      <div class="group-label">Theme</div>
+      <button
+        v-for="theme in themes"
+        :key="theme.id"
+        type="button"
+        role="menuitemradio"
+        :aria-checked="theme.id === activeTheme"
+        :class="{ accent: theme.id === activeTheme }"
+        @click="pickTheme(theme.id)"
+      >
+        {{ theme.name }}
+      </button>
+    </template>
     <template v-if="closeEnabled">
       <div class="separator" />
       <button type="button" role="menuitem" @click="pick('closeEditor')">

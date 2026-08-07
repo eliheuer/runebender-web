@@ -16,7 +16,8 @@
     "wasm:debug": "cd core && wasm-pack build --target web --out-dir ../wasm --dev",
     "gf-sidebar": "node scripts/generate-gf-sidebar-data.mjs",
     "demo-font": "sh scripts/update-demo-font.sh",
-    "new-font-template": "node scripts/generate-new-font-template.mjs"
+    "new-font-template": "node scripts/generate-new-font-template.mjs",
+    "theme": "node scripts/generate-theme.mjs"
   },
   "dependencies": {
     "vue": "^3.4.0"

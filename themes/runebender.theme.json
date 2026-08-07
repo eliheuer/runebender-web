@@ -1,0 +1,223 @@
+{
+  "$comment": [
+    "The one place colour is decided. `pnpm run theme` turns this into",
+    "src/themeTokens.generated.ts, which the app reads at startup and on",
+    "every theme switch — both for the CSS custom properties and for the",
+    "colours handed to the wasm renderer.",
+    "",
+    "Everything is authored in OKLCH. In that space lightness and chroma",
+    "mean the same thing at every hue, so a set of colours written with",
+    "one lightness and one chroma reads as one family. Written in hex,",
+    "the same set drifts: the palette this replaced ran from L 0.56 to",
+    "L 0.94 and from C 0.11 to C 0.30, which is why some colours shouted",
+    "and others disappeared.",
+    "",
+    "Chroma is deliberately low. C 0.12 is about two thirds of what the",
+    "old palette used, and at that strength eight hues can sit next to",
+    "each other without any of them taking over."
+  ],
+
+  "hues": {
+    "red": 25,
+    "orange": 62,
+    "yellow": 98,
+    "green": 152,
+    "teal": 192,
+    "blue": 255,
+    "purple": 300,
+    "pink": 342
+  },
+
+  "$comment_lift": [
+    "Perceptual uniformity is the starting point, not the finish. A",
+    "yellow at the same lightness as a blue looks muddy — yellow only",
+    "reads as yellow when it is light. Each hue gets a lift, applied to",
+    "every step, which is the tuning a flat ramp needs."
+  ],
+  "lift": {
+    "red": 0.0,
+    "orange": 0.04,
+    "yellow": 0.1,
+    "green": 0.02,
+    "teal": 0.02,
+    "blue": -0.02,
+    "purple": -0.02,
+    "pink": 0.0
+  },
+
+  "steps": {
+    "dim": { "lightness": 0.5, "chroma": 0.085 },
+    "base": { "lightness": 0.7, "chroma": 0.12 },
+    "bright": { "lightness": 0.84, "chroma": 0.115 }
+  },
+
+  "$comment_neutral": [
+    "Neutrals carry a trace of blue (C 0.006 at hue 255). Dead grey on a",
+    "dark screen reads slightly warm against the coloured labels; this",
+    "is small enough that nobody calls it blue and large enough that the",
+    "greys stop fighting the hues.",
+    "",
+    "Step numbers are lightness in percent, so 8 is L 0.08. They stay",
+    "the same across themes: a light theme reverses which end the",
+    "surfaces come from, not what the numbers mean."
+  ],
+  "neutral": {
+    "hue": 255,
+    "chroma": 0.006,
+    "steps": [4, 8, 11, 14, 18, 24, 32, 42, 52, 62, 72, 82, 92, 97]
+  },
+
+  "themes": {
+    "dark": {
+      "name": "Dark",
+      "surfaces": {
+        "app": "neutral.4",
+        "panel": "neutral.8",
+        "control": "neutral.11",
+        "button": "neutral.11",
+        "buttonHover": "neutral.14",
+        "field": "neutral.8",
+        "outline": "neutral.24",
+        "divider": "neutral.14",
+        "canvas": "neutral.4"
+      },
+      "text": {
+        "primary": "neutral.62",
+        "secondary": "neutral.52",
+        "muted": "neutral.52",
+        "subdued": "neutral.32",
+        "overlay": "neutral.92",
+        "glyph": "neutral.62"
+      },
+      "roles": {
+        "accent": "green.base",
+        "warning": "yellow.base",
+        "danger": "red.base",
+        "selection": "orange.base",
+        "component": "purple.base",
+        "componentSelected": "pink.base",
+        "pointSmooth": "blue.base",
+        "pointCorner": "green.base",
+        "pointOffcurve": "purple.base",
+        "pointHyper": "teal.base",
+        "pointSelected": "yellow.bright",
+        "pointInner": "neutral.8",
+        "startNode": "orange.base",
+        "textCursor": "orange.base",
+        "kernActive": "teal.base",
+        "kernPrevious": "orange.base",
+        "pathStroke": "neutral.72",
+        "previewFill": "neutral.52",
+        "background": "neutral.24",
+        "reference": "neutral.14"
+      }
+    },
+
+    "midnight": {
+      "name": "Midnight",
+      "$comment": "Same palette, deeper surfaces and quieter text — for working at night or on a bright screen.",
+      "surfaces": {
+        "app": "neutral.4",
+        "panel": "neutral.4",
+        "control": "neutral.8",
+        "button": "neutral.8",
+        "buttonHover": "neutral.11",
+        "field": "neutral.4",
+        "outline": "neutral.18",
+        "divider": "neutral.11",
+        "canvas": "neutral.4"
+      },
+      "text": {
+        "primary": "neutral.52",
+        "secondary": "neutral.42",
+        "muted": "neutral.42",
+        "subdued": "neutral.24",
+        "overlay": "neutral.82",
+        "glyph": "neutral.52"
+      },
+      "roles": {
+        "accent": "green.dim",
+        "warning": "yellow.dim",
+        "danger": "red.dim",
+        "selection": "orange.dim",
+        "component": "purple.dim",
+        "componentSelected": "pink.base",
+        "pointSmooth": "blue.dim",
+        "pointCorner": "green.dim",
+        "pointOffcurve": "purple.dim",
+        "pointHyper": "teal.dim",
+        "pointSelected": "yellow.base",
+        "pointInner": "neutral.4",
+        "startNode": "orange.dim",
+        "textCursor": "orange.base",
+        "kernActive": "teal.dim",
+        "kernPrevious": "orange.dim",
+        "pathStroke": "neutral.62",
+        "previewFill": "neutral.42",
+        "background": "neutral.18",
+        "reference": "neutral.11"
+      }
+    },
+
+    "light": {
+      "name": "Light",
+      "$comment": "Surfaces come from the other end of the same ramp; the hues drop to their dim step so they hold up on white.",
+      "surfaces": {
+        "app": "neutral.92",
+        "panel": "neutral.97",
+        "control": "neutral.92",
+        "button": "neutral.97",
+        "buttonHover": "neutral.92",
+        "field": "neutral.97",
+        "outline": "neutral.72",
+        "divider": "neutral.82",
+        "canvas": "neutral.97"
+      },
+      "text": {
+        "primary": "neutral.32",
+        "secondary": "neutral.42",
+        "muted": "neutral.42",
+        "subdued": "neutral.62",
+        "overlay": "neutral.11",
+        "glyph": "neutral.32"
+      },
+      "roles": {
+        "accent": "green.dim",
+        "warning": "orange.dim",
+        "danger": "red.dim",
+        "selection": "orange.dim",
+        "component": "purple.dim",
+        "componentSelected": "pink.dim",
+        "pointSmooth": "blue.dim",
+        "pointCorner": "green.dim",
+        "pointOffcurve": "purple.dim",
+        "pointHyper": "teal.dim",
+        "pointSelected": "orange.dim",
+        "pointInner": "neutral.97",
+        "startNode": "orange.dim",
+        "textCursor": "orange.dim",
+        "kernActive": "teal.dim",
+        "kernPrevious": "orange.dim",
+        "pathStroke": "neutral.24",
+        "previewFill": "neutral.52",
+        "background": "neutral.62",
+        "reference": "neutral.82"
+      }
+    }
+  },
+
+  "$comment_marks": [
+    "Mark colours are what a designer sees in the glyph grid, and they",
+    "are written into the UFO, so their names are fixed by convention.",
+    "They use the bright step: a mark has to read at thumbnail size."
+  ],
+  "markColors": [
+    { "name": "red", "step": "red.base" },
+    { "name": "orange", "step": "orange.base" },
+    { "name": "yellow", "step": "yellow.base" },
+    { "name": "green", "step": "green.base" },
+    { "name": "blue", "step": "blue.base" },
+    { "name": "purple", "step": "purple.base" },
+    { "name": "pink", "step": "pink.base" }
+  ]
+}
