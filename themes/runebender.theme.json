@@ -94,6 +94,7 @@
       },
       "markStep": "base",
       "roles": {
+        "gridSelected": "neutral.81",
         "accent": "green.base",
         "warning": "yellow.base",
         "danger": "red.base",
@@ -141,6 +142,7 @@
       },
       "markStep": "base",
       "roles": {
+        "gridSelected": "neutral.76",
         "accent": "green.dim",
         "warning": "yellow.dim",
         "danger": "red.dim",
@@ -188,6 +190,7 @@
       },
       "markStep": "dim",
       "roles": {
+        "gridSelected": "neutral.31",
         "accent": "green.dim",
         "warning": "orange.dim",
         "danger": "red.dim",

@@ -101,8 +101,10 @@ function tokensFor(definition) {
   t["--rb-warning"] = colorFor(roles.warning);
   t["--rb-danger"] = colorFor(roles.danger);
   t["--rb-danger-text"] = colorFor(roles.danger);
-  t["--rb-grid-selected"] = colorFor(roles.accent);
-  t["--rb-mark-selected-ring"] = colorFor(roles.accent);
+  // Selection is neutral, not the accent: a green cell selected with a
+  // green border is invisible, and green is a mark colour.
+  t["--rb-grid-selected"] = colorFor(roles.gridSelected);
+  t["--rb-mark-selected-ring"] = colorFor(roles.gridSelected);
   t["--rb-background-image-selection"] = colorFor(roles.accent);
 
   // Canvas bridge: Vue resolves these and hands the values to the wasm
