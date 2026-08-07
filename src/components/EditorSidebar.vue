@@ -7,14 +7,14 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import AiChatPanel from "./AiChatPanel.vue";
 import GlyphCell from "./GlyphCell.vue";
-import { MARK_COLORS, rgbaToCss } from "./markColors";
+import { MARK_COLORS, cssForLabel } from "./markColors";
 
 export type SidebarGlyphItem = {
   name: string;
   unicode?: string;
   svg?: string;
   columnSpan: number;
-  markColor?: string;
+  markLabel?: string;
 };
 export type SidebarShape = {
   label: string;
@@ -44,7 +44,7 @@ const props = withDefaults(
     masters?: string[];
     activeMaster?: number;
     /** Mark color on the glyph open in the editor, if any. */
-    markColor?: string;
+    markLabel?: string;
     canApplyAllMasters?: boolean;
     markApplyAllMasters?: boolean;
     /** Outline + nodes preview of the current glyph (anatomy SVG). */
@@ -58,7 +58,7 @@ const props = withDefaults(
     axes: () => [],
     masters: () => [],
     activeMaster: 0,
-    markColor: "",
+    markLabel: "",
     canApplyAllMasters: false,
     markApplyAllMasters: false,
     anatomySvg: "",
@@ -220,7 +220,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
             :svg="item.svg"
             :selected="item.name === currentGlyph || selectedGlyphs.includes(item.name)"
             :column-span="item.columnSpan"
-            :mark-color="item.markColor"
+            :mark-label="item.markLabel"
             bare-unicode
             @click="emit('jumpGlyph', item.name, $event)"
           />
@@ -245,15 +245,15 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
       <div class="swatch-row">
         <button
           v-for="color in MARK_COLORS"
-          :key="color.rgba"
+          :key="color.name"
           type="button"
           class="swatch"
-          :class="{ active: color.rgba === markColor }"
-          :style="{ background: rgbaToCss(color.rgba), color: rgbaToCss(color.rgba) }"
+          :class="{ active: color.name === markLabel }"
+          :style="{ background: cssForLabel(color.name), color: cssForLabel(color.name) }"
           :title="color.name"
           :aria-label="`Set mark color: ${color.name}`"
           :disabled="!currentGlyph"
-          @click="emit('setMark', color.rgba)"
+          @click="emit('setMark', color.name)"
         />
         <button
           type="button"

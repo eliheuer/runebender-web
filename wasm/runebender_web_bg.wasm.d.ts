@@ -11,7 +11,7 @@ export const glifToGridSvgWithComponents: (a: number, b: number, c: number, d: n
 export const glifToSvg: (a: number, b: number) => [number, number, number, number];
 export const glifToSvgWithComponents: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const glifWithKerningGroup: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
-export const glifWithMarkColor: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const glifWithMarkColor: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
 export const glifWithName: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const glifWithOutlinesFrom: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const glifWithUnicode: (a: number, b: number, c: number, d: number) => [number, number, number, number];
@@ -33,7 +33,7 @@ export const glypheditor_contourContextAt: (a: number, b: number, c: number) => 
 export const glypheditor_contourCount: (a: number) => number;
 export const glypheditor_convertHyperToCubic: (a: number) => number;
 export const glypheditor_copySelection: (a: number) => number;
-export const glypheditor_currentGlyphGlif: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+export const glypheditor_currentGlyphGlif: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
 export const glypheditor_cycleSelectedPoint: (a: number, b: number) => number;
 export const glypheditor_deleteComponentGlyph: (a: number, b: number, c: number) => void;
 export const glypheditor_deleteSelection: (a: number) => number;

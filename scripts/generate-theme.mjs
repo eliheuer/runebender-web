@@ -129,6 +129,14 @@ function tokensFor(definition) {
   t["--rb-canvas-background-layer"] = colorFor(roles.background);
   t["--rb-canvas-reference-glyph"] = colorFor(roles.reference);
 
+  // How a mark is drawn in this theme. A glyph's mark is stored as a
+  // label, so this is the whole of what a theme change does to it: the
+  // base step reads on a dark surface, the dim step on a light one.
+  const markStep = definition.markStep ?? "base";
+  for (const hue of Object.keys(theme.hues)) {
+    t[`--rb-mark-${hue}`] = colorFor(`${hue}.${markStep}`);
+  }
+
   for (const [name, hex] of Object.entries(palette)) {
     const [hue, step] = name.split(".");
     t[cssName("color", `${hue}-${step}`)] = hex;

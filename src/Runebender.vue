@@ -68,6 +68,7 @@ import GlyphInfoSidebar from "./components/GlyphInfoSidebar.vue";
 import SketchPanel from "./components/SketchPanel.vue";
 import SelectPanel from "./components/SelectPanel.vue";
 import CurvePanel from "./components/CurvePanel.vue";
+import { labelForRgba, rgbaForLabel } from "./components/markColors";
 import {
   DEFAULT_THEME_ID,
   THEMES,
@@ -375,6 +376,9 @@ type MasterData = {
   glyphSvgs: Map<string, string>;
   glyphCategories: Map<string, Category>;
   glyphMarkColors: Map<string, string>;
+  /// The label each mark stands for, when the file records one. UFO
+  /// stores a colour; this is what it means. See markColors.ts.
+  glyphMarkLabels: Map<string, string>;
   fontInfoBytes: Uint8Array | null;
   unitsPerEm: number;
   /** The master's features.fea, for OpenType shaping. */
@@ -623,6 +627,10 @@ const glyphCategories = computed(
 );
 const glyphMarkColors = computed(
   () => activeMasterData.value?.glyphMarkColors ?? (new Map<string, string>()),
+);
+/** What each mark means, which is what the grid colours itself from. */
+const glyphMarkLabels = computed(
+  () => activeMasterData.value?.glyphMarkLabels ?? (new Map<string, string>()),
 );
 function firstGlyphCodepointFromUnicode(unicode?: string): number | null {
   if (!unicode) return null;
@@ -1731,7 +1739,11 @@ type Editor = {
   editorPanelState(): Float64Array;
   setLeftSidebearing(value: number): boolean;
   setRightSidebearing(value: number): boolean;
-  currentGlyphGlif(originalBytes: Uint8Array, markColor: string): Uint8Array;
+  currentGlyphGlif(
+    originalBytes: Uint8Array,
+    markColor: string,
+    markLabel: string,
+  ): Uint8Array;
   advanceWidth(): number;
   contourCount(): number;
   metricBounds(): Float64Array;
@@ -3551,7 +3563,7 @@ const sidebarOverviewItems = computed<SidebarGlyphItem[]>(() =>
       name,
       unicode: glyphUnicodes.value.get(name),
       svg: glyphSvgs.value.get(name),
-      markColor: glyphMarkColors.value.get(name),
+      markLabel: glyphMarkLabels.value.get(name),
       columnSpan: Math.min(4, Math.max(computeGlyphColumnSpan(name), nameSpan)),
     };
   }),
@@ -5028,6 +5040,9 @@ function onActiveGlyphNameChange(event: Event) {
     );
     data.glyphMarkColors.delete(oldName);
     if (markColor) data.glyphMarkColors.set(newName, markColor);
+    const markLabel = data.glyphMarkLabels.get(oldName);
+    data.glyphMarkLabels.delete(oldName);
+    if (markLabel) data.glyphMarkLabels.set(newName, markLabel);
     data.glyphSvgs.delete(oldName);
     refreshGridGlyphSvg(data, newName, bytes);
 
@@ -6441,6 +6456,7 @@ function parseGlyphInfo(bytes: Uint8Array): {
   unicode: string | null;
   unicodes: string[];
   markColor: string | null;
+  markLabel: string | null;
   leftKerningGroup: string | null;
   rightKerningGroup: string | null;
   width: number;
@@ -6449,6 +6465,12 @@ function parseGlyphInfo(bytes: Uint8Array): {
   const xml = new TextDecoder().decode(bytes);
   const markMatch =
     /<key>\s*public\.markColor\s*<\/key>\s*<string>\s*([0-9.,\s]+)\s*<\/string>/.exec(
+      xml,
+    );
+  // The label the colour stands for, when the file has one. See
+  // MARK_LABEL_KEY in wasm_api.rs.
+  const labelMatch =
+    /<key>\s*com\.runebender\.markLabel\s*<\/key>\s*<string>\s*([^<]*)\s*<\/string>/.exec(
       xml,
     );
   const metadata = JSON.parse(glifMetadata(bytes)) as GlyphMetadata;
@@ -6465,6 +6487,7 @@ function parseGlyphInfo(bytes: Uint8Array): {
     unicode: metadata.unicode,
     unicodes,
     markColor: markMatch?.[1]?.replace(/\s+/g, "") ?? null,
+    markLabel: labelMatch?.[1]?.trim() || null,
     leftKerningGroup: metadata.leftKerningGroup ?? null,
     rightKerningGroup: metadata.rightKerningGroup ?? null,
     width: metadata.width,
@@ -7564,6 +7587,10 @@ async function applyExternalWorkspaceChanges(
         else data.glyphUnicodes.delete(name);
         if (info.markColor) data.glyphMarkColors.set(name, info.markColor);
         else data.glyphMarkColors.delete(name);
+        const label =
+          info.markLabel ?? (info.markColor ? labelForRgba(info.markColor) : null);
+        if (label) data.glyphMarkLabels.set(name, label);
+        else data.glyphMarkLabels.delete(name);
         refreshGridGlyphSvg(data, name, bytes);
         syncEditorComponentGlyphCacheEntry(data, name, bytes);
         touched = true;
@@ -7742,6 +7769,7 @@ async function buildMasterData(
   const glyphMetadata = new Map<string, GlyphMetadata>();
   const glyphCategories = new Map<string, Category>();
   const glyphMarkColors = new Map<string, string>();
+  const glyphMarkLabels = new Map<string, string>();
   const glyphLibKerningGroups = new Map<string, GlyphKerningGroups>();
   for (const item of loaded) {
     if (!item) continue;
@@ -7750,6 +7778,7 @@ async function buildMasterData(
       unicode,
       unicodes,
       markColor,
+      markLabel,
       leftKerningGroup,
       rightKerningGroup,
       width,
@@ -7763,6 +7792,10 @@ async function buildMasterData(
     glyphMetadata.set(name, { name, width, contours, unicode, unicodes });
     if (unicode) glyphUnicodes.set(name, unicode);
     if (markColor) glyphMarkColors.set(name, markColor);
+    // An older file has only the colour. Snap it to the nearest hue so
+    // the grid still reads right; that guess is never written back.
+    const label = markLabel ?? (markColor ? labelForRgba(markColor) : null);
+    if (label) glyphMarkLabels.set(name, label);
     if (leftKerningGroup || rightKerningGroup) {
       glyphLibKerningGroups.set(name, {
         ...(leftKerningGroup ? { left: leftKerningGroup } : {}),
@@ -7882,6 +7915,7 @@ async function buildMasterData(
     glyphSvgs,
     glyphCategories,
     glyphMarkColors,
+    glyphMarkLabels,
     fontInfoBytes,
     unitsPerEm,
     featuresText,
@@ -8633,26 +8667,34 @@ function openGridSelectionInEditor(name: string) {
 /// Apply (or clear) a mark color on the selected glyph. RGBA is
 /// the UFO `public.markColor` string "r,g,b,a"; empty string clears.
 /// Defaults to the active master; the color panel can opt into all masters.
-function setMarkOnSelected(rgba: string) {
-  applyMarkColor(selectedGridGlyphNames(), rgba);
+function setMarkOnSelected(label: string) {
+  applyMarkColor(selectedGridGlyphNames(), label);
 }
 
 /** The sidebar's Colors section marks the mini grid's selection when
  *  there is one, otherwise the glyph open in the editor. */
-function setMarkOnCurrentGlyph(rgba: string) {
+function setMarkOnCurrentGlyph(label: string) {
   const selected = Array.from(selectedGlyphs.value).filter((name) =>
     activeMasterData.value?.glyphBytes.has(name),
   );
   if (selected.length > 1) {
-    applyMarkColor(selected, rgba);
+    applyMarkColor(selected, label);
     return;
   }
   if (!currentGlyph.value) return;
-  applyMarkColor([currentGlyph.value], rgba);
+  applyMarkColor([currentGlyph.value], label);
 }
 
-function applyMarkColor(names: string[], rgba: string) {
+/// Mark glyphs with a label ("red"), or clear it with "".
+///
+/// The colour written into the UFO is the label's fixed one, not the
+/// active theme's: a theme is how a mark is drawn, never what a file
+/// says. Otherwise working in Light and saving would rewrite the mark
+/// of every glyph in the font.
+function applyMarkColor(names: string[], label: string) {
   if (names.length === 0) return;
+  const rgba = label ? rgbaForLabel(label) : "";
+  if (label && !rgba) return;
   const targetMasterNames = markColorApplyAllMasters.value
     ? masters.value
     : activeMasterName.value
@@ -8668,8 +8710,10 @@ function applyMarkColor(names: string[], rgba: string) {
       if (!data.glyphBytes.has(name)) continue;
       if (rgba) {
         data.glyphMarkColors.set(name, rgba);
+        data.glyphMarkLabels.set(name, label);
       } else {
         data.glyphMarkColors.delete(name);
+        data.glyphMarkLabels.delete(name);
       }
     }
   }
@@ -8691,7 +8735,7 @@ function applyMarkColor(names: string[], rgba: string) {
       const originalBytes = data.glyphBytes.get(name);
       if (originalBytes) {
         try {
-          const bytes = glifWithMarkColor(originalBytes, rgba);
+          const bytes = glifWithMarkColor(originalBytes, rgba, label);
           setGlyphBytes(data, name, bytes);
           refreshGridGlyphSvg(data, name, bytes);
         } catch (e) {
@@ -9952,7 +9996,10 @@ function syncCurrentGlyphBytesFromEditor(
 
   try {
     const markColor = data.glyphMarkColors.get(currentGlyph.value) ?? "";
-    const bytes = editor.currentGlyphGlif(originalBytes, markColor);
+    // Only a label the file already carries: writing the snapped guess
+    // would turn a display fallback into a fact on disk.
+    const markLabel = data.glyphMarkLabels.get(currentGlyph.value) ?? "";
+    const bytes = editor.currentGlyphGlif(originalBytes, markColor, markLabel);
     if (options.skipUnchanged && bytesEqual(bytes, originalBytes)) {
       editorGlyphNeedsSync = false;
       return false;
@@ -9965,6 +10012,7 @@ function syncCurrentGlyphBytesFromEditor(
           unicode: previousMetadata.unicode,
           unicodes: [...previousMetadata.unicodes],
           markColor: data.glyphMarkColors.get(currentGlyph.value) ?? null,
+          markLabel: data.glyphMarkLabels.get(currentGlyph.value) ?? null,
           leftKerningGroup: previousGroups?.left ?? previousMetadata.leftKerningGroup ?? null,
           rightKerningGroup: previousGroups?.right ?? previousMetadata.rightKerningGroup ?? null,
           width: previousMetadata.width,
@@ -10897,7 +10945,7 @@ onBeforeUnmount(() => {
               :axes="sidebarAxes"
               :masters="masters"
               :active-master="activeMasterIndex"
-              :mark-color="currentGlyph ? glyphMarkColors.get(currentGlyph) : ''"
+              :mark-label="currentGlyph ? glyphMarkLabels.get(currentGlyph) : ''"
               :anatomy-svg="currentGlyphAnatomySvg"
               :can-apply-all-masters="masters.length > 1"
               v-model:mark-apply-all-masters="markColorApplyAllMasters"
@@ -11559,7 +11607,7 @@ onBeforeUnmount(() => {
             :svg="glyphSvgs.get(item.name)"
             :selected="selectedGlyphs.has(item.name)"
             :column-span="item.columnSpan"
-            :mark-color="glyphMarkColors.get(item.name)"
+            :mark-label="glyphMarkLabels.get(item.name)"
             @click="selectGlyph(item.name, $event)"
             @dblclick="openGridSelectionInEditor(item.name)"
           />
@@ -11582,7 +11630,7 @@ onBeforeUnmount(() => {
           :svg="selectedAnatomySvg"
         />
         <MarkColorPanel
-          :active="selectedGlyph ? glyphMarkColors.get(selectedGlyph) : ''"
+          :active="selectedGlyph ? glyphMarkLabels.get(selectedGlyph) : ''"
           :enabled="!!selectedGlyph"
           :can-apply-all-masters="masters.length > 1"
           v-model:apply-all-masters="markColorApplyAllMasters"

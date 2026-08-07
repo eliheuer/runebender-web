@@ -401,21 +401,48 @@ fn glif_metadata_from_norad(glyph: &norad::Glyph) -> GlifMetadata {
 /// This is used for grid/sidebar mark-color edits that do not load
 /// the glyph into the outline editor.
 #[wasm_bindgen(js_name = glifWithMarkColor)]
-pub fn glif_with_mark_color(bytes: &[u8], mark_color: &str) -> Result<Vec<u8>, JsValue> {
+pub fn glif_with_mark_color(
+    bytes: &[u8],
+    mark_color: &str,
+    mark_label: &str,
+) -> Result<Vec<u8>, JsValue> {
     let mut glyph = norad::Glyph::parse_raw(bytes)
         .map_err(|e| JsValue::from_str(&format!("parse .glif: {e}")))?;
+    set_glyph_mark(&mut glyph, mark_color, mark_label)?;
+    glyph
+        .encode_xml()
+        .map_err(|e| JsValue::from_str(&format!("serialize .glif: {e}")))
+}
+
+/// UFO stores a mark as a colour, so a palette change orphans every
+/// file written before it. We write the label the colour stands for
+/// alongside it, and read that first — the colour is what other editors
+/// need, the label is what the mark *means*.
+pub const MARK_LABEL_KEY: &str = "com.runebender.markLabel";
+
+fn set_glyph_mark(
+    glyph: &mut norad::Glyph,
+    mark_color: &str,
+    mark_label: &str,
+) -> Result<(), JsValue> {
     let mark_color = mark_color::canonical_ufo_mark_color(mark_color)
         .ok_or_else(|| JsValue::from_str("invalid UFO public.markColor value"))?;
     if mark_color.is_empty() {
         glyph.lib.remove("public.markColor");
+        glyph.lib.remove(MARK_LABEL_KEY);
+        return Ok(());
+    }
+    glyph
+        .lib
+        .insert("public.markColor".to_string(), mark_color.into());
+    if mark_label.is_empty() {
+        glyph.lib.remove(MARK_LABEL_KEY);
     } else {
         glyph
             .lib
-            .insert("public.markColor".to_string(), mark_color.into());
+            .insert(MARK_LABEL_KEY.to_string(), mark_label.into());
     }
-    glyph
-        .encode_xml()
-        .map_err(|e| JsValue::from_str(&format!("serialize .glif: {e}")))
+    Ok(())
 }
 
 /// Update one UFO kerning group lib entry in a .glif file. `side`
@@ -3234,13 +3261,15 @@ impl GlyphEditor {
 
     /// Serialize the current editable contours back into .glif XML,
     /// preserving metadata from `original_bytes` where possible.
-    /// `mark_color` is the UFO `public.markColor` value; an empty
-    /// string clears that lib entry.
+    /// `mark_color` is the UFO `public.markColor` value and
+    /// `mark_label` the name it stands for; an empty colour clears
+    /// both lib entries.
     #[wasm_bindgen(js_name = currentGlyphGlif)]
     pub fn current_glyph_glif(
         &mut self,
         original_bytes: &[u8],
         mark_color: &str,
+        mark_label: &str,
     ) -> Result<Vec<u8>, JsValue> {
         let mut glyph = self.source_glyph_for_bytes(original_bytes)?;
         glyph.width = self.state.advance_width;
@@ -3295,15 +3324,7 @@ impl GlyphEditor {
             .map(to_norad_anchor)
             .collect::<Result<Vec<_>, _>>()?;
 
-        let mark_color = mark_color::canonical_ufo_mark_color(mark_color)
-            .ok_or_else(|| JsValue::from_str("invalid UFO public.markColor value"))?;
-        if mark_color.is_empty() {
-            glyph.lib.remove("public.markColor");
-        } else {
-            glyph
-                .lib
-                .insert("public.markColor".to_string(), mark_color.into());
-        }
+        set_glyph_mark(&mut glyph, mark_color, mark_label)?;
 
         let bytes = glyph
             .encode_xml()

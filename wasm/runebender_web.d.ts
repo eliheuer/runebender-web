@@ -46,10 +46,11 @@ export class GlyphEditor {
     /**
      * Serialize the current editable contours back into .glif XML,
      * preserving metadata from `original_bytes` where possible.
-     * `mark_color` is the UFO `public.markColor` value; an empty
-     * string clears that lib entry.
+     * `mark_color` is the UFO `public.markColor` value and
+     * `mark_label` the name it stands for; an empty colour clears
+     * both lib entries.
      */
-    currentGlyphGlif(original_bytes: Uint8Array, mark_color: string): Uint8Array;
+    currentGlyphGlif(original_bytes: Uint8Array, mark_color: string, mark_label: string): Uint8Array;
     /**
      * Move point selection by outline order. `backwards` is Shift-Tab.
      */
@@ -439,7 +440,7 @@ export function glifWithKerningGroup(bytes: Uint8Array, side: string, group: str
  * This is used for grid/sidebar mark-color edits that do not load
  * the glyph into the outline editor.
  */
-export function glifWithMarkColor(bytes: Uint8Array, mark_color: string): Uint8Array;
+export function glifWithMarkColor(bytes: Uint8Array, mark_color: string, mark_label: string): Uint8Array;
 
 /**
  * Update the glyph name in a .glif file while preserving the rest
@@ -515,7 +516,7 @@ export interface InitOutput {
     readonly glifToSvg: (a: number, b: number) => [number, number, number, number];
     readonly glifToSvgWithComponents: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glifWithKerningGroup: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
-    readonly glifWithMarkColor: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly glifWithMarkColor: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly glifWithName: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glifWithOutlinesFrom: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glifWithUnicode: (a: number, b: number, c: number, d: number) => [number, number, number, number];
@@ -537,7 +538,7 @@ export interface InitOutput {
     readonly glypheditor_contourCount: (a: number) => number;
     readonly glypheditor_convertHyperToCubic: (a: number) => number;
     readonly glypheditor_copySelection: (a: number) => number;
-    readonly glypheditor_currentGlyphGlif: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly glypheditor_currentGlyphGlif: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly glypheditor_cycleSelectedPoint: (a: number, b: number) => number;
     readonly glypheditor_deleteComponentGlyph: (a: number, b: number, c: number) => void;
     readonly glypheditor_deleteSelection: (a: number) => number;

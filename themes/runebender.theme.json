@@ -30,14 +30,14 @@
   ],
 
   "hues": {
-    "red": { "hue": 27, "lightness": 0.64, "chroma": 0.21 },
-    "orange": { "hue": 46, "lightness": 0.71, "chroma": 0.19 },
-    "yellow": { "hue": 96, "lightness": 0.86, "chroma": 0.17 },
-    "green": { "hue": 152, "lightness": 0.72, "chroma": 0.16 },
-    "teal": { "hue": 186, "lightness": 0.73, "chroma": 0.12 },
-    "blue": { "hue": 248, "lightness": 0.67, "chroma": 0.15 },
-    "purple": { "hue": 292, "lightness": 0.64, "chroma": 0.19 },
-    "pink": { "hue": 350, "lightness": 0.71, "chroma": 0.19 }
+    "red": { "hue": 27, "lightness": 0.62, "chroma": 0.185 },
+    "orange": { "hue": 46, "lightness": 0.69, "chroma": 0.167 },
+    "yellow": { "hue": 96, "lightness": 0.84, "chroma": 0.15 },
+    "green": { "hue": 152, "lightness": 0.7, "chroma": 0.14 },
+    "teal": { "hue": 186, "lightness": 0.71, "chroma": 0.105 },
+    "blue": { "hue": 248, "lightness": 0.65, "chroma": 0.132 },
+    "purple": { "hue": 292, "lightness": 0.62, "chroma": 0.167 },
+    "pink": { "hue": 350, "lightness": 0.69, "chroma": 0.167 }
   },
 
   "$comment_steps": [
@@ -91,6 +91,7 @@
         "overlay": "neutral.92",
         "glyph": "neutral.62"
       },
+      "markStep": "base",
       "roles": {
         "accent": "green.base",
         "warning": "yellow.base",
@@ -137,6 +138,7 @@
         "overlay": "neutral.82",
         "glyph": "neutral.52"
       },
+      "markStep": "base",
       "roles": {
         "accent": "green.dim",
         "warning": "yellow.dim",
@@ -183,6 +185,7 @@
         "overlay": "neutral.11",
         "glyph": "neutral.32"
       },
+      "markStep": "dim",
       "roles": {
         "accent": "green.dim",
         "warning": "orange.dim",

@@ -10,7 +10,7 @@
 //   GRID_CELL_TEXT / BASE_H       #808080
 
 import { computed } from "vue";
-import { rgbaToCss } from "./markColors";
+import { cssForLabel } from "./markColors";
 
 const props = defineProps<{
   name: string;
@@ -22,8 +22,8 @@ const props = defineProps<{
   selected?: boolean;
   /** Number of xilem grid columns this cell should span. */
   columnSpan?: number;
-  /** UFO `public.markColor` "r,g,b,a" with 0–1 floats. */
-  markColor?: string;
+  /** Mark label, e.g. "red". Drawn in the theme's colour for that hue. */
+  markLabel?: string;
   /** Drop the "U+" prefix — the sidebar's mini cells are too narrow
    *  for it and the codepoint reads fine without. */
   bareUnicode?: boolean;
@@ -38,10 +38,8 @@ const cellStyle = computed(() => {
   const style: Record<string, string> = {
     gridColumn: `span ${Math.max(1, props.columnSpan ?? 1)}`,
   };
-  if (!props.markColor) return style;
-  const parts = props.markColor.split(",").map(Number);
-  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return style;
-  style["--mark-color"] = rgbaToCss(props.markColor);
+  const mark = cssForLabel(props.markLabel ?? "");
+  if (mark) style["--mark-color"] = mark;
   return style;
 });
 </script>
@@ -50,7 +48,7 @@ const cellStyle = computed(() => {
   <button
     type="button"
     class="cell"
-    :class="{ selected, marked: !!markColor }"
+    :class="{ selected, marked: !!markLabel }"
     :style="cellStyle"
     :title="name"
     @click="$emit('click', $event)"

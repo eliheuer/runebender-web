@@ -178,24 +178,28 @@ export class GlyphEditor {
     /**
      * Serialize the current editable contours back into .glif XML,
      * preserving metadata from `original_bytes` where possible.
-     * `mark_color` is the UFO `public.markColor` value; an empty
-     * string clears that lib entry.
+     * `mark_color` is the UFO `public.markColor` value and
+     * `mark_label` the name it stands for; an empty colour clears
+     * both lib entries.
      * @param {Uint8Array} original_bytes
      * @param {string} mark_color
+     * @param {string} mark_label
      * @returns {Uint8Array}
      */
-    currentGlyphGlif(original_bytes, mark_color) {
+    currentGlyphGlif(original_bytes, mark_color, mark_label) {
         const ptr0 = passArray8ToWasm0(original_bytes, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(mark_color, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.glypheditor_currentGlyphGlif(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        const ptr2 = passStringToWasm0(mark_label, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.glypheditor_currentGlyphGlif(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
         if (ret[3]) {
             throw takeFromExternrefTable0(ret[2]);
         }
-        var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        var v4 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-        return v3;
+        return v4;
     }
     /**
      * Move point selection by outline order. `backwards` is Shift-Tab.
@@ -1693,20 +1697,23 @@ export function glifWithKerningGroup(bytes, side, group) {
  * the glyph into the outline editor.
  * @param {Uint8Array} bytes
  * @param {string} mark_color
+ * @param {string} mark_label
  * @returns {Uint8Array}
  */
-export function glifWithMarkColor(bytes, mark_color) {
+export function glifWithMarkColor(bytes, mark_color, mark_label) {
     const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(mark_color, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.glifWithMarkColor(ptr0, len0, ptr1, len1);
+    const ptr2 = passStringToWasm0(mark_label, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.glifWithMarkColor(ptr0, len0, ptr1, len1, ptr2, len2);
     if (ret[3]) {
         throw takeFromExternrefTable0(ret[2]);
     }
-    var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    var v4 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-    return v3;
+    return v4;
 }
 
 /**

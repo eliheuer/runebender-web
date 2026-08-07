@@ -10,7 +10,7 @@
 // swatch is the one that matches the selected glyph's current
 // mark color.
 
-import { MARK_COLORS, rgbaToCss } from "./markColors";
+import { MARK_COLORS, cssForLabel } from "./markColors";
 
 defineProps<{
   /** Currently-applied mark color on the selected glyph, or empty
@@ -28,7 +28,7 @@ defineProps<{
 
 defineEmits<{
   /** Empty string means "clear the mark." */
-  (e: "set", rgba: string): void;
+  (e: "set", label: string): void;
   (e: "update:applyAllMasters", value: boolean): void;
 }>();
 </script>
@@ -57,15 +57,15 @@ defineEmits<{
     <div class="swatches">
       <button
         v-for="c in MARK_COLORS"
-        :key="c.rgba"
+        :key="c.name"
         type="button"
         class="swatch"
-        :class="{ active: c.rgba === active }"
-        :style="{ background: rgbaToCss(c.rgba) }"
+        :class="{ active: c.name === active }"
+        :style="{ background: cssForLabel(c.name) }"
         :title="c.name"
         :aria-label="`Set mark color: ${c.name}`"
         :disabled="!enabled"
-        @click="$emit('set', c.rgba)"
+        @click="$emit('set', c.name)"
       />
       <button
         type="button"
