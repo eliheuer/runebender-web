@@ -6,7 +6,9 @@ use runebender_web::shape::{ShapingFont, ShapingGlyph, ShapingSource};
 fn main() {
     let mut args = std::env::args().skip(1);
     let ufo_dir = args.next().expect("usage: shape_check <ufo> <text>");
-    let text = args.next().unwrap_or_else(|| "\u{0644}\u{0627}".to_string());
+    let text = args
+        .next()
+        .unwrap_or_else(|| "\u{0644}\u{0627}".to_string());
 
     let font = norad::Font::load(&ufo_dir).expect("UFO loads");
     let features =

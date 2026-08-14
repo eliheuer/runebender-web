@@ -118,16 +118,14 @@ impl ShapingFont {
         let names: Vec<String> = source.glyphs.iter().map(|g| g.name.clone()).collect();
         let glyph_map: GlyphMap = names.iter().map(|name| name.as_str()).collect();
 
-        let compilation = Compiler::<NopFeatureProvider, NopVariationInfo>::new(
-            FEA_ROOT,
-            &glyph_map,
-        )
-        .with_resolver(InMemoryFea {
-            root: PathBuf::from(FEA_ROOT),
-            text: Arc::from(source.features.as_str()),
-        })
-        .compile()
-        .map_err(|e| format!("features.fea: {e}"))?;
+        let compilation =
+            Compiler::<NopFeatureProvider, NopVariationInfo>::new(FEA_ROOT, &glyph_map)
+                .with_resolver(InMemoryFea {
+                    root: PathBuf::from(FEA_ROOT),
+                    text: Arc::from(source.features.as_str()),
+                })
+                .compile()
+                .map_err(|e| format!("features.fea: {e}"))?;
 
         let mut builder = FontBuilder::new();
 
@@ -140,8 +138,8 @@ impl ShapingFont {
         head.index_to_loc_format = 0;
         builder.add_table(&head).map_err(|e| e.to_string())?;
 
-        let glyph_count = u16::try_from(source.glyphs.len())
-            .map_err(|_| "more than 65535 glyphs".to_string())?;
+        let glyph_count =
+            u16::try_from(source.glyphs.len()).map_err(|_| "more than 65535 glyphs".to_string())?;
         builder
             .add_table(&Maxp::new(glyph_count))
             .map_err(|e| e.to_string())?;
@@ -298,7 +296,10 @@ mod tests {
         let font = ShapingFont::build(&virtua_grotesk()).expect("shaping font builds");
         // لا — the required ligature, which positional forms alone cannot
         // produce. It is one glyph, not two.
-        assert_eq!(shaped_names(&font, "\u{0644}\u{0627}", true), ["lam_alef-ar"]);
+        assert_eq!(
+            shaped_names(&font, "\u{0644}\u{0627}", true),
+            ["lam_alef-ar"]
+        );
     }
 
     #[test]
@@ -322,7 +323,9 @@ mod tests {
     #[test]
     fn shaped_glyphs_carry_advances_and_clusters() {
         let font = ShapingFont::build(&virtua_grotesk()).expect("shaping font builds");
-        let shaped = font.shape("\u{0644}\u{0627}", true).expect("shaping succeeds");
+        let shaped = font
+            .shape("\u{0644}\u{0627}", true)
+            .expect("shaping succeeds");
         assert_eq!(shaped.len(), 1);
         // The ligature stands for both characters, and reports the
         // cluster of the first.
@@ -346,5 +349,4 @@ pub fn log_shaping_failure(message: &str) {
     web_sys::console::warn_1(&format!("[runebender] shaping font: {message}").into());
     #[cfg(not(target_arch = "wasm32"))]
     let _ = message;
-
 }

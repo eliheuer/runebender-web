@@ -141,8 +141,14 @@ fn trace_image(image_bytes: &[u8], config_json: &str) -> Result<TraceImageReport
         Err(_) => opts.profile,
     };
 
-    let glyph = img2bez::trace_glyph(image_bytes, config.glyph.as_str(), &codepoints, &opts, &metrics)
-        .map_err(|e| format!("img2bez trace failed: {e}"))?;
+    let glyph = img2bez::trace_glyph(
+        image_bytes,
+        config.glyph.as_str(),
+        &codepoints,
+        &opts,
+        &metrics,
+    )
+    .map_err(|e| format!("img2bez trace failed: {e}"))?;
 
     let glif = glyph.to_glif();
     let paths = glyph.outline.to_bezpaths();
@@ -256,7 +262,10 @@ mod tests {
 
     #[test]
     fn parses_common_unicode_forms() {
-        assert_eq!(parse_codepoints(None).expect("none parses"), Vec::<char>::new());
+        assert_eq!(
+            parse_codepoints(None).expect("none parses"),
+            Vec::<char>::new()
+        );
         assert_eq!(
             parse_codepoints(Some("0023, U+0026")).expect("hex parses"),
             vec!['#', '&']

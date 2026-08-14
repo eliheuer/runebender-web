@@ -57,7 +57,7 @@ impl Cubic {
             + self.p1.to_vec2() * (3.0 * mt * mt * t)
             + self.p2.to_vec2() * (3.0 * mt * t * t)
             + self.p3.to_vec2() * (t * t * t))
-        .to_point()
+            .to_point()
     }
 
     /// Signed curvature at `t` — κ = (r'×r'') / |r'|³.
@@ -105,13 +105,21 @@ impl Cubic {
     /// Incoming tangent direction at the end (`t=1`).
     fn tangent_end(&self) -> Vec2 {
         let t = self.p3 - self.p2;
-        if t.hypot() > 1e-9 { t } else { self.p3 - self.p0 }
+        if t.hypot() > 1e-9 {
+            t
+        } else {
+            self.p3 - self.p0
+        }
     }
 
     /// Outgoing tangent direction at the start (`t=0`).
     fn tangent_start(&self) -> Vec2 {
         let t = self.p1 - self.p0;
-        if t.hypot() > 1e-9 { t } else { self.p3 - self.p0 }
+        if t.hypot() > 1e-9 {
+            t
+        } else {
+            self.p3 - self.p0
+        }
     }
 }
 
@@ -262,7 +270,11 @@ pub fn curvature_comb(
                 let mag = if signed { k } else { k.abs() };
                 let on = seg.eval(t);
                 let outer = on + normal * (mag * gain * scale);
-                strip.push(CombSample { on, outer, kappa: k });
+                strip.push(CombSample {
+                    on,
+                    outer,
+                    kappa: k,
+                });
             }
             if strip.len() >= 2 {
                 strips.push(strip);
@@ -369,7 +381,13 @@ fn line_intersect(a: Point, b: Point, c: Point, d: Point) -> Option<Point> {
 /// return the new positions of the two adjacent handles that make the join
 /// curvature-continuous (G2) while keeping the on-curve point fixed
 /// (SuperTool / Curvatura). `None` for degenerate configurations.
-pub fn harmonize(a1: Point, a2: Point, node: Point, b1: Point, b2: Point) -> Option<(Point, Point)> {
+pub fn harmonize(
+    a1: Point,
+    a2: Point,
+    node: Point,
+    b1: Point,
+    b2: Point,
+) -> Option<(Point, Point)> {
     let d = line_intersect(a1, a2, b1, b2)?;
     let p0 = (a2 - a1).hypot() / (d - a2).hypot();
     let p1 = (b1 - d).hypot() / (b2 - b1).hypot();
@@ -533,16 +551,32 @@ fn snap_all(q: &mut [Point], on: &[bool], n: usize, tol: f64) {
         let lock_y = d.y.abs() < 0.5; // horizontal handle → y pinned
         let ax = anchor.x.round() as i64;
         let ay = anchor.y.round() as i64;
-        let base_x = if lock_x { ax } else { round_even_scalar(smooth_pos.x) };
-        let base_y = if lock_y { ay } else { round_even_scalar(smooth_pos.y) };
+        let base_x = if lock_x {
+            ax
+        } else {
+            round_even_scalar(smooth_pos.x)
+        };
+        let base_y = if lock_y {
+            ay
+        } else {
+            round_even_scalar(smooth_pos.y)
+        };
         q[h] = Point::new(base_x as f64, base_y as f64);
         let base = local_cost(q, on, n, h);
         // Candidates: even values on the free axes only, ordered by the
         // popcount of the delta from the anchor (prefers 8s / powers of two),
         // then by closeness to the smooth position.
         let w = 8;
-        let xs = if lock_x { vec![ax] } else { even_range(base_x, w) };
-        let ys = if lock_y { vec![ay] } else { even_range(base_y, w) };
+        let xs = if lock_x {
+            vec![ax]
+        } else {
+            even_range(base_x, w)
+        };
+        let ys = if lock_y {
+            vec![ay]
+        } else {
+            even_range(base_y, w)
+        };
         let mut cands: Vec<(i64, i64)> = Vec::new();
         for &x in &xs {
             for &y in &ys {
@@ -608,7 +642,7 @@ mod tests {
         assert_eq!(popcount(128), 1);
         assert_eq!(popcount(192), 2); // 128 + 64
         assert_eq!(popcount(139), 4); // odd, off-grid, noisy
-                                      // round_even keeps both axes on the 2-grid.
+        // round_even keeps both axes on the 2-grid.
         let r = round_even(Point::new(103.2, 137.6));
         assert_eq!(r, Point::new(104.0, 138.0));
     }
@@ -619,18 +653,66 @@ mod tests {
         let r = 100.0;
         let k = 0.5522847 * r;
         let pts = vec![
-            OptPoint { p: Point::new(r, 0.0), on: true, smooth: true },
-            OptPoint { p: Point::new(r, k), on: false, smooth: false },
-            OptPoint { p: Point::new(k, r), on: false, smooth: false },
-            OptPoint { p: Point::new(0.0, r), on: true, smooth: true },
-            OptPoint { p: Point::new(-k, r), on: false, smooth: false },
-            OptPoint { p: Point::new(-r, k), on: false, smooth: false },
-            OptPoint { p: Point::new(-r, 0.0), on: true, smooth: true },
-            OptPoint { p: Point::new(-r, -k), on: false, smooth: false },
-            OptPoint { p: Point::new(-k, -r), on: false, smooth: false },
-            OptPoint { p: Point::new(0.0, -r), on: true, smooth: true },
-            OptPoint { p: Point::new(k, -r), on: false, smooth: false },
-            OptPoint { p: Point::new(r, -k), on: false, smooth: false },
+            OptPoint {
+                p: Point::new(r, 0.0),
+                on: true,
+                smooth: true,
+            },
+            OptPoint {
+                p: Point::new(r, k),
+                on: false,
+                smooth: false,
+            },
+            OptPoint {
+                p: Point::new(k, r),
+                on: false,
+                smooth: false,
+            },
+            OptPoint {
+                p: Point::new(0.0, r),
+                on: true,
+                smooth: true,
+            },
+            OptPoint {
+                p: Point::new(-k, r),
+                on: false,
+                smooth: false,
+            },
+            OptPoint {
+                p: Point::new(-r, k),
+                on: false,
+                smooth: false,
+            },
+            OptPoint {
+                p: Point::new(-r, 0.0),
+                on: true,
+                smooth: true,
+            },
+            OptPoint {
+                p: Point::new(-r, -k),
+                on: false,
+                smooth: false,
+            },
+            OptPoint {
+                p: Point::new(-k, -r),
+                on: false,
+                smooth: false,
+            },
+            OptPoint {
+                p: Point::new(0.0, -r),
+                on: true,
+                smooth: true,
+            },
+            OptPoint {
+                p: Point::new(k, -r),
+                on: false,
+                smooth: false,
+            },
+            OptPoint {
+                p: Point::new(r, -k),
+                on: false,
+                smooth: false,
+            },
         ];
         let out = optimize_contour(&pts, 0.12);
         // On-curve points are unchanged.
@@ -654,7 +736,10 @@ mod tests {
         assert_eq!(out[2].y, r, "top-right handle left its flat tangent");
         assert_eq!(out[4].y, r, "top-left handle left its flat tangent");
         assert_eq!(out[1].x, r, "right-top handle left its vertical tangent");
-        assert_eq!(out[11].x, r, "right-bottom handle left its vertical tangent");
+        assert_eq!(
+            out[11].x, r,
+            "right-bottom handle left its vertical tangent"
+        );
     }
 
     // A cubic approximating a quarter circle of radius r: handle length
@@ -701,14 +786,31 @@ mod tests {
         let a1 = Point::new(-70.0, -50.0); // far incoming handle
         let b1 = Point::new(0.0, 50.0); // outgoing handle adjacent to node
         let b2 = Point::new(-80.0, 80.0); // far outgoing handle
-        let inc = Cubic { p0: Point::new(-100.0, -90.0), p1: a1, p2: a2, p3: node, straight: false, start_smooth: true };
-        let out = Cubic { p0: node, p1: b1, p2: b2, p3: Point::new(-120.0, 120.0), straight: false, start_smooth: true };
+        let inc = Cubic {
+            p0: Point::new(-100.0, -90.0),
+            p1: a1,
+            p2: a2,
+            p3: node,
+            straight: false,
+            start_smooth: true,
+        };
+        let out = Cubic {
+            p0: node,
+            p1: b1,
+            p2: b2,
+            p3: Point::new(-120.0, 120.0),
+            straight: false,
+            start_smooth: true,
+        };
         let before = (inc.curvature_end() - out.curvature_start()).abs();
         let (na2, nb1) = harmonize(a1, a2, node, b1, b2).unwrap();
         let inc2 = Cubic { p2: na2, ..inc };
         let out2 = Cubic { p1: nb1, ..out };
         let after = (inc2.curvature_end() - out2.curvature_start()).abs();
-        assert!(after < before * 0.3, "harmonize should nearly equalize curvature: {before} -> {after}");
+        assert!(
+            after < before * 0.3,
+            "harmonize should nearly equalize curvature: {before} -> {after}"
+        );
     }
 
     #[test]

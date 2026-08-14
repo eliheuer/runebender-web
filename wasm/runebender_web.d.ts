@@ -14,6 +14,12 @@ export class GlyphEditor {
      * sort was hit, including when the hit sort is already active.
      */
     activateTextSortAtState(x: number, y: number): Float64Array;
+    /**
+     * Whether the active text sort renders right to left (the bidi run
+     * it sits in, not the line). Drives the metrics panel's swap of
+     * left/right kern fields so they match what is on screen.
+     */
+    activeTextSortRtl(): boolean;
     addAnchorAt(x: number, y: number, name: string): boolean;
     /**
      * Advance width of the currently-open glyph (design units).
@@ -326,6 +332,14 @@ export class GlyphEditor {
     setTool(tool_id: string): boolean;
     setZoom(zoom: number): void;
     shapeTextBuffer(): boolean;
+    /**
+     * Which sidebearing edge sits under the pointer, for cursor
+     * feedback: 0 = left (origin / LSB), 1 = right (advance / RSB),
+     * -1 = neither. Same hit test the Select tool uses on pointer-down.
+     * Also records the hover on the editor state so the renderer lights
+     * the edge up on the next frame.
+     */
+    sidebearingEdgeAt(x: number, y: number): number;
     subtractSelection(): boolean;
     textBufferLayout(line_height: number): string;
     /**
@@ -430,7 +444,7 @@ export function glifToSvgWithComponents(bytes: Uint8Array, glyph_xml_by_name: st
 
 /**
  * Update one UFO kerning group lib entry in a .glif file. `side`
- * accepts `left`/`public.kern1` or `right`/`public.kern2`; an empty
+ * accepts `left`/`public.kern2` or `right`/`public.kern1`; an empty
  * group or `-` clears that lib entry, matching xilem's active panel.
  */
 export function glifWithKerningGroup(bytes: Uint8Array, side: string, group: string): Uint8Array;
@@ -525,6 +539,7 @@ export interface InitOutput {
     readonly glypheditor_activateTextSortAt: (a: number, b: number, c: number) => number;
     readonly glypheditor_activateTextSortAtIndex: (a: number, b: number, c: number) => number;
     readonly glypheditor_activateTextSortAtState: (a: number, b: number, c: number) => [number, number];
+    readonly glypheditor_activeTextSortRtl: (a: number) => number;
     readonly glypheditor_addAnchorAt: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly glypheditor_advanceWidth: (a: number) => number;
     readonly glypheditor_anchorContextAt: (a: number, b: number, c: number) => [number, number];
@@ -640,6 +655,7 @@ export interface InitOutput {
     readonly glypheditor_setTool: (a: number, b: number, c: number) => number;
     readonly glypheditor_setZoom: (a: number, b: number) => void;
     readonly glypheditor_shapeTextBuffer: (a: number) => number;
+    readonly glypheditor_sidebearingEdgeAt: (a: number, b: number, c: number) => number;
     readonly glypheditor_subtractSelection: (a: number) => number;
     readonly glypheditor_textBufferLayout: (a: number, b: number) => [number, number, number, number];
     readonly glypheditor_textBufferPreviewSvg: (a: number, b: number) => [number, number, number, number];

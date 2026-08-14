@@ -16,9 +16,9 @@
 
 use std::collections::{BTreeMap, HashSet};
 
+use glyphslib::Font as GlyphsFont;
 use glyphslib::common::NodeType;
 use glyphslib::glyphs3::{Glyphs3, MetricType, Shape};
-use glyphslib::Font as GlyphsFont;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -48,7 +48,11 @@ pub fn glyphs_to_ufo_files(glyphs_text: &str) -> Result<ConversionResult, String
     let mut files = Vec::new();
     let mut warnings = Vec::new();
     let family = font.family_name.trim();
-    let family = if family.is_empty() { "Untitled" } else { family };
+    let family = if family.is_empty() {
+        "Untitled"
+    } else {
+        family
+    };
     let family_compact: String = family.chars().filter(|c| !c.is_whitespace()).collect();
 
     for master in &font.masters {
@@ -88,12 +92,10 @@ pub fn glyphs_to_ufo_files(glyphs_text: &str) -> Result<ConversionResult, String
             };
             match layer_to_glif(font, glyph, layer) {
                 Ok(xml) => {
-                    let file_name = norad::user_name_to_file_name(
-                        &glyph.name,
-                        "",
-                        ".glif",
-                        |candidate| !existing.contains(candidate),
-                    );
+                    let file_name =
+                        norad::user_name_to_file_name(&glyph.name, "", ".glif", |candidate| {
+                            !existing.contains(candidate)
+                        });
                     let file_name = file_name.to_string_lossy().to_string();
                     existing.insert(file_name.clone());
                     contents.push_str(&format!(
@@ -442,7 +444,9 @@ fn designspace_xml(font: &Glyphs3, family: &str, family_compact: &str) -> String
         .find(|m| m.id == origin_id)
         .unwrap_or(&font.masters[0]);
 
-    let mut xml = String::from("<?xml version='1.0' encoding='UTF-8'?>\n<designspace format=\"4.1\">\n  <axes>\n");
+    let mut xml = String::from(
+        "<?xml version='1.0' encoding='UTF-8'?>\n<designspace format=\"4.1\">\n  <axes>\n",
+    );
     for (i, axis) in font.axes.iter().enumerate() {
         let values: Vec<f32> = font
             .masters
@@ -563,7 +567,10 @@ kerningLTR = { m01 = { "@MMK_L_A" = { "@MMK_R_A" = -20; }; }; };
         assert!(glif.text.contains("unicode hex=\"0041\""));
         // Closed contour: Glyphs' trailing start node becomes the
         // first UFO point.
-        assert!(glif.text.contains("<point x=\"600\" y=\"0\" type=\"line\"/>"));
+        assert!(
+            glif.text
+                .contains("<point x=\"600\" y=\"0\" type=\"line\"/>")
+        );
         assert!(glif.text.contains("anchor"));
 
         let aacute = result
@@ -595,6 +602,9 @@ kerningLTR = { m01 = { "@MMK_L_A" = { "@MMK_R_A" = -20; }; }; };
             .find(|f| f.path == "TestSans.designspace")
             .unwrap();
         assert!(ds.text.contains("tag=\"wght\""));
-        assert!(ds.text.contains("minimum=\"400\" maximum=\"700\" default=\"400\""));
+        assert!(
+            ds.text
+                .contains("minimum=\"400\" maximum=\"700\" default=\"400\"")
+        );
     }
 }

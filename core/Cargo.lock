@@ -1250,6 +1250,7 @@ checksum = "7564e90fe3c0d5771e1f0bc95322b21baaeaa0d9213fa6a0b61c99f8b17b3bfb"
 dependencies = [
  "arrayvec",
  "euclid",
+ "serde",
  "smallvec",
 ]
 
@@ -1289,12 +1290,12 @@ checksum = "d4a5ff6bcca6c4867b1c4fd4ef63e4db7436ef363e0ad7531d1558856bae64f4"
 
 [[package]]
 name = "linesweeper"
-version = "0.2.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2512f2ba5cba9da1b32c351f3ba3a618886dc9ab435cfb99093cdbb77a5432e9"
+checksum = "9c19728333c060c6569a53c9a0e56c4be0df52cb4e6e07a8fbe16084cecce769"
 dependencies = [
  "arrayvec",
- "kurbo 0.12.0",
+ "kurbo 0.13.0",
  "polycool",
  "rustc-hash 2.1.2",
  "smallvec",
@@ -1993,7 +1994,6 @@ dependencies = [
  "glyphslib",
  "harfrust",
  "img2bez",
- "kurbo 0.12.0",
  "kurbo 0.13.0",
  "kurbo 0.9.5",
  "linesweeper",

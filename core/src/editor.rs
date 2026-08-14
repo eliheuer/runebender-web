@@ -7,7 +7,6 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use kurbo::{Affine, BezPath, Line, PathEl, Point, Rect, Shape, Vec2};
-use kurbo_012::{BezPath as BezPath012, PathEl as PathEl012, Point as Point012};
 use serde::Deserialize;
 
 use crate::editing::{Selection, ViewPort};
@@ -19,7 +18,7 @@ use crate::path::{
     CubicPath, HyperPath, Path, PathPoint, PathPoints, PointType, Quadrant, QuadraticPath, Segment,
     SegmentInfo,
 };
-use crate::text::TextBuffer;
+use crate::text::{TextBuffer, TextSort};
 
 const DESIGN_GRID_SPACING: f64 = 2.0;
 const DEFAULT_ROUND_CORNER_OFFSET: f64 = 32.0;
@@ -101,6 +100,23 @@ pub struct ComponentPreview {
     pub transformed_path: Arc<BezPath>,
     pub anchors: Vec<AnchorPoint>,
     pub auto_align: bool,
+}
+
+// Design-grid calibration, shared between the renderer (which draws the
+// grid) and the tools (which snap to it). Each level fades in past its
+// MIN_ZOOM; FINE is the line spacing in design units.
+pub(crate) const DESIGN_GRID_MID_MIN_ZOOM: f64 = 0.8;
+pub(crate) const DESIGN_GRID_MID_FINE: f64 = 8.0;
+pub(crate) const DESIGN_GRID_CLOSE_MIN_ZOOM: f64 = 8.0;
+pub(crate) const DESIGN_GRID_CLOSE_FINE: f64 = 2.0;
+
+/// The two vertical edges of a glyph's metric box: the origin (left)
+/// and the advance width (right). Dragging one on the canvas is the
+/// gesture form of editing LSB / RSB in the sidebar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SidebearingEdge {
+    Left,
+    Right,
 }
 
 #[derive(Debug, Clone)]
@@ -197,6 +213,11 @@ pub struct EditorState {
     /// feedback in Select.
     pub segment_hover: Option<SegmentHoverPreview>,
 
+    /// Which metric edge the Select pointer is over (or dragging), so
+    /// the renderer can light it up and the host can show a resize
+    /// cursor. Transient, never persisted.
+    pub sidebearing_hover: Option<SidebearingEdge>,
+
     /// Transient screen-space measurement overlay.
     pub measure_preview: Option<MeasurePreview>,
 
@@ -256,6 +277,7 @@ impl Default for EditorState {
             shape_preview: None,
             pen_preview: None,
             segment_hover: None,
+            sidebearing_hover: None,
             measure_preview: None,
             knife_preview: None,
             last_transform: None,
@@ -1987,7 +2009,13 @@ impl EditorState {
     }
 
     pub fn set_advance_width(&mut self, width: f64) -> bool {
-        if !width.is_finite() || width < 0.0 {
+        // The cap is far past any real glyph (an em is ~1000 units) but
+        // well short of the 2^33 garbage a poisoned bbox once produced:
+        // sidebearing edits derive the width from the ink's edge, so one
+        // insane point must not become an insane width that then floods
+        // the text buffer and every metric box on screen.
+        const MAX_ADVANCE_WIDTH: f64 = 1_000_000.0;
+        if !width.is_finite() || width < 0.0 || width > MAX_ADVANCE_WIDTH {
             return false;
         }
         if (self.advance_width - width).abs() < 1e-9 {
@@ -2024,9 +2052,119 @@ impl EditorState {
         if delta.abs() < 1e-9 {
             return false;
         }
-        translate_all_paths(&mut self.paths, Vec2::new(delta, 0.0));
+        self.translate_whole_glyph(Vec2::new(delta, 0.0));
         self.bump_edit_revision();
         true
+    }
+
+    /// Which sidebearing edge of the glyph's metric box sits within
+    /// `tolerance` design units of `design_pt`. The edges are the two
+    /// vertical metric lines: the origin at x = 0 and the advance at
+    /// x = advance_width, over the vertical span the renderer draws them.
+    /// When the two coincide (a zero-width glyph) the right edge wins,
+    /// because dragging out a width is the only sensible gesture there.
+    pub fn sidebearing_edge_at(&self, design_pt: Point, tolerance: f64) -> Option<SidebearingEdge> {
+        let (ascender, descender) = self.text_metric_bounds();
+        let (sort_top, sort_bottom) = self.text_sort_metric_bounds();
+        let top = ascender.max(sort_top);
+        let bottom = descender.min(sort_bottom);
+        if design_pt.y < bottom - tolerance || design_pt.y > top + tolerance {
+            return None;
+        }
+        if (design_pt.x - self.advance_width).abs() <= tolerance {
+            return Some(SidebearingEdge::Right);
+        }
+        if design_pt.x.abs() <= tolerance {
+            return Some(SidebearingEdge::Left);
+        }
+        None
+    }
+
+    /// Drag a sidebearing edge by `delta` design units (positive = right).
+    ///
+    /// The dragged edge is the only thing that moves: the right edge sets
+    /// the advance width (RSB), and the left edge moves the glyph origin —
+    /// LSB and width change together so the RSB stays put. For the left
+    /// edge the ink is translated in glyph space, so the viewport shifts
+    /// the other way to keep the ink still on screen; what the user sees
+    /// is the origin line following the cursor.
+    pub fn drag_sidebearing_edge(&mut self, edge: SidebearingEdge, delta: f64) -> bool {
+        if !delta.is_finite() || delta == 0.0 {
+            return false;
+        }
+        let changed = match edge {
+            SidebearingEdge::Right => self.set_advance_width(self.advance_width + delta),
+            SidebearingEdge::Left => {
+                let width = self.advance_width - delta;
+                if !width.is_finite() || width < 0.0 {
+                    return false;
+                }
+                self.translate_whole_glyph(Vec2::new(-delta, 0.0));
+                self.advance_width = width;
+                self.viewport.offset.x += delta * self.viewport.zoom;
+                self.bump_edit_revision();
+                true
+            }
+        };
+        if changed {
+            // The text buffer carries its own copy of each sort's advance
+            // width, and the metric box on the canvas is drawn from THAT —
+            // without this the dragged edge would not move until the next
+            // full sync from the host.
+            self.sync_advance_width_to_text_buffer();
+        }
+        changed
+    }
+
+    /// Push the editor's advance width into every text-buffer sort that
+    /// shows the glyph being edited, so the canvas reflows live.
+    fn sync_advance_width_to_text_buffer(&mut self) {
+        let Some(active) = self.text_buffer.active_sort() else {
+            return;
+        };
+        let Some(name) = self
+            .text_buffer
+            .sort(active)
+            .and_then(TextSort::glyph_name)
+            .map(str::to_owned)
+        else {
+            return;
+        };
+        for index in 0..self.text_buffer.len() {
+            let Some(sort) = self.text_buffer.sort(index) else {
+                continue;
+            };
+            if sort.glyph_name() != Some(name.as_str()) {
+                continue;
+            }
+            let codepoint = match &sort.kind {
+                crate::text::TextSortKind::Glyph { codepoint, .. } => *codepoint,
+                _ => continue,
+            };
+            self.text_buffer
+                .update_glyph(index, name.clone(), codepoint, self.advance_width);
+        }
+    }
+
+    /// Shift everything the glyph owns — outlines, components, anchors —
+    /// as one unit. This is what changing the left sidebearing means: the
+    /// ink moves, and anything positioned relative to the ink moves with
+    /// it. Components matter most: a composite like quoteright has no
+    /// paths of its own, so translating only `self.paths` would silently
+    /// do nothing and the sidebearing would spring back.
+    fn translate_whole_glyph(&mut self, delta: Vec2) {
+        translate_all_paths(&mut self.paths, delta);
+        for anchor in &mut self.anchors {
+            anchor.point += delta;
+        }
+        for component in &mut self.component_previews {
+            component.transform = Affine::translate(delta) * component.transform;
+            rebuild_component_transformed_path(component);
+        }
+        if !self.component_previews.is_empty() {
+            self.rebuild_component_preview();
+            self.rebuild_propagated_anchors();
+        }
     }
 
     pub fn set_right_sidebearing(&mut self, value: f64) -> bool {
@@ -2563,31 +2701,32 @@ impl EditorState {
     /// matching xilem's contour-order behavior.
     pub fn boolean_selection(&mut self, op: linesweeper::BinaryOp) -> bool {
         if self.paths.len() < 2 {
+            log_boolean_refusal("needs at least two contours");
             return false;
         }
 
         let mut glyph_paths = self
             .paths
             .iter()
-            .map(path_to_bezpath_012)
+            .map(Path::to_bezpath)
             .collect::<Vec<_>>();
 
         let (set_a, set_b) = match op {
             linesweeper::BinaryOp::Union => {
-                let mut combined = BezPath012::new();
+                let mut combined = BezPath::new();
                 for path in &glyph_paths {
-                    append_bezpath_012_from_012(&mut combined, path);
+                    combined.extend(path.elements().iter().copied());
                 }
-                (combined, BezPath012::new())
+                (combined, BezPath::new())
             }
             _ => {
                 let set_a = glyph_paths
                     .drain(..1)
                     .next()
                     .expect("paths len checked above");
-                let mut rest = BezPath012::new();
+                let mut rest = BezPath::new();
                 for path in &glyph_paths {
-                    append_bezpath_012_from_012(&mut rest, path);
+                    rest.extend(path.elements().iter().copied());
                 }
                 (set_a, rest)
             }
@@ -2596,7 +2735,10 @@ impl EditorState {
         let result =
             match linesweeper::binary_op(&set_a, &set_b, linesweeper::FillRule::NonZero, op) {
                 Ok(contours) => contours,
-                Err(_) => return false,
+                Err(error) => {
+                    log_boolean_refusal(&format!("linesweeper error: {error:?}"));
+                    return false;
+                }
             };
 
         let original_types = self
@@ -2617,6 +2759,61 @@ impl EditorState {
             .collect();
 
         if result_paths.is_empty() {
+            log_boolean_refusal("empty result");
+            return false;
+        }
+
+        // Degenerate input (a shape unioned with a coincident copy of
+        // itself, say) can make the sweep produce garbage: points at
+        // absurd coordinates. Accepting one poisons the glyph bbox, and
+        // the next sidebearing edit turns it into an advance width in
+        // the billions. Refuse the result and keep the original outline
+        // instead — a no-op beats a corrupted glyph.
+        let input_bbox = self.glyph_bbox();
+        let sane_limit = input_bbox
+            .map(|bbox| {
+                bbox.x0
+                    .abs()
+                    .max(bbox.x1.abs())
+                    .max(bbox.y0.abs())
+                    .max(bbox.y1.abs())
+                    * 10.0
+                    + 10_000.0
+            })
+            .unwrap_or(1_000_000.0);
+        let geometry_sane = result_paths.iter().all(|path| {
+            path.points().iter().all(|point| {
+                point.point.x.is_finite()
+                    && point.point.y.is_finite()
+                    && point.point.x.abs() <= sane_limit
+                    && point.point.y.abs() <= sane_limit
+            })
+        });
+        if !geometry_sane {
+            let mut details = format!("insane output coordinates (limit {sane_limit})");
+            for (index, path) in result_paths.iter().enumerate() {
+                let points = path.points();
+                let bad = points
+                    .iter()
+                    .filter(|point| {
+                        !point.point.x.is_finite()
+                            || !point.point.y.is_finite()
+                            || point.point.x.abs() > sane_limit
+                            || point.point.y.abs() > sane_limit
+                    })
+                    .count();
+                if bad > 0 {
+                    let sample = points
+                        .iter()
+                        .find(|point| point.point.x.abs() > sane_limit)
+                        .map(|point| point.point);
+                    details.push_str(&format!(
+                        "; contour {index}: {} points, {bad} bad, sample {sample:?}",
+                        points.len()
+                    ));
+                }
+            }
+            log_boolean_refusal(&details);
             return false;
         }
 
@@ -4291,70 +4488,30 @@ fn reverse_path_points(path: &mut Path) {
     }
 }
 
-fn path_to_bezpath_012(path: &Path) -> BezPath012 {
-    let mut bez = BezPath012::new();
-    append_bezpath_012_from_013(&mut bez, &path.to_bezpath());
-    bez
-}
-
-fn append_bezpath_012_from_013(dst: &mut BezPath012, src: &BezPath) {
-    for el in src.elements() {
-        match el {
-            PathEl::MoveTo(p) => dst.move_to(Point012::new(p.x, p.y)),
-            PathEl::LineTo(p) => dst.line_to(Point012::new(p.x, p.y)),
-            PathEl::QuadTo(c, p) => dst.quad_to(Point012::new(c.x, c.y), Point012::new(p.x, p.y)),
-            PathEl::CurveTo(c1, c2, p) => dst.curve_to(
-                Point012::new(c1.x, c1.y),
-                Point012::new(c2.x, c2.y),
-                Point012::new(p.x, p.y),
-            ),
-            PathEl::ClosePath => dst.close_path(),
-        }
-    }
-}
-
-fn append_bezpath_012_from_012(dst: &mut BezPath012, src: &BezPath012) {
-    for el in src.elements() {
-        match el {
-            PathEl012::MoveTo(p) => dst.move_to(Point012::new(p.x, p.y)),
-            PathEl012::LineTo(p) => dst.line_to(Point012::new(p.x, p.y)),
-            PathEl012::QuadTo(c, p) => {
-                dst.quad_to(Point012::new(c.x, c.y), Point012::new(p.x, p.y))
-            }
-            PathEl012::CurveTo(c1, c2, p) => dst.curve_to(
-                Point012::new(c1.x, c1.y),
-                Point012::new(c2.x, c2.y),
-                Point012::new(p.x, p.y),
-            ),
-            PathEl012::ClosePath => dst.close_path(),
-        }
-    }
-}
-
-fn bezpath_to_cubic(bezpath: &BezPath012) -> CubicPath {
+fn bezpath_to_cubic(bezpath: &BezPath) -> CubicPath {
     let mut points = Vec::new();
     let has_close = bezpath
         .elements()
         .iter()
-        .any(|el| matches!(el, PathEl012::ClosePath));
+        .any(|el| matches!(el, PathEl::ClosePath));
 
     for el in bezpath.elements() {
         match *el {
-            PathEl012::MoveTo(p) => {
+            PathEl::MoveTo(p) => {
                 points.push(PathPoint {
                     id: EntityId::next(),
                     point: Point::new(p.x, p.y),
                     typ: PointType::OnCurve { smooth: false },
                 });
             }
-            PathEl012::LineTo(p) => {
+            PathEl::LineTo(p) => {
                 points.push(PathPoint {
                     id: EntityId::next(),
                     point: Point::new(p.x, p.y),
                     typ: PointType::OnCurve { smooth: false },
                 });
             }
-            PathEl012::CurveTo(cp1, cp2, end) => {
+            PathEl::CurveTo(cp1, cp2, end) => {
                 points.push(PathPoint {
                     id: EntityId::next(),
                     point: Point::new(cp1.x, cp1.y),
@@ -4371,7 +4528,7 @@ fn bezpath_to_cubic(bezpath: &BezPath012) -> CubicPath {
                     typ: PointType::OnCurve { smooth: true },
                 });
             }
-            PathEl012::QuadTo(cp, end) => {
+            PathEl::QuadTo(cp, end) => {
                 points.push(PathPoint {
                     id: EntityId::next(),
                     point: Point::new(cp.x, cp.y),
@@ -4383,7 +4540,7 @@ fn bezpath_to_cubic(bezpath: &BezPath012) -> CubicPath {
                     typ: PointType::OnCurve { smooth: true },
                 });
             }
-            PathEl012::ClosePath => {}
+            PathEl::ClosePath => {}
         }
     }
 
@@ -4499,6 +4656,33 @@ fn segment_point_indices(len: usize, start: usize, end: usize) -> Vec<usize> {
 /// both the live editor (via `set_glyph_from_norad`) and any callers
 /// that just need a renderable path — e.g. the wasm `glifToSvg`
 /// helper that builds the grid view.
+/// Why a boolean path operation was refused, in the browser console
+/// (wasm) or stderr (native tests and the `bool_replay` example). The
+/// op quietly not applying is the safe behaviour, but silent is the
+/// wrong kind of quiet when someone is trying to understand it.
+fn log_boolean_refusal(message: &str) {
+    #[cfg(target_arch = "wasm32")]
+    web_sys::console::warn_1(&format!("[runebender] boolean op refused: {message}").into());
+    #[cfg(not(target_arch = "wasm32"))]
+    eprintln!("boolean op refused: {message}");
+}
+
+/// Drop any component whose base is the glyph itself. A glyph that
+/// contains itself is unbuildable (fontmake refuses it, the preview
+/// recursion only stops at its depth cap) — the classic way to write
+/// one is pasting a composite into its own base glyph. Returns how
+/// many were dropped so callers can say so.
+// Only the wasm-gated API layer calls this outside of tests.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub(crate) fn drop_self_referential_components(glyph: &mut norad::Glyph) -> usize {
+    let name = glyph.name().to_string();
+    let before = glyph.components.len();
+    glyph
+        .components
+        .retain(|component| component.base.as_str() != name);
+    before - glyph.components.len()
+}
+
 pub fn norad_glyph_to_bezpath(glyph: &norad::Glyph) -> BezPath {
     let mut combined = BezPath::new();
     for norad_contour in &glyph.contours {
@@ -4702,7 +4886,8 @@ mod tests {
 
     #[test]
     fn set_glyph_from_norad_builds_drawable_contours_for_real_glif() {
-        let bytes = include_bytes!("../../assets/test-fonts/VirtuaGrotesk-Regular.ufo/glyphs/two.glif");
+        let bytes =
+            include_bytes!("../../assets/test-fonts/VirtuaGrotesk-Regular.ufo/glyphs/two.glif");
         let glyph = norad::Glyph::parse_raw(bytes).expect("demo two.glif parses");
         let mut state = EditorState::default();
 
@@ -5984,6 +6169,113 @@ mod tests {
     }
 
     #[test]
+    fn boolean_selection_survives_degenerate_overlaps() {
+        // A duplicated shape unioned with itself — exactly coincident or
+        // offset by the duplicate nudge — is the classic degenerate input
+        // for a sweep-line algorithm. Whatever comes out, it must never
+        // put a point at an absurd coordinate: a stray far-away point
+        // silently poisons the glyph bbox, and the next RSB edit turns it
+        // into an advance width in the billions.
+        let square = |dx: f64, dy: f64| {
+            Path::Cubic(CubicPath::new(
+                PathPoints::from_vec(vec![
+                    on_curve(Point::new(dx, dy), false),
+                    on_curve(Point::new(dx + 100.0, dy), false),
+                    on_curve(Point::new(dx + 100.0, dy + 100.0), false),
+                    on_curve(Point::new(dx, dy + 100.0), false),
+                ]),
+                true,
+            ))
+        };
+        // A rounded shape: cubic curves whose intersections give the
+        // sweep real work, unlike straight edges.
+        let rounded = |dx: f64, dy: f64| {
+            Path::Cubic(CubicPath::new(
+                PathPoints::from_vec(vec![
+                    on_curve(Point::new(dx + 50.0, dy), true),
+                    off_curve(Point::new(dx + 90.0, dy)),
+                    off_curve(Point::new(dx + 100.0, dy + 10.0)),
+                    on_curve(Point::new(dx + 100.0, dy + 50.0), true),
+                    off_curve(Point::new(dx + 100.0, dy + 90.0)),
+                    off_curve(Point::new(dx + 90.0, dy + 100.0)),
+                    on_curve(Point::new(dx + 50.0, dy + 100.0), true),
+                    off_curve(Point::new(dx + 10.0, dy + 100.0)),
+                    off_curve(Point::new(dx, dy + 90.0)),
+                    on_curve(Point::new(dx, dy + 50.0), true),
+                    off_curve(Point::new(dx, dy + 10.0)),
+                    off_curve(Point::new(dx + 10.0, dy)),
+                ]),
+                true,
+            ))
+        };
+        let builders: [&dyn Fn(f64, f64) -> Path; 2] = [&square, &rounded];
+        for (shape_name, build) in ["square", "rounded"].iter().zip(builders) {
+            for (case, offset) in [("coincident", 0.0), ("nudged", 20.0), ("edge-shared", 100.0)]
+            {
+                for op in [
+                    linesweeper::BinaryOp::Union,
+                    linesweeper::BinaryOp::Difference,
+                    linesweeper::BinaryOp::Intersection,
+                ] {
+                    let mut state = EditorState::default();
+                    state.advance_width = 600.0;
+                    state.paths.push(build(0.0, 0.0));
+                    state.paths.push(build(offset, offset));
+                    let changed = state.boolean_selection(op);
+                    let Some(bbox) = state.glyph_bbox() else {
+                        continue;
+                    };
+                    for value in [bbox.x0, bbox.y0, bbox.x1, bbox.y1] {
+                        assert!(
+                            value.is_finite() && value.abs() < 10_000.0,
+                            "{shape_name} {case} {op:?} (changed={changed}) produced insane bbox {bbox:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn self_referential_components_are_dropped() {
+        // behDotless-ar.init regression: pasting a composite built FROM
+        // a glyph INTO that glyph copies a component pointing at itself,
+        // which fontmake refuses and the preview can only draw as
+        // depth-capped recursion soup.
+        let xml: &[u8] = br#"<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="behDotless-ar.init" format="2">
+  <advance width="288"/>
+  <outline>
+    <component base="behDotless-ar.init"/>
+    <component base="dotbelow-ar" yOffset="-100"/>
+  </outline>
+</glyph>
+"#;
+        let mut glyph = norad::Glyph::parse_raw(xml).expect("glif parses");
+        assert_eq!(drop_self_referential_components(&mut glyph), 1);
+        assert_eq!(
+            glyph
+                .components
+                .iter()
+                .map(|component| component.base.to_string())
+                .collect::<Vec<_>>(),
+            vec!["dotbelow-ar".to_string()],
+            "the self-reference goes, the legitimate component stays"
+        );
+    }
+
+    #[test]
+    fn advance_width_refuses_absurd_values() {
+        let mut state = EditorState::default();
+        state.advance_width = 600.0;
+        assert!(!state.set_advance_width(8_589_934_592.0));
+        assert!(!state.set_advance_width(f64::INFINITY));
+        assert_eq!(state.advance_width, 600.0);
+        assert!(state.set_advance_width(1028.0));
+        assert_eq!(state.advance_width, 1028.0);
+    }
+
+    #[test]
     fn selected_contour_count_counts_contours_not_points() {
         let mut state = EditorState::default();
         state.paths.push(Path::Cubic(CubicPath::new(
@@ -6570,5 +6862,79 @@ mod tests {
         assert!(state.set_left_sidebearing(20.0));
         let point = state.paths[0].points().iter().next().expect("point exists");
         assert_eq!(point.point.x, 20.0242);
+    }
+
+    #[test]
+    fn sidebearing_edge_drag_moves_only_its_own_side() {
+        let mut state = EditorState::default();
+        state.advance_width = 600.0;
+        state.viewport.zoom = 2.0;
+        state.paths.push(Path::Cubic(CubicPath::new(
+            PathPoints::from_vec(vec![
+                on_curve(Point::new(100.0, 0.0), false),
+                on_curve(Point::new(500.0, 0.0), false),
+            ]),
+            false,
+        )));
+
+        // Right edge out by 40: RSB grows, LSB untouched.
+        assert!(state.drag_sidebearing_edge(SidebearingEdge::Right, 40.0));
+        assert_eq!(state.advance_width, 640.0);
+        assert_eq!(state.left_sidebearing(), 100.0);
+
+        // Left edge in by 30: LSB shrinks, RSB stays, and the viewport
+        // shifts so the ink holds still on screen.
+        let offset_before = state.viewport.offset.x;
+        assert!(state.drag_sidebearing_edge(SidebearingEdge::Left, 30.0));
+        assert_eq!(state.left_sidebearing(), 70.0);
+        assert_eq!(state.advance_width, 610.0);
+        assert_eq!(state.right_sidebearing(), 140.0);
+        assert_eq!(state.viewport.offset.x - offset_before, 60.0);
+
+        // The hit test finds both edges and nothing in between.
+        assert_eq!(
+            state.sidebearing_edge_at(Point::new(2.0, 300.0), 5.0),
+            Some(SidebearingEdge::Left)
+        );
+        assert_eq!(
+            state.sidebearing_edge_at(Point::new(612.0, 300.0), 5.0),
+            Some(SidebearingEdge::Right)
+        );
+        assert_eq!(
+            state.sidebearing_edge_at(Point::new(300.0, 300.0), 5.0),
+            None
+        );
+    }
+
+    #[test]
+    fn left_sidebearing_moves_composite_glyphs() {
+        // quoteright regression: a glyph whose only ink is a component has
+        // no paths to translate, so the old code applied the delta to
+        // nothing and the sidebearing sprang back on refresh.
+        let mut state = EditorState::default();
+        state.advance_width = 264.0;
+        let mut path = BezPath::new();
+        path.move_to(Point::new(72.0, 0.0));
+        path.line_to(Point::new(200.0, 0.0));
+        path.line_to(Point::new(200.0, 100.0));
+        path.close_path();
+        state.set_component_previews(vec![ComponentPreview {
+            id: EntityId::next(),
+            index: 0,
+            base: "comma".to_string(),
+            transform: Affine::IDENTITY,
+            transformed_path: transformed_component_path(Affine::IDENTITY, &path),
+            path: Arc::new(path),
+            anchors: Vec::new(),
+            auto_align: true,
+        }]);
+
+        assert_eq!(state.left_sidebearing(), 72.0);
+        assert!(state.set_left_sidebearing(64.0));
+        assert_eq!(state.left_sidebearing(), 64.0);
+        let transform = state.component_transform(0).expect("component transform");
+        assert_eq!(transform.translation(), Vec2::new(-8.0, 0.0));
+        // Width untouched: an LSB edit moves ink, the RSB absorbs it.
+        assert_eq!(state.advance_width, 264.0);
     }
 }

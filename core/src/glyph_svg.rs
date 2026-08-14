@@ -108,7 +108,10 @@ mod tests {
     fn box_grows_to_hold_deep_descenders() {
         let (top, bottom) = ink_span(-900.0, 700.0);
         let (_, min_y, _, height) = view_box(&grid_thumbnail_svg(&box_path(-900.0, 700.0), 1000.0));
-        assert!(min_y <= top + EPS, "viewBox top {min_y} clips ink top {top}");
+        assert!(
+            min_y <= top + EPS,
+            "viewBox top {min_y} clips ink top {top}"
+        );
         assert!(
             min_y + height >= bottom - EPS,
             "viewBox bottom {} clips ink bottom {bottom}",

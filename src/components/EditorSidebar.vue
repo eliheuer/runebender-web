@@ -15,6 +15,7 @@ export type SidebarGlyphItem = {
   svg?: string;
   columnSpan: number;
   markLabel?: string;
+  compatError?: boolean;
 };
 export type SidebarShape = {
   label: string;
@@ -221,6 +222,7 @@ const packedGlyphs = computed<SidebarGlyphItem[]>(() => {
             :selected="item.name === currentGlyph || selectedGlyphs.includes(item.name)"
             :column-span="item.columnSpan"
             :mark-label="item.markLabel"
+            :compat-error="item.compatError"
             bare-unicode
             @click="emit('jumpGlyph', item.name, $event)"
           />

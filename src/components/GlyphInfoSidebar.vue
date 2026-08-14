@@ -20,7 +20,7 @@ defineProps<{
   /** Design units. -1 means "no glyph open" (sidebar shows em-dash). */
   width?: number;
   contours?: number;
-  /** Full UFO kerning group names, e.g. "public.kern1.O". */
+  /** Full UFO kerning group names. Left is kern2; right is kern1. */
   leftGroup?: string;
   rightGroup?: string;
 }>();
@@ -55,13 +55,13 @@ function displayGroup(group: string | undefined, prefix: string): string {
         <div class="kerning-row">
           <span class="kerning-side">Left</span>
           <span class="kerning-val">
-            {{ displayGroup(leftGroup, "public.kern1.") }}
+            {{ displayGroup(leftGroup, "public.kern2.") }}
           </span>
         </div>
         <div class="kerning-row">
           <span class="kerning-side">Right</span>
           <span class="kerning-val">
-            {{ displayGroup(rightGroup, "public.kern2.") }}
+            {{ displayGroup(rightGroup, "public.kern1.") }}
           </span>
         </div>
       </div>

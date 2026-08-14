@@ -26,9 +26,9 @@ pub struct Glyph {
     pub contours: Vec<Contour>,
     /// Components referencing other glyphs.
     pub components: Vec<Component>,
-    /// Left kerning group (e.g., "public.kern1.O").
+    /// Left-edge kerning group (e.g., "public.kern2.O").
     pub left_group: Option<String>,
-    /// Right kerning group (e.g., "public.kern2.O").
+    /// Right-edge kerning group (e.g., "public.kern1.O").
     pub right_group: Option<String>,
     /// Mark color (UFO public.markColor), stored as "R,G,B,A" with 0–1
     /// floats.

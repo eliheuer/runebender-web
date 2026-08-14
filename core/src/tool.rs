@@ -10,7 +10,7 @@ use crate::editing::hit_test::MIN_CLICK_DISTANCE;
 use crate::editing::{Drag, MouseDelegate, MouseEvent, Selection};
 use crate::editor::{
     EditorState, KnifePreview, MeasurePreview, MeasureSegmentLabel, PenPreview,
-    SegmentHoverPreview, ShapePreview,
+    SegmentHoverPreview, ShapePreview, SidebearingEdge,
 };
 use crate::model::entity_id::EntityId;
 use crate::path::{
@@ -235,7 +235,19 @@ enum SelectDragKind {
     Translate,
     ComponentTranslate,
     AnchorTranslate,
-    BoxSelect { initial: Selection },
+    /// Dragging a vertical metric edge: LSB (left) or RSB (right).
+    /// `applied` is the snapped delta already handed to the state, so
+    /// the drag can quantize to the design grid without accumulating
+    /// rounding drift. `start_width` anchors the right edge to grid
+    /// positions rather than grid-sized deltas.
+    Sidebearing {
+        edge: SidebearingEdge,
+        applied: f64,
+        start_width: f64,
+    },
+    BoxSelect {
+        initial: Selection,
+    },
     Pan,
 }
 
@@ -305,6 +317,18 @@ impl MouseDelegate for SelectTool {
                         state.select_anchor(anchor_id);
                         SelectDragKind::AnchorTranslate
                     }
+                } else if let Some(edge) = state.sidebearing_edge_at(design_pt, hit_radius) {
+                    // Before segments and components: with a small or
+                    // negative sidebearing the outline runs right along
+                    // the metric line, and a click aimed at the line
+                    // must not silently drag the stem that shares it.
+                    // Points and anchors still outrank the edge.
+                    state.sidebearing_hover = Some(edge);
+                    SelectDragKind::Sidebearing {
+                        edge,
+                        applied: 0.0,
+                        start_width: state.advance_width,
+                    }
                 } else if let Some(should_drag) =
                     state.select_segment_at_point(design_pt, hit_radius, event.mods.shift)
                 {
@@ -354,6 +378,37 @@ impl MouseDelegate for SelectTool {
                 let design_delta = screen_to_design_delta(state, screen_delta);
                 state.translate_selected_anchor(design_delta);
             }
+            SelectDragKind::Sidebearing {
+                edge,
+                applied,
+                start_width,
+            } => {
+                // Cumulative from the drag start, snapped to the grid the
+                // user can see: the visible design grid is what the edge
+                // should land on, so the snap step follows the zoom the
+                // same way the grid does — 2 units when the fine grid is
+                // up, 8 on the mid grid, whole units when no grid shows.
+                let total = (drag.current.x - drag.start.x) / state.viewport.zoom.max(1e-6);
+                let snap = sidebearing_snap_step(state.viewport.zoom);
+                let target = match edge {
+                    // The right edge is a position (the advance line), so
+                    // snap where it lands, not how far it moved.
+                    SidebearingEdge::Right => {
+                        ((start_width + total) / snap).round() * snap - start_width
+                    }
+                    // The left edge is the grid's own anchor: snapping the
+                    // delta keeps the ink on the same gridlines.
+                    SidebearingEdge::Left => (total / snap).round() * snap,
+                };
+                let step = target - applied;
+                if step != 0.0 && state.drag_sidebearing_edge(edge, step) {
+                    self.drag_kind = Some(SelectDragKind::Sidebearing {
+                        edge,
+                        applied: target,
+                        start_width,
+                    });
+                }
+            }
             SelectDragKind::BoxSelect { initial } => {
                 let rect = Rect::from_points(drag.start, drag.current);
                 state.marquee = Some(rect);
@@ -368,6 +423,14 @@ impl MouseDelegate for SelectTool {
     }
 
     fn mouse_moved(&mut self, event: MouseEvent, state: &mut Self::Data) {
+        // Idle hover over a metric edge lights it up and asks the host
+        // for a resize cursor. Not while a drag is running: the edge
+        // being dragged stays lit via left_down.
+        if self.drag_kind.is_none() {
+            let design_pt = state.screen_to_glyph_design(event.pos);
+            let tolerance = MIN_CLICK_DISTANCE / state.viewport.zoom.max(1e-6);
+            state.sidebearing_hover = state.sidebearing_edge_at(design_pt, tolerance);
+        }
         if !event.mods.alt {
             state.segment_hover = None;
             return;
@@ -403,7 +466,26 @@ impl MouseDelegate for SelectTool {
     fn cancel(&mut self, state: &mut Self::Data) {
         state.marquee = None;
         state.segment_hover = None;
+        state.sidebearing_hover = None;
         self.drag_kind = None;
+    }
+}
+
+/// Snap step for sidebearing-edge drags, matched to the design grid the
+/// renderer shows at this zoom (see DESIGN_GRID_* in renderer.rs): the
+/// 2-unit grid once it is visible, the 8-unit grid while that is the
+/// one on screen, whole units when no grid is drawn at all.
+fn sidebearing_snap_step(zoom: f64) -> f64 {
+    use crate::editor::{
+        DESIGN_GRID_CLOSE_FINE, DESIGN_GRID_CLOSE_MIN_ZOOM, DESIGN_GRID_MID_FINE,
+        DESIGN_GRID_MID_MIN_ZOOM,
+    };
+    if zoom > DESIGN_GRID_CLOSE_MIN_ZOOM {
+        DESIGN_GRID_CLOSE_FINE
+    } else if zoom > DESIGN_GRID_MID_MIN_ZOOM {
+        DESIGN_GRID_MID_FINE
+    } else {
+        1.0
     }
 }
 

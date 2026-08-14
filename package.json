@@ -11,6 +11,7 @@
     "serve": "node server/serve.mjs",
     "dev": "vite",
     "build": "vite build",
+    "test:kerning": "node --test src/kerning.test.ts",
     "preview": "vite preview",
     "wasm": "cd core && wasm-pack build --target web --out-dir ../wasm --release",
     "wasm:debug": "cd core && wasm-pack build --target web --out-dir ../wasm --dev",

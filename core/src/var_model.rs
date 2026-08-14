@@ -211,9 +211,10 @@ fn compute_supports(locations: &[Location]) -> Vec<Support> {
         for other in locations.iter().take(i) {
             // Only masters whose axes are a subset and which sit
             // inside this support can narrow it.
-            if other.iter().any(|(axis, &v)| {
-                v != 0.0 && !support.contains_key(axis)
-            }) {
+            if other
+                .iter()
+                .any(|(axis, &v)| v != 0.0 && !support.contains_key(axis))
+            {
                 continue;
             }
             if support.keys().any(|axis| {
@@ -235,11 +236,7 @@ fn compute_supports(locations: &[Location]) -> Vec<Support> {
             let mut best: Option<(String, (f64, f64, f64), f64)> = None;
             for (axis, &(lower, peak, upper)) in &support {
                 let v = other[axis];
-                let (new_lower, new_upper) = if v > peak {
-                    (lower, v)
-                } else {
-                    (v, upper)
-                };
+                let (new_lower, new_upper) = if v > peak { (lower, v) } else { (v, upper) };
                 let width = new_upper - new_lower;
                 if best.as_ref().is_none_or(|(_, _, w)| width < *w) {
                     best = Some((axis.clone(), (new_lower, peak, new_upper), width));

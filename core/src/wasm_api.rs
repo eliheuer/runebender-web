@@ -16,7 +16,7 @@ use runebender_core::{GlyphCategory, GlyphMetadata, mark_color};
 use crate::editing::{Modifiers, Mouse, MouseButton, MouseEvent, UndoState};
 use crate::editor::{
     AnchorPoint, ComponentPreview, EditorState, KnifePreview, MeasurePreview, NudgeSelectionResult,
-    PenPreview, SegmentHoverPreview, ShapePreview, norad_glyph_to_bezpath,
+    PenPreview, SegmentHoverPreview, ShapePreview, SidebearingEdge, norad_glyph_to_bezpath,
 };
 use crate::model::workspace::{
     Contour as WsContour, ContourPoint as WsContourPoint, PointType as WsPointType,
@@ -53,7 +53,9 @@ pub fn interpolate_glif(sources_json: &str, location_json: &str) -> Result<Vec<u
     let target: HashMap<String, f64> = serde_json::from_str(location_json)
         .map_err(|e| JsValue::from_str(&format!("parse location: {e}")))?;
     if sources.len() < 2 {
-        return Err(JsValue::from_str("interpolation needs at least two masters"));
+        return Err(JsValue::from_str(
+            "interpolation needs at least two masters",
+        ));
     }
 
     let glyphs: Vec<norad::Glyph> = sources
@@ -158,7 +160,10 @@ fn same_structure(a: &norad::Glyph, b: &norad::Glyph) -> bool {
 }
 
 /// Index of the source closest to `target` in normalized space.
-fn nearest_source(locations: &[crate::var_model::Location], target: &HashMap<String, f64>) -> usize {
+fn nearest_source(
+    locations: &[crate::var_model::Location],
+    target: &HashMap<String, f64>,
+) -> usize {
     let distance = |location: &crate::var_model::Location| {
         let mut sum = 0.0;
         for (axis, value) in target {
@@ -386,12 +391,12 @@ fn glif_metadata_from_norad(glyph: &norad::Glyph) -> GlifMetadata {
         glyph: glyph_metadata_from_norad(glyph),
         left_kerning_group: glyph
             .lib
-            .get("public.kern1")
+            .get("public.kern2")
             .and_then(|value| value.as_string())
             .map(ToString::to_string),
         right_kerning_group: glyph
             .lib
-            .get("public.kern2")
+            .get("public.kern1")
             .and_then(|value| value.as_string())
             .map(ToString::to_string),
     }
@@ -446,15 +451,15 @@ fn set_glyph_mark(
 }
 
 /// Update one UFO kerning group lib entry in a .glif file. `side`
-/// accepts `left`/`public.kern1` or `right`/`public.kern2`; an empty
+/// accepts `left`/`public.kern2` or `right`/`public.kern1`; an empty
 /// group or `-` clears that lib entry, matching xilem's active panel.
 #[wasm_bindgen(js_name = glifWithKerningGroup)]
 pub fn glif_with_kerning_group(bytes: &[u8], side: &str, group: &str) -> Result<Vec<u8>, JsValue> {
     let mut glyph = norad::Glyph::parse_raw(bytes)
         .map_err(|e| JsValue::from_str(&format!("parse .glif: {e}")))?;
     let key = match side {
-        "left" | "public.kern1" => "public.kern1",
-        "right" | "public.kern2" => "public.kern2",
+        "left" | "public.kern2" => "public.kern2",
+        "right" | "public.kern1" => "public.kern1",
         _ => {
             return Err(JsValue::from_str(
                 "kerning group side must be left or right",
@@ -524,6 +529,8 @@ pub fn glif_with_name(bytes: &[u8], name: &str) -> Result<Vec<u8>, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("serialize .glif: {e}")))
 }
 
+use crate::editor::drop_self_referential_components;
+
 /// Copy only outline data from one `.glif` into another, preserving
 /// target glyph identity/metadata. Used by xilem-style grid copy/paste.
 #[wasm_bindgen(js_name = glifWithOutlinesFrom)]
@@ -539,6 +546,18 @@ pub fn glif_with_outlines_from(
     target.width = source.width;
     target.contours = source.contours;
     target.components = source.components;
+    let dropped = drop_self_referential_components(&mut target);
+    if dropped > 0 {
+        #[cfg(target_arch = "wasm32")]
+        web_sys::console::warn_1(
+            &format!(
+                "[runebender] paste into {}: dropped {dropped} component(s) that would \
+                 reference the glyph itself",
+                target.name()
+            )
+            .into(),
+        );
+    }
 
     target
         .encode_xml()
@@ -883,22 +902,62 @@ mod tests {
 "#;
 
     #[test]
+    fn paste_never_writes_a_self_referential_component() {
+        // behDotless-ar.init regression: pasting a composite built FROM
+        // a glyph INTO that glyph copied a component pointing at itself,
+        // which fontmake refuses and the preview can only draw as
+        // depth-capped recursion soup.
+        let source: &[u8] = br#"<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="beh-ar.init" format="2">
+  <advance width="288"/>
+  <outline>
+    <component base="behDotless-ar.init"/>
+    <component base="dotbelow-ar" yOffset="-100"/>
+  </outline>
+</glyph>
+"#;
+        let target: &[u8] = br#"<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="behDotless-ar.init" format="2">
+  <advance width="288"/>
+  <outline>
+    <contour>
+      <point x="0" y="0" type="line"/>
+      <point x="100" y="0" type="line"/>
+      <point x="100" y="100" type="line"/>
+    </contour>
+  </outline>
+</glyph>
+"#;
+        let pasted = glif_with_outlines_from(source, target).expect("paste succeeds");
+        let glyph = norad::Glyph::parse_raw(&pasted).expect("pasted glif parses");
+        assert_eq!(
+            glyph
+                .components
+                .iter()
+                .map(|component| component.base.to_string())
+                .collect::<Vec<_>>(),
+            vec!["dotbelow-ar".to_string()],
+            "the self-reference is dropped, the legitimate component kept"
+        );
+    }
+
+    #[test]
     fn glif_with_kerning_group_round_trips_xilem_lib_fields() {
-        let with_left = glif_with_kerning_group(SIMPLE_GLIF, "left", "public.kern1.A")
+        let with_left = glif_with_kerning_group(SIMPLE_GLIF, "left", "public.kern2.A")
             .expect("left group update succeeds");
         let glyph = norad::Glyph::parse_raw(&with_left).expect("updated glif parses");
         assert_eq!(
             glyph
                 .lib
-                .get("public.kern1")
+                .get("public.kern2")
                 .and_then(|value| value.as_string()),
-            Some("public.kern1.A")
+            Some("public.kern2.A")
         );
 
-        let cleared = glif_with_kerning_group(&with_left, "public.kern1", "-")
+        let cleared = glif_with_kerning_group(&with_left, "public.kern2", "-")
             .expect("left group clear succeeds");
         let glyph = norad::Glyph::parse_raw(&cleared).expect("cleared glif parses");
-        assert!(glyph.lib.get("public.kern1").is_none());
+        assert!(glyph.lib.get("public.kern2").is_none());
 
         let with_right = glif_with_kerning_group(&cleared, "right", "bare-input")
             .expect("right group update succeeds");
@@ -906,9 +965,33 @@ mod tests {
         assert_eq!(
             glyph
                 .lib
-                .get("public.kern2")
+                .get("public.kern1")
                 .and_then(|value| value.as_string()),
             Some("bare-input")
+        );
+    }
+
+    #[test]
+    fn glif_metadata_maps_ufo_groups_to_physical_glyph_edges() {
+        let glyph = norad::Glyph::parse_raw(
+            br#"<glyph name="A" format="2">
+  <advance width="500"/>
+  <lib><dict>
+    <key>public.kern1</key><string>public.kern1.A</string>
+    <key>public.kern2</key><string>public.kern2.A</string>
+  </dict></lib>
+</glyph>"#,
+        )
+        .expect("glif parses");
+
+        let metadata = glif_metadata_from_norad(&glyph);
+        assert_eq!(
+            metadata.left_kerning_group.as_deref(),
+            Some("public.kern2.A")
+        );
+        assert_eq!(
+            metadata.right_kerning_group.as_deref(),
+            Some("public.kern1.A")
         );
     }
 
@@ -1837,8 +1920,14 @@ impl GlyphEditor {
         sidebearings: bool,
         popcount: bool,
     ) {
-        self.renderer
-            .set_measure_options(colorize, handles, segments, spans, sidebearings, popcount);
+        self.renderer.set_measure_options(
+            colorize,
+            handles,
+            segments,
+            spans,
+            sidebearings,
+            popcount,
+        );
     }
 
     /// Toggle the curve-smoothness HUD layers (comb, continuity markers).
@@ -2184,10 +2273,10 @@ impl GlyphEditor {
     ) -> usize {
         let codepoint = text_codepoint_from_wasm(codepoint);
         let snapshot = self.discrete_edit_snapshot();
-        let index = self
-            .state
-            .text_buffer
-            .insert_glyph_after_active(name, codepoint, advance_width);
+        let index =
+            self.state
+                .text_buffer
+                .insert_glyph_after_active(name, codepoint, advance_width);
         self.state.has_text_session = true;
         self.state.text_buffer.shape_arabic_if_rtl();
         self.state.bump_edit_revision();
@@ -2454,6 +2543,37 @@ impl GlyphEditor {
         out.push(edit_changed as u8 as f64);
         out.extend(self.selection_state_values());
         out
+    }
+
+    /// Whether the active text sort renders right to left (the bidi run
+    /// it sits in, not the line). Drives the metrics panel's swap of
+    /// left/right kern fields so they match what is on screen.
+    #[wasm_bindgen(js_name = activeTextSortRtl)]
+    pub fn active_text_sort_rtl(&self) -> bool {
+        self.state
+            .text_buffer
+            .active_sort()
+            .map(|index| self.state.text_buffer.sort_rtl(index))
+            .unwrap_or(false)
+    }
+
+    /// Which sidebearing edge sits under the pointer, for cursor
+    /// feedback: 0 = left (origin / LSB), 1 = right (advance / RSB),
+    /// -1 = neither. Same hit test the Select tool uses on pointer-down.
+    /// Also records the hover on the editor state so the renderer lights
+    /// the edge up on the next frame.
+    #[wasm_bindgen(js_name = sidebearingEdgeAt)]
+    pub fn sidebearing_edge_at(&mut self, x: f64, y: f64) -> i32 {
+        const MIN_CLICK_DISTANCE: f64 = 10.0;
+        let design = self.state.screen_to_glyph_design(Point::new(x, y));
+        let tolerance = MIN_CLICK_DISTANCE / self.state.viewport.zoom.max(1e-6);
+        let edge = self.state.sidebearing_edge_at(design, tolerance);
+        self.state.sidebearing_hover = edge;
+        match edge {
+            Some(SidebearingEdge::Left) => 0,
+            Some(SidebearingEdge::Right) => 1,
+            None => -1,
+        }
     }
 
     #[wasm_bindgen(js_name = clearSegmentHover)]
@@ -3317,6 +3437,19 @@ impl GlyphEditor {
                 (!component.auto_align).then(component_alignment_disabled_lib),
             ));
         }
+        // Belt and braces on every editor write-back, not just paste: a
+        // glyph must never persist a component pointing at itself.
+        let dropped = drop_self_referential_components(&mut glyph);
+        if dropped > 0 {
+            #[cfg(target_arch = "wasm32")]
+            web_sys::console::warn_1(
+                &format!(
+                    "[runebender] {}: dropped {dropped} self-referential component(s) on save",
+                    glyph.name()
+                )
+                .into(),
+            );
+        }
         glyph.anchors = self
             .state
             .anchors
@@ -3426,6 +3559,11 @@ fn editor_visual_signature(state: &EditorState) -> u64 {
     hash_f64(&mut hasher, state.viewport.zoom);
     hash_optional_rect(&mut hasher, state.marquee);
     hash_segment_hover(&mut hasher, state.segment_hover);
+    hasher.write_u8(match state.sidebearing_hover {
+        None => 0,
+        Some(SidebearingEdge::Left) => 1,
+        Some(SidebearingEdge::Right) => 2,
+    });
     hash_shape_preview(&mut hasher, state.shape_preview);
     hash_pen_preview(&mut hasher, state.pen_preview);
     hash_measure_preview(&mut hasher, state.measure_preview.as_ref());
@@ -3661,7 +3799,9 @@ fn parse_underlay_outline(outline: &str) -> Option<kurbo::BezPath> {
     if trimmed.is_empty() {
         return None;
     }
-    kurbo::BezPath::from_svg(trimmed).ok().filter(|path| !path.elements().is_empty())
+    kurbo::BezPath::from_svg(trimmed)
+        .ok()
+        .filter(|path| !path.elements().is_empty())
 }
 
 fn to_norad_point(pt: &WsContourPoint) -> norad::ContourPoint {

@@ -7,12 +7,12 @@
 
 use runebender_core::{model::kerning::lookup_kerning as lookup_xilem_kerning, shaping};
 use serde::{Deserialize, Serialize};
-use unicode_bidi::{BidiInfo, Level};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+use unicode_bidi::{BidiInfo, Level};
 
 use crate::shape::{ShapingFont, ShapingGlyph, ShapingSource, log_shaping_failure};
 
@@ -1183,10 +1183,8 @@ impl TextBuffer {
         if self.shape_with_font() {
             return true;
         }
-        let has_rtl_line =
-            (0..self.line_count()).any(|line| {
-                self.resolved_line_direction(line) == TextDirection::RightToLeft
-            });
+        let has_rtl_line = (0..self.line_count())
+            .any(|line| self.resolved_line_direction(line) == TextDirection::RightToLeft);
         if !has_rtl_line {
             return false;
         }
@@ -1453,6 +1451,22 @@ impl TextBuffer {
     // sentence: the Latin is a level-2 run inside a level-1 line, and
     // only the run's *position* is mirrored, never its contents.
     // -----------------------------------------------------------------
+
+    /// Whether the bidi run containing `index` reads right to left.
+    ///
+    /// This is the sort's own rendering direction, not the line's: a
+    /// Latin glyph inside an Arabic sentence is in an LTR run and
+    /// reports false. The metrics panel uses it to keep "left" and
+    /// "right" meaning what they look like on screen.
+    pub fn sort_rtl(&self, index: usize) -> bool {
+        let line = self.line_number_for_sort(index);
+        let (start, end) = self.line_range_for_number(line);
+        self.visual_runs_for_line(start, end)
+            .iter()
+            .find(|run| run.sorts.contains(&index))
+            .map(|run| run.rtl)
+            .unwrap_or(false)
+    }
 
     /// Sorts of one line in visual order, left to right, grouped into
     /// runs of one direction each.
@@ -2602,7 +2616,10 @@ mod tests {
         // Right half of the first glyph: between the two.
         assert_eq!(buffer.place_cursor_at(400.0, 0.0, 1000.0, 800.0, -200.0), 1);
         // Past the end of the run: after the last glyph.
-        assert_eq!(buffer.place_cursor_at(2000.0, 0.0, 1000.0, 800.0, -200.0), 2);
+        assert_eq!(
+            buffer.place_cursor_at(2000.0, 0.0, 1000.0, 800.0, -200.0),
+            2
+        );
     }
 
     #[test]
@@ -3421,8 +3438,14 @@ mod tests {
         buffer.insert_glyph("alef-ar", Some('\u{0627}'), 300.0);
 
         assert!(buffer.direction_is_auto());
-        assert_eq!(buffer.resolved_line_direction(0), TextDirection::LeftToRight);
-        assert_eq!(buffer.resolved_line_direction(1), TextDirection::RightToLeft);
+        assert_eq!(
+            buffer.resolved_line_direction(0),
+            TextDirection::LeftToRight
+        );
+        assert_eq!(
+            buffer.resolved_line_direction(1),
+            TextDirection::RightToLeft
+        );
     }
 
     #[test]
@@ -3433,7 +3456,10 @@ mod tests {
         buffer.insert_glyph("alef-ar", Some('\u{0627}'), 300.0);
 
         // Digits and punctuation don't decide; the Arabic letter does.
-        assert_eq!(buffer.resolved_line_direction(0), TextDirection::RightToLeft);
+        assert_eq!(
+            buffer.resolved_line_direction(0),
+            TextDirection::RightToLeft
+        );
     }
 
     #[test]

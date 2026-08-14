@@ -218,7 +218,12 @@ fn scan_spans(paths: &[Path], out: &mut Vec<Measurement>) {
 
 /// Sort crossings, merge near-duplicates (OR-ing their curved flag), and emit a
 /// span for each consecutive gap that touches at least one curve.
-fn emit_scan(coords: &mut [(f64, bool)], fixed: f64, kind: MeasureKind, out: &mut Vec<Measurement>) {
+fn emit_scan(
+    coords: &mut [(f64, bool)],
+    fixed: f64,
+    kind: MeasureKind,
+    out: &mut Vec<Measurement>,
+) {
     coords.sort_by(|a, b| a.0.total_cmp(&b.0));
     let mut kept: Vec<(f64, bool)> = Vec::with_capacity(coords.len());
     for &(c, curved) in coords.iter() {

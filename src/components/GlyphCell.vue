@@ -24,6 +24,9 @@ const props = defineProps<{
   /** Drop the "U+" prefix — the sidebar's mini cells are too narrow
    *  for it and the codepoint reads fine without. */
   bareUnicode?: boolean;
+  /** This glyph would fail a font build (masters not point-compatible).
+   *  Drawn as a red !-badge in the cell's corner. */
+  compatError?: boolean;
 }>();
 
 defineEmits<{
@@ -51,6 +54,13 @@ const cellStyle = computed(() => {
     @click="$emit('click', $event)"
     @dblclick="$emit('dblclick')"
   >
+    <div
+      v-if="compatError"
+      class="cell-error"
+      title="Masters are not interpolation-compatible — this glyph will fail the font build"
+    >
+      !
+    </div>
     <div class="cell-glyph" v-html="svg ?? ''" />
     <div class="cell-labels">
       <div class="cell-name">{{ name }}</div>
@@ -66,6 +76,7 @@ const cellStyle = computed(() => {
   text-align: left;
   margin: 0;
 
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -93,6 +104,21 @@ const cellStyle = computed(() => {
 }
 .cell.selected {
   border-color: var(--rb-grid-selected);
+}
+
+.cell-error {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--rb-danger);
+  color: var(--rb-grid-cell-background);
+  font: 700 11px/15px ui-sans-serif, system-ui, sans-serif;
+  text-align: center;
+  pointer-events: auto;
 }
 
 .cell-glyph {

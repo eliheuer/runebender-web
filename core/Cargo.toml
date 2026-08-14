@@ -17,8 +17,6 @@ runebender-core = { path = "../../runebender-core" }
 # Geometry (Linebender). Matches runebender-xilem's kurbo version so
 # types graft without translation.
 kurbo = "0.13"
-# Boolean ops depend on linesweeper, which is pinned to kurbo 0.12.
-kurbo_012 = { package = "kurbo", version = "0.12" }
 # spline solves on kurbo 0.9; we keep both versions side by side and
 # convert points at the boundary, exactly as runebender-xilem does.
 kurbo_09 = { package = "kurbo", version = "0.9.5" }
@@ -51,7 +49,7 @@ console_error_panic_hook = "0.1"
 # Render path (Wave 3). Vello re-exports wgpu and peniko, so we reach
 # those through vello rather than depending on them directly.
 vello = "0.8"
-linesweeper = "0.2"
+linesweeper = "0.4"
 
 # On-canvas shaped text (HUD measurement labels, future proofing).
 # parley 0.8 aligns with vello 0.8's font stack (skrifa 0.40, peniko 0.6,

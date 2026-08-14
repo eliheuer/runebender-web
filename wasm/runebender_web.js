@@ -58,6 +58,16 @@ export class GlyphEditor {
         return v1;
     }
     /**
+     * Whether the active text sort renders right to left (the bidi run
+     * it sits in, not the line). Drives the metrics panel's swap of
+     * left/right kern fields so they match what is on screen.
+     * @returns {boolean}
+     */
+    activeTextSortRtl() {
+        const ret = wasm.glypheditor_activeTextSortRtl(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
      * @param {number} x
      * @param {number} y
      * @param {string} name
@@ -1205,6 +1215,20 @@ export class GlyphEditor {
         return ret !== 0;
     }
     /**
+     * Which sidebearing edge sits under the pointer, for cursor
+     * feedback: 0 = left (origin / LSB), 1 = right (advance / RSB),
+     * -1 = neither. Same hit test the Select tool uses on pointer-down.
+     * Also records the hover on the editor state so the renderer lights
+     * the edge up on the next frame.
+     * @param {number} x
+     * @param {number} y
+     * @returns {number}
+     */
+    sidebearingEdgeAt(x, y) {
+        const ret = wasm.glypheditor_sidebearingEdgeAt(this.__wbg_ptr, x, y);
+        return ret;
+    }
+    /**
      * @returns {boolean}
      */
     subtractSelection() {
@@ -1668,7 +1692,7 @@ export function glifToSvgWithComponents(bytes, glyph_xml_by_name) {
 
 /**
  * Update one UFO kerning group lib entry in a .glif file. `side`
- * accepts `left`/`public.kern1` or `right`/`public.kern2`; an empty
+ * accepts `left`/`public.kern2` or `right`/`public.kern1`; an empty
  * group or `-` clears that lib entry, matching xilem's active panel.
  * @param {Uint8Array} bytes
  * @param {string} side
@@ -2949,12 +2973,12 @@ function __wbg_get_imports() {
             arg0.writeTexture(arg1, arg2, arg3, arg4);
         }, arguments); },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 499, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 507, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h6a659fc9c8d6adff);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 541, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 549, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h61b71dc7eda4b46f);
             return ret;
         },

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { nextTick, computed, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 // wasm-pack output lives in ../wasm/ (a normal source directory, not
 // /public/). Vite resolves this as a regular ES module; the shim's
 // internal `new URL('..._bg.wasm', import.meta.url)` then resolves
@@ -88,6 +88,12 @@ import type {
   WorkspaceSlotPayload,
 } from "./host/runebenderHost";
 import { browserHost } from "./hosts/browser/browserHost";
+import {
+  defaultKerningEntryKeys,
+  KERNING_GROUP_PREFIX,
+  serializeKerningPlist,
+  type GlyphKerningGroups,
+} from "./kerning";
 
 const props = defineProps<{
   nodeId?: string;
@@ -231,6 +237,9 @@ let pendingGridScrollIndex = -1;
 let pendingGridScrollRaf: number | null = null;
 const currentLeftSidebearing = ref<number>(0);
 const currentRightSidebearing = ref<number>(0);
+// Which metric edge the idle pointer is over: 0 left, 1 right, -1 none.
+// Drives the ew-resize cursor for the drag-the-sidebearing gesture.
+const sidebearingHoverEdge = ref<number>(-1);
 // Active tool in the editor view. Tool implementations land
 // incrementally in Rust while Vue owns the selected toolbar state.
 const activeTool = ref<ToolId>("Select");
@@ -334,6 +343,11 @@ const glyphImageFiles = ref<Map<string, File>>(new Map());
 const contourContextMenu = ref<ContourContextMenuState | null>(null);
 const compatErrors = ref<CompatError[]>([]);
 const compatMarkers = ref<CompatMarker[]>([]);
+// Every glyph whose masters are not interpolation-compatible — the ones
+// fontmake will refuse to build. Filled by an idle-time sweep after a
+// font loads, kept fresh per-glyph as edits and disk reloads land.
+// Drives the red !-badge on grid and sidebar cells.
+const incompatibleGlyphs = ref<Set<string>>(new Set());
 const clipboardNotice = ref<string>("");
 let clipboardNoticeTimer: number | null = null;
 
@@ -409,21 +423,11 @@ type GridGlyphItem = {
   columnSpan: number;
 };
 
-type GlyphKerningGroups = {
-  left?: string;
-  right?: string;
-};
-
 type MissingGlyphDialogState = {
   title: string;
   targets: SidebarGlyphTarget[];
   selectedKeys: Set<string>;
 };
-
-const KERNING_GROUP_PREFIX = {
-  left: "public.kern1.",
-  right: "public.kern2.",
-} as const;
 
 type BackgroundImageState = {
   url: string;
@@ -1427,6 +1431,22 @@ const activeGlyphUnicode = computed(() =>
 const activeGlyphKerningGroups = computed(() =>
   currentGlyph.value ? glyphKerningGroups.value.get(currentGlyph.value) : undefined,
 );
+// Whether the active sort renders right to left (its bidi run, not the
+// line). The metrics panel's Left/Right labels are visual: for an Arabic
+// glyph the logical pair sides are mirrored, so "L Kern" must edit the
+// gap that is actually on the left of the screen.
+const activeTextSortRtl = computed(() => {
+  // Recompute when the buffer or active sort changes; the editor call
+  // itself is a pure read.
+  void textBuffer.value;
+  void activeTextSortIndex.value;
+  return editor?.activeTextSortRtl() ?? false;
+});
+/** Map a visual panel side to the logical kerning side. */
+function kerningSideForVisual(side: "left" | "right"): "left" | "right" {
+  if (!activeTextSortRtl.value) return side;
+  return side === "left" ? "right" : "left";
+}
 const activeLeftKern = computed(() => activeTextKernValue("left"));
 const activeRightKern = computed(() => activeTextKernValue("right"));
 const canEditActiveLeftKern = computed(() => activeTextKernPair("left") !== null);
@@ -1591,6 +1611,8 @@ type Editor = {
   pointerMove(x: number, y: number, mods: number): void;
   pointerMoveVisualChanged(x: number, y: number, mods: number): boolean;
   pointerMoveSelectionState(x: number, y: number, mods: number): Float64Array;
+  sidebearingEdgeAt(x: number, y: number): number;
+  activeTextSortRtl(): boolean;
   clearSegmentHover(): boolean;
   pointerUp(x: number, y: number, button: number, mods: number): boolean;
   pointerCancel(): boolean;
@@ -2100,6 +2122,10 @@ function requestRender(options: RenderRequestOptions = {}) {
         if (!pointerActive && activeTool.value === "Select") {
           const visualChanged = editor.pointerMoveVisualChanged(c[0], c[1], modBits(pm));
           selectIdleHoverActive = pm.altKey;
+          // Cursor hint over the metric edges: same hit test the tool
+          // uses on pointer-down. Only refreshed while idle, so the
+          // ew-resize cursor holds steady for the whole drag.
+          sidebearingHoverEdge.value = editor.sidebearingEdgeAt(c[0], c[1]);
           if (!visualChanged) {
             // suppress the render below if nothing changed
           }
@@ -2107,7 +2133,18 @@ function requestRender(options: RenderRequestOptions = {}) {
           const selectionState = editor.pointerMoveSelectionState(c[0], c[1], modBits(pm));
           if (!(selectionState.length >= 2 && selectionState[0] <= 0 && selectionState[1] <= 0)) {
             if (selectionState.length >= 13) {
-              if (selectionState[1] > 0) editorGlyphNeedsSync = true;
+              if (selectionState[1] > 0) {
+                editorGlyphNeedsSync = true;
+                // Live metrics while dragging: sidebearing-edge and
+                // point drags both move Width/LSB/RSB, and the panel
+                // should read like a readout, not a receipt. One glyph
+                // bbox per frame — cheap next to the render.
+                const metrics = editor.editorMetricsState();
+                setRefNumber(currentWidth, metrics[0] ?? 0);
+                setRefNumber(currentContours, metrics[1] ?? 0);
+                setRefNumber(currentLeftSidebearing, metrics[2] ?? 0);
+                setRefNumber(currentRightSidebearing, metrics[3] ?? 0);
+              }
               applySelectionState(selectionState, { reuseAnchorName: true }, 2);
             }
           }
@@ -2758,36 +2795,90 @@ function setSelectionStateValues(
   }
 }
 
-function updateCompatibilityErrors() {
+/** Compatibility errors for one glyph, active master vs the rest.
+ *  Empty array = compatible; also empty when there is nothing to
+ *  compare (single master, missing glyph). */
+function compatErrorsForGlyph(glyphName: string): CompatError[] {
   const data = activeMasterData.value;
-  if (!data || !currentGlyph.value || masters.value.length < 2) {
-    compatErrors.value = [];
-    compatMarkers.value = [];
-    return;
-  }
-  const activeBytes = data.glyphBytes.get(currentGlyph.value);
-  if (!activeBytes) {
-    compatErrors.value = [];
-    compatMarkers.value = [];
-    return;
-  }
+  if (!data || masters.value.length < 2) return [];
+  const activeBytes = data.glyphBytes.get(glyphName);
+  if (!activeBytes) return [];
   const decoder = new TextDecoder();
   const otherMasters: Record<string, string | null> = {};
   for (const [masterName, masterData] of masterDataMap.value) {
     if (masterName === activeMasterName.value) continue;
-    const bytes = masterData.glyphBytes.get(currentGlyph.value);
+    const bytes = masterData.glyphBytes.get(glyphName);
     otherMasters[masterName] = bytes ? decoder.decode(bytes) : null;
   }
   try {
-    compatErrors.value = JSON.parse(
-      glifCompatibility(activeBytes, currentGlyph.value, JSON.stringify(otherMasters)),
+    return JSON.parse(
+      glifCompatibility(activeBytes, glyphName, JSON.stringify(otherMasters)),
     ) as CompatError[];
   } catch (e) {
-    console.warn("compatibility check failed:", e);
-    compatErrors.value = [];
+    console.warn(`compatibility check failed for ${glyphName}:`, e);
+    return [];
   }
+}
+
+/** Re-check one glyph and keep the grid's error badges truthful. */
+function refreshGlyphCompatBadge(glyphName: string, errors?: CompatError[]) {
+  const broken = (errors ?? compatErrorsForGlyph(glyphName)).length > 0;
+  if (broken === incompatibleGlyphs.value.has(glyphName)) return;
+  const next = new Set(incompatibleGlyphs.value);
+  if (broken) next.add(glyphName);
+  else next.delete(glyphName);
+  incompatibleGlyphs.value = next;
+}
+
+// Font-wide sweep, chunked into idle time so loading a large font never
+// stutters. Restarts from scratch when scheduled again mid-run.
+let compatSweepToken = 0;
+function scheduleCompatibilitySweep() {
+  const token = ++compatSweepToken;
+  if (masters.value.length < 2) {
+    if (incompatibleGlyphs.value.size > 0) incompatibleGlyphs.value = new Set();
+    return;
+  }
+  const names = [...glyphNames.value];
+  const found = new Set<string>();
+  let index = 0;
+  const idle: (cb: () => void) => void =
+    typeof requestIdleCallback === "function"
+      ? (cb) => requestIdleCallback(() => cb(), { timeout: 500 })
+      : (cb) => window.setTimeout(cb, 16);
+  const step = () => {
+    if (token !== compatSweepToken) return;
+    const CHUNK = 25;
+    for (let n = 0; n < CHUNK && index < names.length; n += 1, index += 1) {
+      if (compatErrorsForGlyph(names[index]).length > 0) found.add(names[index]);
+    }
+    if (index < names.length) {
+      idle(step);
+      return;
+    }
+    incompatibleGlyphs.value = found;
+  };
+  idle(step);
+}
+
+function updateCompatibilityErrors() {
+  if (!currentGlyph.value) {
+    compatErrors.value = [];
+    compatMarkers.value = [];
+    return;
+  }
+  const errors = compatErrorsForGlyph(currentGlyph.value);
+  compatErrors.value = errors;
+  refreshGlyphCompatBadge(currentGlyph.value, errors);
   refreshCompatibilityMarkers();
 }
+
+// A new font, an added master, or a bulk glyph change re-runs the
+// font-wide sweep; single-glyph edits go through refreshGlyphCompatBadge.
+watch(
+  () => `${masters.value.join(" ")}:${glyphNames.value.length}`,
+  () => scheduleCompatibilitySweep(),
+);
 
 function refreshCompatibilityMarkers() {
   if (!editor || viewMode.value !== "editor" || compatErrors.value.length === 0) {
@@ -3585,6 +3676,7 @@ const sidebarOverviewItems = computed<SidebarGlyphItem[]>(() =>
       unicode: glyphUnicodes.value.get(name),
       svg: glyphSvgs.value.get(name),
       markLabel: glyphMarkLabels.value.get(name),
+      compatError: incompatibleGlyphs.value.has(name),
       columnSpan: Math.min(4, Math.max(computeGlyphColumnSpan(name), nameSpan)),
     };
   }),
@@ -4778,25 +4870,123 @@ function onAnchorChange(field: "name" | "x" | "y", value: string | number) {
   if (changed) status.value = "anchor updated";
 }
 
-function onActiveGlyphWidthChange(event: Event) {
+function applyActiveGlyphWidth(value: string) {
   if (!editor || !currentGlyph.value) return;
-  const input = event.target as HTMLInputElement | null;
-  const value = input?.value ?? "";
-  const width = Number(value);
-  if (!value || value.trim() !== value || !Number.isFinite(width)) {
-    if (input) input.value = Math.round(currentWidth.value).toString();
-    return;
-  }
-  const changed = editor.setAdvanceWidth(width);
-  if (!changed) {
-    if (input) input.value = Math.round(currentWidth.value).toString();
-    return;
-  }
+  const width = Number(value.trim());
+  if (!value.trim() || !Number.isFinite(width)) return;
+  if (!editor.setAdvanceWidth(width)) return;
   syncCurrentGlyphBytesFromEditor({ refreshCompatibility: false });
   markGlyphDirty(currentGlyph.value);
   syncTextKerningModelToEditor();
   requestRender({ refreshCompatibilityErrors: true });
   queueComfyStateSync();
+}
+
+// ---------------------------------------------------------------------
+// Metrics fields: draft-while-editing.
+//
+// The panel's backing refs are rewritten by half a dozen async paths —
+// drag frames, pointer-up refreshes, the deferred glyph sync, kerning
+// resyncs, disk reloads. A plain :value binding hands the field's text
+// to whichever of those lands next, mid-keystroke included; that was
+// the "it will not let me type a number" bug. So while a field has
+// focus it owns a draft: display = draft, and live updates keep their
+// hands off. Enter commits and re-selects, Escape reverts, blur
+// commits. Focus selects the whole value (deferred past the click's
+// own mouseup, which would otherwise clear it) so typing replaces.
+// A failed commit self-heals: the backing ref never changed, so the
+// display snaps back the moment the draft clears.
+// ---------------------------------------------------------------------
+type MetricFieldKey =
+  | "name"
+  | "width"
+  | "unicode"
+  | "lgroup"
+  | "rgroup"
+  | "lsb"
+  | "rsb"
+  | "lkern"
+  | "rkern";
+const metricDrafts = reactive(new Map<MetricFieldKey, string>());
+watch(currentGlyph, () => metricDrafts.clear());
+let metricFieldFocusedAt = 0;
+
+function metricFieldValue(key: MetricFieldKey, live: string): string {
+  return metricDrafts.get(key) ?? live;
+}
+
+function onMetricFieldFocus(key: MetricFieldKey, event: FocusEvent) {
+  const input = event.target as HTMLInputElement;
+  metricDrafts.set(key, input.value);
+  metricFieldFocusedAt = performance.now();
+  // Synchronously and once more on a timer: the immediate call covers
+  // keyboard focus, the deferred one wins against the caret placement
+  // a mouse click performs after its focus event. (Not rAF — that
+  // starves in occluded tabs.)
+  input.select();
+  window.setTimeout(() => {
+    if (document.activeElement === input) input.select();
+  }, 0);
+}
+
+function onMetricFieldMouseUp(event: MouseEvent) {
+  // The click that focused the field delivers its mouseup after our
+  // select-all and would collapse it to a caret. Swallow that one.
+  if (performance.now() - metricFieldFocusedAt < 350) {
+    event.preventDefault();
+  }
+}
+
+function onMetricFieldInput(key: MetricFieldKey, event: Event) {
+  metricDrafts.set(key, (event.target as HTMLInputElement).value);
+}
+
+function commitMetricField(key: MetricFieldKey, event: Event, refocus = false) {
+  const input = event.target as HTMLInputElement;
+  const draft = metricDrafts.get(key);
+  metricDrafts.delete(key);
+  if (draft === undefined) return;
+  applyMetricField(key, draft);
+  if (refocus) {
+    requestAnimationFrame(() => input.select());
+  }
+}
+
+function revertMetricField(key: MetricFieldKey, event: Event) {
+  metricDrafts.delete(key);
+  (event.target as HTMLInputElement).blur();
+}
+
+function applyMetricField(key: MetricFieldKey, value: string) {
+  switch (key) {
+    case "name":
+      applyActiveGlyphName(value);
+      break;
+    case "width":
+      applyActiveGlyphWidth(value);
+      break;
+    case "unicode":
+      applyActiveGlyphUnicode(value);
+      break;
+    case "lgroup":
+      updateGlyphKerningGroup(kerningSideForVisual("left"), value);
+      break;
+    case "rgroup":
+      updateGlyphKerningGroup(kerningSideForVisual("right"), value);
+      break;
+    case "lsb":
+      applyActiveGlyphSidebearing("left", value);
+      break;
+    case "rsb":
+      applyActiveGlyphSidebearing("right", value);
+      break;
+    case "lkern":
+      updateActiveTextKern("left", value);
+      break;
+    case "rkern":
+      updateActiveTextKern("right", value);
+      break;
+  }
 }
 
 function refreshSidebearingsFromEditor() {
@@ -4809,29 +4999,16 @@ function refreshSidebearingsFromEditor() {
   setRefNumber(currentRightSidebearing, editor.rightSidebearing());
 }
 
-function onActiveGlyphSidebearingChange(side: "left" | "right", event: Event) {
+function applyActiveGlyphSidebearing(side: "left" | "right", value: string) {
   if (!editor || !currentGlyph.value) return;
-  const input = event.target as HTMLInputElement | null;
-  const value = Number(input?.value);
-  if (!Number.isFinite(value)) {
-    if (input) {
-      input.value = Math.round(
-        side === "left" ? currentLeftSidebearing.value : currentRightSidebearing.value,
-      ).toString();
-    }
-    return;
-  }
+  const parsed = Number(value.trim());
+  if (!value.trim() || !Number.isFinite(parsed)) return;
   const changed =
     side === "left"
-      ? editor.setLeftSidebearing(value)
-      : editor.setRightSidebearing(value);
+      ? editor.setLeftSidebearing(parsed)
+      : editor.setRightSidebearing(parsed);
   if (!changed) {
     refreshSidebearingsFromEditor();
-    if (input) {
-      input.value = Math.round(
-        side === "left" ? currentLeftSidebearing.value : currentRightSidebearing.value,
-      ).toString();
-    }
     return;
   }
   syncCurrentGlyphBytesFromEditor({ refreshCompatibility: false });
@@ -4852,15 +5029,13 @@ function normalizeUnicodeInput(value: string): string {
     .padStart(4, "0");
 }
 
-function onActiveGlyphUnicodeChange(event: Event) {
+function applyActiveGlyphUnicode(value: string) {
   if (!editor || !currentGlyph.value) return;
-  const input = event.target as HTMLInputElement | null;
   const data = activeMasterData.value;
   if (!data) return;
-  const unicode = normalizeUnicodeInput(input?.value ?? "");
+  const unicode = normalizeUnicodeInput(value);
 
   if (!syncCurrentGlyphBytesFromEditor()) {
-    if (input) input.value = activeGlyphUnicode.value ?? "";
     return;
   }
   const currentBytes = data.glyphBytes.get(currentGlyph.value);
@@ -4891,7 +5066,6 @@ function onActiveGlyphUnicodeChange(event: Event) {
     }
     refreshGridGlyphSvg(data, currentGlyph.value, bytes);
     masterDataMap.value = new Map(masterDataMap.value);
-    if (input) input.value = info.unicode ?? "";
     markGlyphDirty(currentGlyph.value);
     syncCurrentTextSorts(metadata);
     syncTextKerningModelToEditor();
@@ -4899,7 +5073,6 @@ function onActiveGlyphUnicodeChange(event: Event) {
     queueComfyStateSync();
   } catch (e) {
     console.warn("updating glyph unicode failed:", e);
-    if (input) input.value = activeGlyphUnicode.value ?? "";
     status.value = `unicode update failed: ${e}`;
   }
 }
@@ -5006,24 +5179,20 @@ function syncTextSortMetricsToActiveMaster(): boolean {
   return changed;
 }
 
-function onActiveGlyphNameChange(event: Event) {
+function applyActiveGlyphName(value: string) {
   if (!editor || !currentGlyph.value) return;
-  const input = event.target as HTMLInputElement | null;
   const data = activeMasterData.value;
   const oldName = currentGlyph.value;
-  const newName = input?.value.trim() ?? "";
+  const newName = value.trim();
   if (!data || !newName || newName === oldName) {
-    if (input) input.value = oldName;
     return;
   }
   if (data.glyphBytes.has(newName)) {
-    if (input) input.value = oldName;
     status.value = `glyph ${newName} already exists`;
     return;
   }
 
   if (!syncCurrentGlyphBytesFromEditor()) {
-    if (input) input.value = oldName;
     return;
   }
   const oldBytes = data.glyphBytes.get(oldName);
@@ -5087,7 +5256,6 @@ function onActiveGlyphNameChange(event: Event) {
     queueComfyStateSync();
   } catch (e) {
     console.warn("renaming glyph failed:", e);
-    if (input) input.value = oldName;
     status.value = `rename failed: ${e}`;
   }
 }
@@ -6335,6 +6503,18 @@ function onPointerMove(e: PointerEvent) {
     return;
   }
   if (!pointerActive && activeTool.value === "Select" && !e.altKey && !selectIdleHoverActive) {
+    // Idle Select moves skip the full wasm hover path for perf, but the
+    // metric-edge hit test still runs: it drives the ew-resize cursor
+    // and the edge highlight. One cheap wasm call; render only when the
+    // hover actually flips.
+    const c = canvasCoords(e);
+    if (c) {
+      const edge = editor.sidebearingEdgeAt(c[0], c[1]);
+      if (edge !== sidebearingHoverEdge.value) {
+        sidebearingHoverEdge.value = edge;
+        requestRender({ refreshDerivedState: false });
+      }
+    }
     return;
   }
   // Store the latest event; the rAF callback drains it once per frame.
@@ -6574,32 +6754,6 @@ function parseKerningPlist(bytes: Uint8Array): Map<string, Map<string, number>> 
   return kerning;
 }
 
-function serializeKerningPlist(kerningMap: Map<string, Map<string, number>>): string {
-  const lines = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
-    '<plist version="1.0">',
-    '<dict>',
-  ];
-
-  for (const first of Array.from(kerningMap.keys()).sort()) {
-    const pairs = kerningMap.get(first);
-    if (!pairs || pairs.size === 0) continue;
-    lines.push(`  <key>${escapeXml(first)}</key>`);
-    lines.push("  <dict>");
-    for (const second of Array.from(pairs.keys()).sort()) {
-      const value = pairs.get(second);
-      if (value === undefined) continue;
-      lines.push(`    <key>${escapeXml(second)}</key>`);
-      lines.push(`    <real>${formatPlistNumber(value)}</real>`);
-    }
-    lines.push("  </dict>");
-  }
-
-  lines.push("</dict>", "</plist>", "");
-  return lines.join("\n");
-}
-
 function serializeGroupsPlist(groupsMap: Map<string, string[]>): string {
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -6789,7 +6943,11 @@ function activeTextKernPair(side: "left" | "right"): [string, string] | null {
   const activeIndex = activeTextSortIndex.value;
   const activeName = textGlyphNameAt(activeIndex);
   if (activeIndex === null || !activeName) return null;
-  if (side === "left") {
+  // `side` is visual (what the panel shows). In an RTL run the logical
+  // neighbours sit on the opposite screen sides, so mirror before
+  // picking the pair; the pair itself stays in logical order, which is
+  // how the UFO stores kerning for either direction.
+  if (kerningSideForVisual(side) === "left") {
     const previousName = textGlyphNameAt(activeIndex - 1);
     return previousName ? [previousName, activeName] : null;
   }
@@ -6844,8 +7002,12 @@ function updateActiveTextKern(side: "left" | "right", value: string) {
   } else {
     // No entry yet: create one on the group keys when both sides are grouped
     // (kern-to-groups by default), else on the glyph names.
-    const leftKey = data.glyphKerningGroups.get(left)?.right || left;
-    const rightKey = data.glyphKerningGroups.get(right)?.left || right;
+    const [leftKey, rightKey] = defaultKerningEntryKeys(
+      left,
+      right,
+      data.glyphKerningGroups.get(left),
+      data.glyphKerningGroups.get(right),
+    );
     setEntry(leftKey, rightKey, kernValue);
   }
 
@@ -7614,6 +7776,7 @@ async function applyExternalWorkspaceChanges(
         else data.glyphMarkLabels.delete(name);
         refreshGridGlyphSvg(data, name, bytes);
         syncEditorComponentGlyphCacheEntry(data, name, bytes);
+        refreshGlyphCompatBadge(name);
         touched = true;
         if (
           masterName === activeMasterName.value &&
@@ -10041,7 +10204,12 @@ function syncCurrentGlyphBytesFromEditor(
           markLabel: data.glyphMarkLabels.get(currentGlyph.value) ?? null,
           leftKerningGroup: previousGroups?.left ?? previousMetadata.leftKerningGroup ?? null,
           rightKerningGroup: previousGroups?.right ?? previousMetadata.rightKerningGroup ?? null,
-          width: previousMetadata.width,
+          // preserveMetadata skips re-parsing the bytes, but the width
+          // must still be the editor's: a sidebearing-edge drag changes
+          // it, and carrying the old one forward pushed a stale width
+          // back into the text buffer — the metric box snapped away
+          // from where the editor thought its edge was.
+          width: editor.advanceWidth(),
           contours: previousMetadata.contours,
         }
       : parseGlyphInfo(bytes);
@@ -10881,24 +11049,25 @@ onBeforeUnmount(() => {
             />
           </div>
           <div class="editor-tools-cluster">
+            <!-- Two lines, always: the tile must keep the top row's
+                 height whether there is one error or forty. The count
+                 carries the severity; the first message carries the
+                 scent; the rest are on the canvas as markers anyway. -->
             <div
               v-if="compatErrors.length"
               class="compat-badge"
               role="status"
               aria-live="polite"
+              :title="compatErrors.map((error) => error.message).join('\n')"
             >
               <strong>
                 {{ compatErrors.length }} interpolation
                 {{ compatErrors.length === 1 ? "error" : "errors" }}
               </strong>
-              <span
-                v-for="(error, index) in compatErrors.slice(0, 4)"
-                :key="`compat-error-${index}-${error.masterName}`"
-              >
-                {{ error.message }}
-              </span>
-              <span v-if="compatErrors.length > 4">
-                and {{ compatErrors.length - 4 }} more
+              <span>
+                {{ compatErrors[0].message
+                }}<template v-if="compatErrors.length > 1">
+                  · {{ compatErrors.length - 1 }} more</template>
               </span>
             </div>
           </div>
@@ -10992,33 +11161,45 @@ onBeforeUnmount(() => {
                 <label class="metric-field glyph-name-field">
                   <span>Name</span>
                   <input
-                    type="text"
-                    :value="currentGlyph"
-                    aria-label="Glyph name"
-                    @change="onActiveGlyphNameChange"
-                    @keydown.enter.prevent="onActiveGlyphNameChange"
-                  />
+                      type="text"
+                      :value="metricFieldValue('name', currentGlyph)"
+                      aria-label="Glyph name"
+                      @focus="onMetricFieldFocus('name', $event)"
+                      @mouseup="onMetricFieldMouseUp"
+                      @input="onMetricFieldInput('name', $event)"
+                      @keydown.enter.prevent="commitMetricField('name', $event, true)"
+                      @keydown.esc.prevent="revertMetricField('name', $event)"
+                      @blur="commitMetricField('name', $event)"
+                    />
                 </label>
                 <label class="metric-field width-field">
                   <span>Width</span>
                   <input
-                    type="number"
-                    :value="Math.round(currentWidth)"
-                    aria-label="Advance width"
-                    @change="onActiveGlyphWidthChange"
-                    @keydown.enter.prevent="onActiveGlyphWidthChange"
-                  />
+                      type="text" inputmode="numeric"
+                      :value="metricFieldValue('width', String(Math.round(currentWidth)))"
+                      aria-label="Advance width"
+                      @focus="onMetricFieldFocus('width', $event)"
+                      @mouseup="onMetricFieldMouseUp"
+                      @input="onMetricFieldInput('width', $event)"
+                      @keydown.enter.prevent="commitMetricField('width', $event, true)"
+                      @keydown.esc.prevent="revertMetricField('width', $event)"
+                      @blur="commitMetricField('width', $event)"
+                    />
                 </label>
                 <label class="metric-field unicode-field">
                   <span>Unicode</span>
                   <input
-                    type="text"
-                    :value="activeGlyphUnicode ?? ''"
-                    aria-label="Unicode"
-                    placeholder="None"
-                    @change="onActiveGlyphUnicodeChange"
-                    @keydown.enter.prevent="onActiveGlyphUnicodeChange"
-                  />
+                      type="text"
+                      :value="metricFieldValue('unicode', activeGlyphUnicode ?? '')"
+                      aria-label="Unicode"
+                      placeholder="None"
+                      @focus="onMetricFieldFocus('unicode', $event)"
+                      @mouseup="onMetricFieldMouseUp"
+                      @input="onMetricFieldInput('unicode', $event)"
+                      @keydown.enter.prevent="commitMetricField('unicode', $event, true)"
+                      @keydown.esc.prevent="revertMetricField('unicode', $event)"
+                      @blur="commitMetricField('unicode', $event)"
+                    />
                 </label>
               </div>
 
@@ -11028,33 +11209,45 @@ onBeforeUnmount(() => {
                     <span>Left Group</span>
                     <input
                       type="text"
-                      :value="stripKerningGroupPrefix(activeGlyphKerningGroups?.left)"
+                      :value="metricFieldValue('lgroup', stripKerningGroupPrefix(activeGlyphKerningGroups?.[kerningSideForVisual('left')]))"
                       aria-label="Left kerning group"
                       placeholder="None"
-                      @change="updateGlyphKerningGroup('left', ($event.target as HTMLInputElement).value)"
-                      @keydown.enter.prevent="updateGlyphKerningGroup('left', ($event.target as HTMLInputElement).value)"
+                      @focus="onMetricFieldFocus('lgroup', $event)"
+                      @mouseup="onMetricFieldMouseUp"
+                      @input="onMetricFieldInput('lgroup', $event)"
+                      @keydown.enter.prevent="commitMetricField('lgroup', $event, true)"
+                      @keydown.esc.prevent="revertMetricField('lgroup', $event)"
+                      @blur="commitMetricField('lgroup', $event)"
                     />
                   </label>
                   <label class="metric-field metric-compact">
                     <span>LSB</span>
                     <input
-                      type="number"
-                      :value="Math.round(currentLeftSidebearing)"
+                      type="text" inputmode="numeric"
+                      :value="metricFieldValue('lsb', String(Math.round(currentLeftSidebearing)))"
                       aria-label="Left sidebearing"
-                      @change="onActiveGlyphSidebearingChange('left', $event)"
-                      @keydown.enter.prevent="onActiveGlyphSidebearingChange('left', $event)"
+                      @focus="onMetricFieldFocus('lsb', $event)"
+                      @mouseup="onMetricFieldMouseUp"
+                      @input="onMetricFieldInput('lsb', $event)"
+                      @keydown.enter.prevent="commitMetricField('lsb', $event, true)"
+                      @keydown.esc.prevent="revertMetricField('lsb', $event)"
+                      @blur="commitMetricField('lsb', $event)"
                     />
                   </label>
                   <label class="metric-field kern-field">
                     <span>L Kern</span>
                     <input
-                      type="number"
-                      :value="activeLeftKern ?? ''"
+                      type="text" inputmode="numeric"
+                      :value="metricFieldValue('lkern', activeLeftKern === null ? '' : String(activeLeftKern))"
                       aria-label="Left kern"
                       placeholder="Auto"
                       :disabled="!canEditActiveLeftKern"
-                      @change="updateActiveTextKern('left', ($event.target as HTMLInputElement).value)"
-                      @keydown.enter.prevent="updateActiveTextKern('left', ($event.target as HTMLInputElement).value)"
+                      @focus="onMetricFieldFocus('lkern', $event)"
+                      @mouseup="onMetricFieldMouseUp"
+                      @input="onMetricFieldInput('lkern', $event)"
+                      @keydown.enter.prevent="commitMetricField('lkern', $event, true)"
+                      @keydown.esc.prevent="revertMetricField('lkern', $event)"
+                      @blur="commitMetricField('lkern', $event)"
                     />
                   </label>
                 </div>
@@ -11065,33 +11258,45 @@ onBeforeUnmount(() => {
                     <span>Right Group</span>
                     <input
                       type="text"
-                      :value="stripKerningGroupPrefix(activeGlyphKerningGroups?.right)"
+                      :value="metricFieldValue('rgroup', stripKerningGroupPrefix(activeGlyphKerningGroups?.[kerningSideForVisual('right')]))"
                       aria-label="Right kerning group"
                       placeholder="None"
-                      @change="updateGlyphKerningGroup('right', ($event.target as HTMLInputElement).value)"
-                      @keydown.enter.prevent="updateGlyphKerningGroup('right', ($event.target as HTMLInputElement).value)"
+                      @focus="onMetricFieldFocus('rgroup', $event)"
+                      @mouseup="onMetricFieldMouseUp"
+                      @input="onMetricFieldInput('rgroup', $event)"
+                      @keydown.enter.prevent="commitMetricField('rgroup', $event, true)"
+                      @keydown.esc.prevent="revertMetricField('rgroup', $event)"
+                      @blur="commitMetricField('rgroup', $event)"
                     />
                   </label>
                   <label class="metric-field metric-compact">
                     <span>RSB</span>
                     <input
-                      type="number"
-                      :value="Math.round(currentRightSidebearing)"
+                      type="text" inputmode="numeric"
+                      :value="metricFieldValue('rsb', String(Math.round(currentRightSidebearing)))"
                       aria-label="Right sidebearing"
-                      @change="onActiveGlyphSidebearingChange('right', $event)"
-                      @keydown.enter.prevent="onActiveGlyphSidebearingChange('right', $event)"
+                      @focus="onMetricFieldFocus('rsb', $event)"
+                      @mouseup="onMetricFieldMouseUp"
+                      @input="onMetricFieldInput('rsb', $event)"
+                      @keydown.enter.prevent="commitMetricField('rsb', $event, true)"
+                      @keydown.esc.prevent="revertMetricField('rsb', $event)"
+                      @blur="commitMetricField('rsb', $event)"
                     />
                   </label>
                   <label class="metric-field kern-field">
                     <span>R Kern</span>
                     <input
-                      type="number"
-                      :value="activeRightKern ?? ''"
+                      type="text" inputmode="numeric"
+                      :value="metricFieldValue('rkern', activeRightKern === null ? '' : String(activeRightKern))"
                       aria-label="Right kern"
                       placeholder="Auto"
                       :disabled="!canEditActiveRightKern"
-                      @change="updateActiveTextKern('right', ($event.target as HTMLInputElement).value)"
-                      @keydown.enter.prevent="updateActiveTextKern('right', ($event.target as HTMLInputElement).value)"
+                      @focus="onMetricFieldFocus('rkern', $event)"
+                      @mouseup="onMetricFieldMouseUp"
+                      @input="onMetricFieldInput('rkern', $event)"
+                      @keydown.enter.prevent="commitMetricField('rkern', $event, true)"
+                      @keydown.esc.prevent="revertMetricField('rkern', $event)"
+                      @blur="commitMetricField('rkern', $event)"
                     />
                   </label>
                 </div>
@@ -11119,6 +11324,7 @@ onBeforeUnmount(() => {
           :class="{
             'is-hidden': viewMode !== 'editor' && glyphNames.length > 0,
             'text-buffer-visible': viewMode === 'editor' && textBufferPreviewVisible,
+            'sidebearing-hover': activeTool === 'Select' && sidebearingHoverEdge >= 0,
           }"
           @pointerdown="onPointerDown"
           @pointermove="onPointerMove"
@@ -11634,6 +11840,7 @@ onBeforeUnmount(() => {
             :selected="selectedGlyphs.has(item.name)"
             :column-span="item.columnSpan"
             :mark-label="glyphMarkLabels.get(item.name)"
+            :compat-error="incompatibleGlyphs.has(item.name)"
             @click="selectGlyph(item.name, $event)"
             @dblclick="openGridSelectionInEditor(item.name)"
           />
@@ -12919,15 +13126,17 @@ onBeforeUnmount(() => {
 .compat-badge {
   box-sizing: border-box;
   width: 100%;
+  max-width: 420px;
   flex: 1 1 auto;
   min-height: 0;
-  max-height: 160px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   /* Same type size, padding and row gap as TopBar's .file-info, so
      the two lines here sit on the same baselines as the ones in the
-     font-info tile beside it. */
+     font-info tile beside it — and exactly two lines, so a long error
+     list can never stretch the top row and break the bento grid. The
+     full list is in the tile's tooltip and on the canvas markers. */
   justify-content: center;
   gap: 2px;
   padding: 6px 12px;
@@ -12936,7 +13145,6 @@ onBeforeUnmount(() => {
   border-radius: var(--rb-panel-radius);
   color: var(--rb-overlay-text);
   font: var(--rb-ui-font-size) ui-sans-serif, system-ui, sans-serif;
-  pointer-events: none;
 }
 .compat-badge strong {
   color: var(--rb-danger-text);
@@ -13274,6 +13482,9 @@ onBeforeUnmount(() => {
 .runebender-canvas.text-buffer-visible {
   bottom: var(--rb-editor-bottom-preview-height);
   height: calc(100% - var(--rb-editor-bottom-preview-height));
+}
+.runebender-canvas.sidebearing-hover {
+  cursor: ew-resize;
 }
 .runebender-canvas.is-hidden {
   visibility: hidden;

@@ -20,7 +20,9 @@ use wasm_bindgen::JsValue;
 use web_sys::HtmlCanvasElement;
 
 use crate::editor::{
-    EditorState, KnifePreview, MeasurePreview, PenPreview, SegmentHoverPreview, ShapePreview,
+    DESIGN_GRID_CLOSE_FINE, DESIGN_GRID_CLOSE_MIN_ZOOM, DESIGN_GRID_MID_FINE,
+    DESIGN_GRID_MID_MIN_ZOOM, EditorState, KnifePreview, MeasurePreview, PenPreview,
+    SegmentHoverPreview, ShapePreview, SidebearingEdge,
 };
 use crate::measure::{self, MeasureKind};
 use crate::model::EntityId;
@@ -383,14 +385,10 @@ const POPCOUNT_1: Srgb = AlphaColor::new([0.09, 0.72, 0.44, 1.0]);
 const POPCOUNT_2: Srgb = AlphaColor::new([1.0, 0.86, 0.2, 1.0]);
 const POPCOUNT_3: Srgb = AlphaColor::new([1.0, 0.6, 0.06, 1.0]);
 const POPCOUNT_4: Srgb = AlphaColor::new([1.0, 0.29, 0.24, 1.0]);
-const DESIGN_GRID_MID_MIN_ZOOM: f64 = 0.8;
-const DESIGN_GRID_MID_FINE: f64 = 8.0;
 // Mid zoom shows the machine lattice plainly: a line every 8 units,
 // uniform — no darker every-32 accent (Eli). The close level keeps its
 // 2-unit fine grid with the 8-unit accent.
 const DESIGN_GRID_MID_COARSE_N: u32 = 0;
-const DESIGN_GRID_CLOSE_MIN_ZOOM: f64 = 8.0;
-const DESIGN_GRID_CLOSE_FINE: f64 = 2.0;
 const DESIGN_GRID_CLOSE_COARSE_N: u32 = 4;
 const DESIGN_GRID_FINE_LINE_PX: f64 = 0.5;
 const DESIGN_GRID_COARSE_LINE_PX: f64 = 1.0;
@@ -907,8 +905,10 @@ impl Renderer {
     /// the whole line once you zoomed out.
     fn text_cursor_marker_scale(&self, zoom: f64, sort_height: f64) -> f64 {
         let box_px = (sort_height.max(1.0) * zoom).max(1.0);
-        let width = (box_px * TEXT_CURSOR_MARKER_FRACTION)
-            .clamp(self.px(TEXT_CURSOR_MARKER_MIN_PX), self.px(TEXT_CURSOR_MARKER_MAX_PX));
+        let width = (box_px * TEXT_CURSOR_MARKER_FRACTION).clamp(
+            self.px(TEXT_CURSOR_MARKER_MIN_PX),
+            self.px(TEXT_CURSOR_MARKER_MAX_PX),
+        );
         width / self.px(TEXT_CURSOR_TRIANGLE_WIDTH_PX)
     }
 
@@ -1172,13 +1172,8 @@ impl Renderer {
                 None,
                 path,
             );
-            self.scene.stroke(
-                &stroke,
-                Affine::IDENTITY,
-                POINT_READONLY_OUTER,
-                None,
-                path,
-            );
+            self.scene
+                .stroke(&stroke, Affine::IDENTITY, POINT_READONLY_OUTER, None, path);
         }
     }
 
@@ -1287,8 +1282,13 @@ impl Renderer {
                         quad.line_to(glyph_view * s0.outer);
                         quad.close_path();
                         let k = (s0.kappa.abs() + s1.kappa.abs()) * 0.5 / maxk;
-                        self.scene
-                            .fill(Fill::NonZero, Affine::IDENTITY, curve_gradient(k), None, &quad);
+                        self.scene.fill(
+                            Fill::NonZero,
+                            Affine::IDENTITY,
+                            curve_gradient(k),
+                            None,
+                            &quad,
+                        );
                     }
 
                     let mut edges = BezPath::new();
@@ -1386,7 +1386,11 @@ impl Renderer {
             for cs in measure::colored_strokes(&state.paths) {
                 let mut screen = cs.path;
                 screen.apply_affine(glyph_view);
-                let width = if cs.wide { PATH_STROKE_PX } else { HANDLE_LINE_PX };
+                let width = if cs.wide {
+                    PATH_STROKE_PX
+                } else {
+                    HANDLE_LINE_PX
+                };
                 self.scene.stroke(
                     &Stroke::new(self.px(width)),
                     Affine::IDENTITY,
@@ -1515,9 +1519,9 @@ impl Renderer {
                     cand.x + w + pad,
                     cand.y + h + pad,
                 );
-                let clear = !placed.iter().any(|r| {
-                    r.x0 < rect.x1 && rect.x0 < r.x1 && r.y0 < rect.y1 && rect.y0 < r.y1
-                });
+                let clear = !placed
+                    .iter()
+                    .any(|r| r.x0 < rect.x1 && rect.x0 < r.x1 && r.y0 < rect.y1 && rect.y0 < r.y1);
                 if clear {
                     chosen = cand;
                     break 'search;
@@ -1552,14 +1556,26 @@ impl Renderer {
         path.line_to(b2);
         // Arrowhead at a2, tip pointing outward (toward a); wings open inward.
         path.move_to(a2);
-        path.line_to(Point::new(a2.x + ux * head + px * wing, a2.y + uy * head + py * wing));
+        path.line_to(Point::new(
+            a2.x + ux * head + px * wing,
+            a2.y + uy * head + py * wing,
+        ));
         path.move_to(a2);
-        path.line_to(Point::new(a2.x + ux * head - px * wing, a2.y + uy * head - py * wing));
+        path.line_to(Point::new(
+            a2.x + ux * head - px * wing,
+            a2.y + uy * head - py * wing,
+        ));
         // Arrowhead at b2, tip pointing outward (toward b).
         path.move_to(b2);
-        path.line_to(Point::new(b2.x - ux * head + px * wing, b2.y - uy * head + py * wing));
+        path.line_to(Point::new(
+            b2.x - ux * head + px * wing,
+            b2.y - uy * head + py * wing,
+        ));
         path.move_to(b2);
-        path.line_to(Point::new(b2.x - ux * head - px * wing, b2.y - uy * head - py * wing));
+        path.line_to(Point::new(
+            b2.x - ux * head - px * wing,
+            b2.y - uy * head - py * wing,
+        ));
         self.scene
             .stroke(stroke, Affine::IDENTITY, color, None, &path);
     }
@@ -1647,8 +1663,7 @@ impl Renderer {
     ) {
         let (ascender, descender) = state.text_metric_bounds();
         let (sort_top, sort_bottom) = state.text_sort_metric_bounds();
-        let mark_size =
-            self.text_sort_mark_size(state.viewport.zoom, sort_top - sort_bottom);
+        let mark_size = self.text_sort_mark_size(state.viewport.zoom, sort_top - sort_bottom);
         let line_height = state.text_line_height();
         let layout_storage;
         let layout = if let Some(layout) = frame_layout {
@@ -1736,11 +1751,7 @@ impl Renderer {
             if self.text_metric_marks_visible(mark_size) {
                 self.stroke_metric_batch(&quiet_metric_path, self.theme.metric_quiet, &stroke);
                 self.stroke_metric_batch(&guide_metric_path, self.theme.metric_guide, &stroke);
-                self.stroke_metric_batch(
-                    &active_metric_path,
-                    self.theme.text_kern_active,
-                    &stroke,
-                );
+                self.stroke_metric_batch(&active_metric_path, self.theme.text_kern_active, &stroke);
                 self.stroke_metric_batch(
                     &previous_metric_path,
                     self.theme.text_kern_previous,
@@ -1977,8 +1988,13 @@ impl Renderer {
     /// or with what you are drawing.
     fn draw_underlays(&mut self, state: &EditorState, glyph_view: Affine) {
         if let Some(path) = state.reference_outline.as_ref() {
-            self.scene
-                .fill(Fill::NonZero, glyph_view, self.theme.reference_glyph, None, path);
+            self.scene.fill(
+                Fill::NonZero,
+                glyph_view,
+                self.theme.reference_glyph,
+                None,
+                path,
+            );
         }
         if let Some(path) = state.background_outline.as_ref() {
             let screen_path = glyph_view * path;
@@ -2120,6 +2136,46 @@ impl Renderer {
             &metric_path,
             self.theme.metric_guide,
             &Stroke::new(self.px(METRIC_LINE_PX)),
+        );
+        self.draw_sidebearing_hover(state, x, baseline_y, advance_width, view);
+    }
+
+    /// Light up the metric edge under the pointer (or being dragged):
+    /// the same vertical line at the same weight as the rest of the
+    /// metric box, only recoloured, so the grabbable thing announces
+    /// itself without shouting.
+    fn draw_sidebearing_hover(
+        &mut self,
+        state: &EditorState,
+        x: f64,
+        baseline_y: f64,
+        advance_width: f64,
+        view: Affine,
+    ) {
+        let Some(edge) = state.sidebearing_hover else {
+            return;
+        };
+        let (box_top, box_bottom) = state.text_sort_metric_bounds();
+        if box_top <= box_bottom {
+            return;
+        }
+        let edge_x = match edge {
+            SidebearingEdge::Left => x,
+            SidebearingEdge::Right => x + advance_width,
+        };
+        let mut path = BezPath::new();
+        append_screen_line(
+            &mut path,
+            view,
+            Point::new(edge_x, baseline_y + box_bottom),
+            Point::new(edge_x, baseline_y + box_top),
+        );
+        self.scene.stroke(
+            &Stroke::new(self.px(METRIC_LINE_PX)),
+            Affine::IDENTITY,
+            self.theme.text_cursor,
+            None,
+            &path,
         );
     }
 
@@ -2637,6 +2693,7 @@ impl Renderer {
                 &guide_path,
             );
         }
+        self.draw_sidebearing_hover(state, 0.0, 0.0, width, view);
     }
 
     /// Draw the zoom-dependent design-space grid behind the glyph.
@@ -2660,8 +2717,7 @@ impl Renderer {
         // the two levels read as one continuous grid: mid (8u) ramps
         // 0.8x->1.6x, close (2u) ramps 8x->16x.
         let mid_alpha = smoothstep(
-            ((zoom - DESIGN_GRID_MID_MIN_ZOOM) / DESIGN_GRID_MID_MIN_ZOOM)
-                .clamp(0.0, 1.0),
+            ((zoom - DESIGN_GRID_MID_MIN_ZOOM) / DESIGN_GRID_MID_MIN_ZOOM).clamp(0.0, 1.0),
         );
         if mid_alpha <= 0.0 {
             return;
@@ -2700,8 +2756,7 @@ impl Renderer {
         });
 
         let close_alpha = smoothstep(
-            ((zoom - DESIGN_GRID_CLOSE_MIN_ZOOM) / DESIGN_GRID_CLOSE_MIN_ZOOM)
-                .clamp(0.0, 1.0),
+            ((zoom - DESIGN_GRID_CLOSE_MIN_ZOOM) / DESIGN_GRID_CLOSE_MIN_ZOOM).clamp(0.0, 1.0),
         );
         if close_alpha > 0.0 {
             let fine = self.draw_grid_level(
