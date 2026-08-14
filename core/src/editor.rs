@@ -3025,17 +3025,18 @@ fn component_anchor_alignment_delta(
     component: &ComponentPreview,
     available: &[PlacedAnchor],
 ) -> Option<Vec2> {
-    for anchor in &component.anchors {
-        let mark_name = anchor.name.as_deref()?;
-        let target_name = mark_name.strip_prefix('_')?;
+    // Every anchor on the mark is a candidate, not just the first one. Marks
+    // routinely carry outgoing anchors (`top`, `bottom`, for stacking) beside
+    // the incoming `_top`, and the order they happen to sit in the source must
+    // not decide whether the component aligns at all.
+    component.anchors.iter().find_map(|anchor| {
+        let target_name = anchor.name.as_deref()?.strip_prefix('_')?;
         let target = available
             .iter()
             .rev()
             .find(|available| available.name == target_name)?;
-        let source = component.transform * anchor.point;
-        return Some(target.point - source);
-    }
-    None
+        Some(target.point - component.transform * anchor.point)
+    })
 }
 
 fn on_curve(p: Point, smooth: bool) -> PathPoint {
@@ -4798,6 +4799,51 @@ mod tests {
         assert_eq!(
             state.component_transform(0).expect("component transform") * Point::new(100.0, 20.0),
             Point::new(270.0, 710.0)
+        );
+    }
+
+    #[test]
+    fn component_aligns_when_the_underscore_anchor_is_not_listed_first() {
+        // Arabic dot marks carry a stacking anchor ahead of the attachment
+        // anchor. Scanning only the first anchor left them permanently
+        // unaligned, which is invisible in the UI: the dot simply never moves.
+        let mut state = EditorState::default();
+        let base_anchor = AnchorPoint {
+            id: EntityId::next(),
+            index: 0,
+            name: Some("bottomDots".to_string()),
+            point: Point::new(140.0, -8.0),
+            color: None,
+            identifier: None,
+            lib: None,
+        };
+        state.anchors.push(base_anchor);
+        let mark_anchor = |index, name: &str, point| AnchorPoint {
+            id: EntityId::next(),
+            index,
+            name: Some(name.to_string()),
+            point,
+            color: None,
+            identifier: None,
+            lib: None,
+        };
+        state.set_component_previews(vec![ComponentPreview {
+            id: EntityId::next(),
+            index: 0,
+            base: "dotbelow-ar".to_string(),
+            transform: Affine::IDENTITY,
+            path: Arc::new(BezPath::new()),
+            transformed_path: Arc::new(BezPath::new()),
+            anchors: vec![
+                mark_anchor(0, "bottom", Point::new(124.0, -306.0)),
+                mark_anchor(1, "_bottomDots", Point::new(124.0, 0.0)),
+            ],
+            auto_align: true,
+        }]);
+
+        assert_eq!(
+            state.component_transform(0).expect("component transform") * Point::new(124.0, 0.0),
+            Point::new(140.0, -8.0)
         );
     }
 
