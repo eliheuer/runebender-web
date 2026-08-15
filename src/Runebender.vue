@@ -5065,6 +5065,7 @@ function applyActiveGlyphUnicode(value: string) {
       unicodes: info.unicodes,
     };
     setGlyphBytes(data, currentGlyph.value, bytes);
+    _t.setBytes = performance.now();
     data.glyphMetadata.set(currentGlyph.value, metadata);
     if (info.unicode) {
       data.glyphUnicodes.set(currentGlyph.value, info.unicode);
@@ -8413,6 +8414,29 @@ function cachedGlyphXmlByName(data: MasterData): string {
  *
  * Freshness is not something a caller should have to know to ask for.
  */
+/**
+ * Where the time goes when an edit is committed. Silent unless the whole
+ * commit exceeds a frame, so ordinary edits print nothing — but when there
+ * is a stall, this says which stage owns it instead of leaving us to guess.
+ */
+function logGlyphSyncStages(t: Record<string, number>) {
+  const total = t.end - t.start;
+  if (total < 16) return;
+  const at = (k: string, prev: string) =>
+    t[k] === undefined || t[prev] === undefined
+      ? "-"
+      : `${(t[k] - t[prev]).toFixed(1)}`;
+  console.log(
+    `[runebender] glyph commit ${total.toFixed(1)}ms  ` +
+      `serialize ${at("serialize", "start")}  ` +
+      `setBytes ${at("setBytes", "serialize")}  ` +
+      `gridSvg ${at("gridSvg", "setBytes")}  ` +
+      `realign ${at("realign", "gridSvg")}  ` +
+      `reactivity ${at("reactivity", "realign")}  ` +
+      `rest ${at("end", "reactivity")}`,
+  );
+}
+
 function setGlyphBytes(data: MasterData, name: string, bytes: Uint8Array) {
   data.glyphBytes.set(name, bytes);
   data.glyphXmlByName = null;
@@ -10361,7 +10385,9 @@ function syncCurrentGlyphBytesFromEditor(
     // Only a label the file already carries: writing the snapped guess
     // would turn a display fallback into a fact on disk.
     const markLabel = data.glyphMarkLabels.get(currentGlyph.value) ?? "";
+    const _t: Record<string, number> = { start: performance.now() };
     const bytes = editor.currentGlyphGlif(originalBytes, markColor, markLabel);
+    _t.serialize = performance.now();
     if (options.skipUnchanged && bytesEqual(bytes, originalBytes)) {
       editorGlyphNeedsSync = false;
       return false;
@@ -10404,16 +10430,19 @@ function syncCurrentGlyphBytesFromEditor(
     if (options.refreshGridSvg !== false) {
       refreshGridGlyphSvg(data, currentGlyph.value, bytes);
     }
+    _t.gridSvg = performance.now();
     // This glyph's anchors may have moved, and composites store their
     // components as fixed offsets — so every glyph that places this one has
     // to be re-placed, or it keeps the position baked in before the edit.
     realignCompositesUsing(currentGlyph.value);
+    _t.realign = performance.now();
     setRefNumber(currentWidth, info.width);
     setRefNumber(currentContours, info.contours);
     refreshSidebearingsFromEditor();
     if (options.notifyMasterData !== false) {
       masterDataMap.value = new Map(masterDataMap.value);
     }
+    _t.reactivity = performance.now();
     if (options.refreshCompatibility !== false) {
       updateCompatibilityErrors();
     }
@@ -10425,6 +10454,8 @@ function syncCurrentGlyphBytesFromEditor(
     if (options.syncComfy !== false) {
       queueComfyStateSync();
     }
+    _t.end = performance.now();
+    logGlyphSyncStages(_t);
     editorGlyphNeedsSync = false;
     return true;
   } catch (e) {
