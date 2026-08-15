@@ -397,6 +397,38 @@ export class GlyphEditor {
         return v1;
     }
     /**
+     * Redraw the thumbnails for the named glyphs from the parsed set the
+     * editor already holds, returning `{name: svg}`.
+     *
+     * The per-glyph route took the whole font's XML across the boundary and
+     * re-parsed all 799 glyphs to draw one thumbnail — about 60ms each. A
+     * composite whose base moved needed one of those per glyph that places
+     * it, so editing behDotless-ar.init paid it eight times over.
+     * @param {string} names_json
+     * @param {number} units_per_em
+     * @returns {string}
+     */
+    glyphSvgsFromCache(names_json, units_per_em) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(names_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.glypheditor_glyphSvgsFromCache(this.__wbg_ptr, ptr0, len0, units_per_em);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
      * Harmonize selected smooth nodes (or all if none selected) → G2.
      * @returns {boolean}
      */

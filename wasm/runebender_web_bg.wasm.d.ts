@@ -55,6 +55,7 @@ export const glypheditor_fitToCanvas: (a: number, b: number, c: number) => void;
 export const glypheditor_flipSelectionHorizontal: (a: number) => number;
 export const glypheditor_flipSelectionVertical: (a: number) => number;
 export const glypheditor_glyphBounds: (a: number) => [number, number];
+export const glypheditor_glyphSvgsFromCache: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const glypheditor_harmonizeSelection: (a: number) => number;
 export const glypheditor_insertInactiveTextGlyph: (a: number, b: number, c: number, d: number, e: number) => void;
 export const glypheditor_insertTextCharacter: (a: number, b: number) => number;

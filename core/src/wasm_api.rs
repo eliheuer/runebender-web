@@ -2726,6 +2726,44 @@ impl GlyphEditor {
             .map_err(|e| JsValue::from_str(&format!("serialize result: {e}")))
     }
 
+    /// Redraw the thumbnails for the named glyphs from the parsed set the
+    /// editor already holds, returning `{name: svg}`.
+    ///
+    /// The per-glyph route took the whole font's XML across the boundary and
+    /// re-parsed all 799 glyphs to draw one thumbnail — about 60ms each. A
+    /// composite whose base moved needed one of those per glyph that places
+    /// it, so editing behDotless-ar.init paid it eight times over.
+    #[wasm_bindgen(js_name = glyphSvgsFromCache)]
+    pub fn glyph_svgs_from_cache(
+        &self,
+        names_json: &str,
+        units_per_em: f64,
+    ) -> Result<String, JsValue> {
+        let names: Vec<String> = serde_json::from_str(names_json)
+            .map_err(|e| JsValue::from_str(&format!("parse names: {e}")))?;
+        let upm = if units_per_em > 0.0 { units_per_em } else { 1000.0 };
+
+        let mut svgs: HashMap<String, String> = HashMap::with_capacity(names.len());
+        for name in names {
+            let Some(glyph) = self.component_glyphs.get(&name) else {
+                continue;
+            };
+            let mut bez = norad_glyph_to_bezpath(glyph);
+            append_norad_components_to_bezpath(
+                &mut bez,
+                glyph,
+                &self.component_glyphs,
+                Affine::IDENTITY,
+                0,
+            );
+            if let Ok(svg) = svg_from_bezpath_em(&bez, upm) {
+                svgs.insert(name, svg);
+            }
+        }
+        serde_json::to_string(&svgs)
+            .map_err(|e| JsValue::from_str(&format!("serialize svgs: {e}")))
+    }
+
     /// How many components the current glyph has, so the menu can hide the
     /// decompose item on a glyph that is drawn rather than assembled.
     #[wasm_bindgen(js_name = componentCount)]

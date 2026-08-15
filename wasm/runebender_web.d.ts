@@ -121,6 +121,16 @@ export class GlyphEditor {
      */
     glyphBounds(): Float64Array;
     /**
+     * Redraw the thumbnails for the named glyphs from the parsed set the
+     * editor already holds, returning `{name: svg}`.
+     *
+     * The per-glyph route took the whole font's XML across the boundary and
+     * re-parsed all 799 glyphs to draw one thumbnail — about 60ms each. A
+     * composite whose base moved needed one of those per glyph that places
+     * it, so editing behDotless-ar.init paid it eight times over.
+     */
+    glyphSvgsFromCache(names_json: string, units_per_em: number): string;
+    /**
      * Harmonize selected smooth nodes (or all if none selected) → G2.
      */
     harmonizeSelection(): boolean;
@@ -617,6 +627,7 @@ export interface InitOutput {
     readonly glypheditor_flipSelectionHorizontal: (a: number) => number;
     readonly glypheditor_flipSelectionVertical: (a: number) => number;
     readonly glypheditor_glyphBounds: (a: number) => [number, number];
+    readonly glypheditor_glyphSvgsFromCache: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glypheditor_harmonizeSelection: (a: number) => number;
     readonly glypheditor_insertInactiveTextGlyph: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly glypheditor_insertTextCharacter: (a: number, b: number) => number;

@@ -1626,6 +1626,7 @@ type Editor = {
   decomposeComponents(selectedOnly: boolean): number;
   componentCount(): number;
   realignComposites(namesJson: string, unitsPerEm: number): string;
+  glyphSvgsFromCache(namesJson: string, unitsPerEm: number): string;
   addComponent(base: string): boolean;
   componentAlignmentState(): string;
   setComponentAlignment(locked: boolean): boolean;
@@ -7341,11 +7342,23 @@ function refreshGridGlyphSvg(
   glyphName: string,
   bytes: Uint8Array,
 ): string {
-  const svg = gridGlyphSvgWithComponents(
-    bytes,
-    cachedGlyphXmlByName(data),
-    data.unitsPerEm,
-  );
+  // Draw from the editor's parsed set when we can. The fallback hands the
+  // whole font's XML across the boundary to draw one glyph, which costs a
+  // full 799-glyph parse — fine for a background master, not on every edit.
+  let svg = "";
+  if (data === activeMasterData.value && editor) {
+    try {
+      svg =
+        JSON.parse(
+          editor.glyphSvgsFromCache(JSON.stringify([glyphName]), data.unitsPerEm),
+        )[glyphName] ?? "";
+    } catch (e) {
+      console.warn("[runebender] redrawing", glyphName, "failed:", e);
+    }
+  }
+  if (!svg) {
+    svg = gridGlyphSvgWithComponents(bytes, cachedGlyphXmlByName(data), data.unitsPerEm);
+  }
   if (svg) {
     data.glyphSvgs.set(glyphName, svg);
   } else {
@@ -7414,29 +7427,55 @@ function realignCompositesUsing(base: string) {
 }
 
 function refreshCompositesUsing(data: MasterData, base: string, seen: Set<string>) {
-  const users = componentUsersIndex(data).get(base);
-  if (!users?.size) return;
-  const xml = cachedGlyphXmlByName(data);
-  for (const user of users) {
-    if (seen.has(user)) continue;
-    seen.add(user);
-    const userBytes = data.glyphBytes.get(user);
-    if (!userBytes) continue;
-    const userSvg = gridGlyphSvgWithComponents(userBytes, xml, data.unitsPerEm);
-    if (userSvg) {
-      data.glyphSvgs.set(user, userSvg);
-    } else {
-      data.glyphSvgs.delete(user);
+  // Everything that places `base`, and everything that places those, since
+  // composites nest. Collected first so the redraw is one call rather than
+  // one per glyph: drawing a thumbnail used to hand the whole font's XML
+  // across the boundary and re-parse all 799 glyphs, about 60ms a time.
+  const index = componentUsersIndex(data);
+  const pending = [base];
+  const names: string[] = [];
+  while (pending.length) {
+    const current = pending.pop() as string;
+    for (const user of index.get(current) ?? []) {
+      if (seen.has(user)) continue;
+      seen.add(user);
+      names.push(user);
+      pending.push(user);
     }
+  }
+  if (!names.length) return;
+
+  if (data !== activeMasterData.value || !editor) {
+    // A background master has no parsed set in the editor, so fall back to
+    // the slow path — it is off the interactive path anyway.
+    const xml = cachedGlyphXmlByName(data);
+    for (const user of names) {
+      const userBytes = data.glyphBytes.get(user);
+      if (!userBytes) continue;
+      const userSvg = gridGlyphSvgWithComponents(userBytes, xml, data.unitsPerEm);
+      if (userSvg) data.glyphSvgs.set(user, userSvg);
+      else data.glyphSvgs.delete(user);
+    }
+    return;
+  }
+
+  let svgs: Record<string, string>;
+  try {
+    svgs = JSON.parse(editor.glyphSvgsFromCache(JSON.stringify(names), data.unitsPerEm));
+  } catch (e) {
+    console.warn("[runebender] redrawing composites of", base, "failed:", e);
+    return;
+  }
+  for (const user of names) {
+    const userSvg = svgs[user];
+    if (userSvg) data.glyphSvgs.set(user, userSvg);
+    else data.glyphSvgs.delete(user);
     // The text line draws its other sorts from the same outlines.
-    if (data === activeMasterData.value) {
-      try {
-        editor?.setTextGlyphOutline(user, userSvg ?? "");
-      } catch (e) {
-        console.warn("[runebender] refreshing composite outline failed:", e);
-      }
+    try {
+      editor.setTextGlyphOutline(user, userSvg ?? "");
+    } catch (e) {
+      console.warn("[runebender] refreshing composite outline failed:", e);
     }
-    refreshCompositesUsing(data, user, seen);
   }
 }
 
