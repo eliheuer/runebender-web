@@ -220,6 +220,17 @@ export class GlyphEditor {
      */
     pointerMoveVisualChanged(x: number, y: number, mods: number): boolean;
     pointerUp(x: number, y: number, button: number, mods: number): boolean;
+    /**
+     * Re-place the anchor-locked components of the named glyphs, returning
+     * `{name: [glif, svg]}` for the ones that actually moved.
+     *
+     * This reads `self.component_glyphs` — the parsed glyph set the editor
+     * already maintains, updated per glyph as edits land. The version before
+     * it took the whole font's XML across the boundary as a JSON string and
+     * re-parsed all 799 glyphs on every call: ~60ms of parsing, several
+     * times per anchor move. Nothing crosses here but a list of names.
+     */
+    realignComposites(names_json: string, units_per_em: number): string;
     redo(): boolean;
     render(): void;
     resize(width: number, height: number): void;
@@ -508,26 +519,6 @@ export function glifWithOutlinesFrom(source_bytes: Uint8Array, target_bytes: Uin
 export function glifWithUnicode(bytes: Uint8Array, unicode: string): Uint8Array;
 
 /**
- * Re-place the anchor-locked components of several glyphs at once, and
- * return the .glif for each one that actually moved.
- *
- * A composite stores its components as fixed offsets, so moving an anchor on
- * a base leaves every glyph that places it holding the old number. Editing
- * `behDotless-ar.init`'s `bottomDots` has to walk out to `beh-ar.init`,
- * `teh-ar.init` and the rest and re-place their dots, or the anchor is
- * decoration and the real position is whatever was baked in.
- *
- * Batched deliberately. Doing one glyph per call re-parsed the whole font
- * each time: eight users of behDotless-ar.init meant 6,392 glyph parses over
- * 5.8 MB of XML for one drag, and dotabove-ar's thirty-two users meant four
- * times that. The map is parsed once here instead.
- *
- * Components carrying `com.glyphsapp.component.alignment = -1` are left
- * alone: those have been unlocked deliberately.
- */
-export function glifsWithComponentsRealigned(names_json: string, glyph_xml_by_name: string, units_per_em: number): string;
-
-/**
  * Map a Unicode codepoint to the matching `GlyphCategory`, returned
  * as its `display_name` ("Letter", "Number", …). Uses the same
  * mapping as runebender-xilem (both go through
@@ -586,7 +577,6 @@ export interface InitOutput {
     readonly glifWithName: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glifWithOutlinesFrom: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glifWithUnicode: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly glifsWithComponentsRealigned: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly glyphCategoryForCodepoint: (a: number) => [number, number];
     readonly glypheditor_activateTextSort: (a: number, b: number) => number;
     readonly glypheditor_activateTextSortAt: (a: number, b: number, c: number) => number;
@@ -658,6 +648,7 @@ export interface InitOutput {
     readonly glypheditor_pointerMoveSelectionState: (a: number, b: number, c: number, d: number) => [number, number];
     readonly glypheditor_pointerMoveVisualChanged: (a: number, b: number, c: number, d: number) => number;
     readonly glypheditor_pointerUp: (a: number, b: number, c: number, d: number, e: number) => number;
+    readonly glypheditor_realignComposites: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glypheditor_redo: (a: number) => number;
     readonly glypheditor_render: (a: number) => [number, number];
     readonly glypheditor_resize: (a: number, b: number, c: number) => void;

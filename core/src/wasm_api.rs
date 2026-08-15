@@ -756,99 +756,6 @@ fn fit_scale(bbox: Rect, pane_aspect: f64) -> f64 {
     (aspect / width).min(1.0 / height)
 }
 
-/// Re-place the anchor-locked components of several glyphs at once, and
-/// return the .glif for each one that actually moved.
-///
-/// A composite stores its components as fixed offsets, so moving an anchor on
-/// a base leaves every glyph that places it holding the old number. Editing
-/// `behDotless-ar.init`'s `bottomDots` has to walk out to `beh-ar.init`,
-/// `teh-ar.init` and the rest and re-place their dots, or the anchor is
-/// decoration and the real position is whatever was baked in.
-///
-/// Batched deliberately. Doing one glyph per call re-parsed the whole font
-/// each time: eight users of behDotless-ar.init meant 6,392 glyph parses over
-/// 5.8 MB of XML for one drag, and dotabove-ar's thirty-two users meant four
-/// times that. The map is parsed once here instead.
-///
-/// Components carrying `com.glyphsapp.component.alignment = -1` are left
-/// alone: those have been unlocked deliberately.
-#[wasm_bindgen(js_name = glifsWithComponentsRealigned)]
-pub fn glifs_with_components_realigned(
-    names_json: &str,
-    glyph_xml_by_name: &str,
-    units_per_em: f64,
-) -> Result<String, JsValue> {
-    let names: Vec<String> = serde_json::from_str(names_json)
-        .map_err(|e| JsValue::from_str(&format!("parse names: {e}")))?;
-    let glyphs = parse_glif_xml_map(glyph_xml_by_name)?;
-
-    let upm = if units_per_em > 0.0 { units_per_em } else { 1000.0 };
-    // glif AND the redrawn thumbnail, so the caller does not have to come
-    // back for the SVG — that second trip re-parsed this whole map per glyph.
-    let mut changed: HashMap<String, (String, String)> = HashMap::new();
-    for name in names {
-        let Some(glyph) = glyphs.get(&name) else {
-            continue;
-        };
-        let mut glyph = glyph.clone();
-
-        let inputs: Vec<crate::editor::AlignInput> = glyph
-            .components
-            .iter()
-            .map(|component| {
-                let anchors = glyphs
-                    .get(component.base.as_str())
-                    .map(|base| {
-                        base.anchors
-                            .iter()
-                            .filter_map(|a| {
-                                Some((a.name.as_ref()?.to_string(), Point::new(a.x, a.y)))
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                crate::editor::AlignInput {
-                    anchors,
-                    offset: Vec2::new(
-                        component.transform.x_offset,
-                        component.transform.y_offset,
-                    ),
-                    aligned: !component_alignment_disabled(component),
-                }
-            })
-            .collect();
-
-        let placed = crate::editor::realign_component_offsets(&inputs);
-        let mut moved = false;
-        for (component, offset) in glyph.components.iter_mut().zip(placed) {
-            if (component.transform.x_offset - offset.x).abs() > 1e-9
-                || (component.transform.y_offset - offset.y).abs() > 1e-9
-            {
-                component.transform.x_offset = offset.x;
-                component.transform.y_offset = offset.y;
-                moved = true;
-            }
-        }
-        if !moved {
-            continue;
-        }
-        let encoded = glyph
-            .encode_xml()
-            .map_err(|e| JsValue::from_str(&format!("serialize .glif: {e}")))?;
-        let glif = String::from_utf8(encoded)
-            .map_err(|e| JsValue::from_str(&format!("glif not utf-8: {e}")))?;
-
-        let mut bez = norad_glyph_to_bezpath(&glyph);
-        append_norad_components_to_bezpath(&mut bez, &glyph, &glyphs, Affine::IDENTITY, 0);
-        let svg = svg_from_bezpath_em(&bez, upm).unwrap_or_default();
-
-        changed.insert(name, (glif, svg));
-    }
-
-    serde_json::to_string(&changed)
-        .map_err(|e| JsValue::from_str(&format!("serialize result: {e}")))
-}
-
 fn parse_glif_xml_map(glyph_xml_by_name: &str) -> Result<HashMap<String, norad::Glyph>, JsValue> {
     let xml_by_name: GlifXmlMap = serde_json::from_str(glyph_xml_by_name)
         .map_err(|e| JsValue::from_str(&format!("parse glyph XML map: {e}")))?;
@@ -2719,6 +2626,104 @@ impl GlyphEditor {
     #[wasm_bindgen(js_name = clearComponentSelection)]
     pub fn clear_component_selection(&mut self) {
         self.state.clear_component_selection();
+    }
+
+    /// Re-place the anchor-locked components of the named glyphs, returning
+    /// `{name: [glif, svg]}` for the ones that actually moved.
+    ///
+    /// This reads `self.component_glyphs` — the parsed glyph set the editor
+    /// already maintains, updated per glyph as edits land. The version before
+    /// it took the whole font's XML across the boundary as a JSON string and
+    /// re-parsed all 799 glyphs on every call: ~60ms of parsing, several
+    /// times per anchor move. Nothing crosses here but a list of names.
+    #[wasm_bindgen(js_name = realignComposites)]
+    pub fn realign_composites(
+        &mut self,
+        names_json: &str,
+        units_per_em: f64,
+    ) -> Result<String, JsValue> {
+        let names: Vec<String> = serde_json::from_str(names_json)
+            .map_err(|e| JsValue::from_str(&format!("parse names: {e}")))?;
+        let upm = if units_per_em > 0.0 { units_per_em } else { 1000.0 };
+
+        let mut changed: HashMap<String, (String, String)> = HashMap::new();
+        let mut updated: Vec<(String, norad::Glyph)> = Vec::new();
+
+        for name in names {
+            let Some(glyph) = self.component_glyphs.get(&name) else {
+                continue;
+            };
+            let mut glyph = glyph.clone();
+
+            let inputs: Vec<crate::editor::AlignInput> = glyph
+                .components
+                .iter()
+                .map(|component| {
+                    let anchors = self
+                        .component_glyphs
+                        .get(component.base.as_str())
+                        .map(|base| {
+                            base.anchors
+                                .iter()
+                                .filter_map(|a| {
+                                    Some((a.name.as_ref()?.to_string(), Point::new(a.x, a.y)))
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    crate::editor::AlignInput {
+                        anchors,
+                        offset: Vec2::new(
+                            component.transform.x_offset,
+                            component.transform.y_offset,
+                        ),
+                        // unlocked on purpose: leave it where it was put
+                        aligned: !component_alignment_disabled(component),
+                    }
+                })
+                .collect();
+
+            let placed = crate::editor::realign_component_offsets(&inputs);
+            let mut moved = false;
+            for (component, offset) in glyph.components.iter_mut().zip(placed) {
+                if (component.transform.x_offset - offset.x).abs() > 1e-9
+                    || (component.transform.y_offset - offset.y).abs() > 1e-9
+                {
+                    component.transform.x_offset = offset.x;
+                    component.transform.y_offset = offset.y;
+                    moved = true;
+                }
+            }
+            if !moved {
+                continue;
+            }
+
+            let encoded = glyph
+                .encode_xml()
+                .map_err(|e| JsValue::from_str(&format!("serialize .glif: {e}")))?;
+            let glif = String::from_utf8(encoded)
+                .map_err(|e| JsValue::from_str(&format!("glif not utf-8: {e}")))?;
+            let mut bez = norad_glyph_to_bezpath(&glyph);
+            append_norad_components_to_bezpath(
+                &mut bez,
+                &glyph,
+                &self.component_glyphs,
+                Affine::IDENTITY,
+                0,
+            );
+            let svg = svg_from_bezpath_em(&bez, upm).unwrap_or_default();
+
+            changed.insert(name.clone(), (glif, svg));
+            updated.push((name, glyph));
+        }
+
+        // keep the cache honest, so the next call reads what we just wrote
+        for (name, glyph) in updated {
+            self.component_glyphs.insert(name, glyph);
+        }
+
+        serde_json::to_string(&changed)
+            .map_err(|e| JsValue::from_str(&format!("serialize result: {e}")))
     }
 
     /// How many components the current glyph has, so the menu can hide the

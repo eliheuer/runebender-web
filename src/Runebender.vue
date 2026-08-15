@@ -16,7 +16,6 @@ import init, {
   glifToSvg,
   glifToSvgWithComponents,
   glifWithKerningGroup,
-  glifsWithComponentsRealigned,
   glifWithMarkColor,
   glifWithName,
   glifWithOutlinesFrom,
@@ -1626,6 +1625,7 @@ type Editor = {
   selectComponentAt(x: number, y: number): boolean;
   decomposeComponents(selectedOnly: boolean): number;
   componentCount(): number;
+  realignComposites(namesJson: string, unitsPerEm: number): string;
   addComponent(base: string): boolean;
   componentAlignmentState(): string;
   setComponentAlignment(locked: boolean): boolean;
@@ -7377,42 +7377,38 @@ function refreshGridGlyphSvg(
  */
 function realignCompositesUsing(base: string) {
   const data = activeMasterData.value;
-  if (!data) return;
+  if (!editor || !data) return;
   const users = componentUsersIndex(data).get(base);
   if (!users?.size) return;
-  // One call for the whole set, returning the glif AND the redrawn thumbnail.
-  // Parsing the font's glyph map costs ~100ms in wasm, and both the per-glyph
-  // realign and the per-glyph SVG refresh used to pay it separately — eight
-  // users of behDotless-ar.init meant most of a second before the dots moved.
+  // The editor already holds every glyph parsed, so this hands it names and
+  // nothing else. Passing the font's XML across the boundary meant re-parsing
+  // all 799 glyphs per call — ~60ms each, several times per anchor move.
   let changed: Record<string, [string, string]>;
   try {
     changed = JSON.parse(
-      glifsWithComponentsRealigned(
-        JSON.stringify([...users]),
-        cachedGlyphXmlByName(data),
-        data.unitsPerEm,
-      ),
+      editor.realignComposites(JSON.stringify([...users]), data.unitsPerEm),
     );
   } catch (e) {
     console.warn("[runebender] realigning composites of", base, "failed:", e);
     return;
   }
+  const names = Object.keys(changed);
+  if (!names.length) return;
   const encoder = new TextEncoder();
-  for (const [user, [glif, svg]] of Object.entries(changed)) {
-    data.glyphBytes.set(user, encoder.encode(glif));
-    if (svg) data.glyphSvgs.set(user, svg);
-    else data.glyphSvgs.delete(user);
-    markGlyphDirty(user);
+  for (const name of names) {
+    const [glif, svg] = changed[name];
+    data.glyphBytes.set(name, encoder.encode(glif));
+    if (svg) data.glyphSvgs.set(name, svg);
+    else data.glyphSvgs.delete(name);
+    markGlyphDirty(name);
     // the text line draws its other sorts from these outlines
     try {
-      editor?.setTextGlyphOutline(user, svg ?? "");
+      editor.setTextGlyphOutline(name, svg ?? "");
     } catch (e) {
-      console.warn("[runebender] refreshing", user, "in the text line failed:", e);
+      console.warn("[runebender] refreshing", name, "in the text line failed:", e);
     }
   }
-  if (Object.keys(changed).length) {
-    masterDataMap.value = new Map(masterDataMap.value);
-  }
+  masterDataMap.value = new Map(masterDataMap.value);
 }
 
 function refreshCompositesUsing(data: MasterData, base: string, seen: Set<string>) {

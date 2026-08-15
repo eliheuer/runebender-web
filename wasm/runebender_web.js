@@ -715,6 +715,39 @@ export class GlyphEditor {
         return ret !== 0;
     }
     /**
+     * Re-place the anchor-locked components of the named glyphs, returning
+     * `{name: [glif, svg]}` for the ones that actually moved.
+     *
+     * This reads `self.component_glyphs` — the parsed glyph set the editor
+     * already maintains, updated per glyph as edits land. The version before
+     * it took the whole font's XML across the boundary as a JSON string and
+     * re-parsed all 799 glyphs on every call: ~60ms of parsing, several
+     * times per anchor move. Nothing crosses here but a list of names.
+     * @param {string} names_json
+     * @param {number} units_per_em
+     * @returns {string}
+     */
+    realignComposites(names_json, units_per_em) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(names_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.glypheditor_realignComposites(this.__wbg_ptr, ptr0, len0, units_per_em);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
      * @returns {boolean}
      */
     redo() {
@@ -1873,51 +1906,6 @@ export function glifWithUnicode(bytes, unicode) {
     var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v3;
-}
-
-/**
- * Re-place the anchor-locked components of several glyphs at once, and
- * return the .glif for each one that actually moved.
- *
- * A composite stores its components as fixed offsets, so moving an anchor on
- * a base leaves every glyph that places it holding the old number. Editing
- * `behDotless-ar.init`'s `bottomDots` has to walk out to `beh-ar.init`,
- * `teh-ar.init` and the rest and re-place their dots, or the anchor is
- * decoration and the real position is whatever was baked in.
- *
- * Batched deliberately. Doing one glyph per call re-parsed the whole font
- * each time: eight users of behDotless-ar.init meant 6,392 glyph parses over
- * 5.8 MB of XML for one drag, and dotabove-ar's thirty-two users meant four
- * times that. The map is parsed once here instead.
- *
- * Components carrying `com.glyphsapp.component.alignment = -1` are left
- * alone: those have been unlocked deliberately.
- * @param {string} names_json
- * @param {string} glyph_xml_by_name
- * @param {number} units_per_em
- * @returns {string}
- */
-export function glifsWithComponentsRealigned(names_json, glyph_xml_by_name, units_per_em) {
-    let deferred4_0;
-    let deferred4_1;
-    try {
-        const ptr0 = passStringToWasm0(names_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(glyph_xml_by_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.glifsWithComponentsRealigned(ptr0, len0, ptr1, len1, units_per_em);
-        var ptr3 = ret[0];
-        var len3 = ret[1];
-        if (ret[3]) {
-            ptr3 = 0; len3 = 0;
-            throw takeFromExternrefTable0(ret[2]);
-        }
-        deferred4_0 = ptr3;
-        deferred4_1 = len3;
-        return getStringFromWasm0(ptr3, len3);
-    } finally {
-        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
-    }
 }
 
 /**

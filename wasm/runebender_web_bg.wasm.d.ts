@@ -15,7 +15,6 @@ export const glifWithMarkColor: (a: number, b: number, c: number, d: number, e: 
 export const glifWithName: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const glifWithOutlinesFrom: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const glifWithUnicode: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-export const glifsWithComponentsRealigned: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
 export const glyphCategoryForCodepoint: (a: number) => [number, number];
 export const glypheditor_activateTextSort: (a: number, b: number) => number;
 export const glypheditor_activateTextSortAt: (a: number, b: number, c: number) => number;
@@ -87,6 +86,7 @@ export const glypheditor_pointerMove: (a: number, b: number, c: number, d: numbe
 export const glypheditor_pointerMoveSelectionState: (a: number, b: number, c: number, d: number) => [number, number];
 export const glypheditor_pointerMoveVisualChanged: (a: number, b: number, c: number, d: number) => number;
 export const glypheditor_pointerUp: (a: number, b: number, c: number, d: number, e: number) => number;
+export const glypheditor_realignComposites: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const glypheditor_redo: (a: number) => number;
 export const glypheditor_render: (a: number) => [number, number];
 export const glypheditor_resize: (a: number, b: number, c: number) => void;
