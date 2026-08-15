@@ -6614,7 +6614,11 @@ function onPointerUp(e: PointerEvent) {
     if (activeTool.value === "Select" && masterName) {
       editorGlyphNeedsSync = true;
       markGlyphDirty(glyphName, masterName);
-      scheduleDeferredGlyphSync(glyphName, masterName);
+      // Commit once this release has painted, rather than on the 500 ms idle
+      // timer. That delay exists to coalesce keyboard nudge repeat; letting go
+      // of the mouse has no repeat coming, and the wait was visible — drag an
+      // anchor and the dots in every composite lagged half a second behind.
+      scheduleDeferredGlyphSyncCommitAfterPaint();
     } else {
       const glyphChanged = syncCurrentGlyphBytesFromEditor({ skipUnchanged: true });
       if (glyphChanged) {
