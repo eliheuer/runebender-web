@@ -1894,9 +1894,10 @@ export function glifWithUnicode(bytes, unicode) {
  * alone: those have been unlocked deliberately.
  * @param {string} names_json
  * @param {string} glyph_xml_by_name
+ * @param {number} units_per_em
  * @returns {string}
  */
-export function glifsWithComponentsRealigned(names_json, glyph_xml_by_name) {
+export function glifsWithComponentsRealigned(names_json, glyph_xml_by_name, units_per_em) {
     let deferred4_0;
     let deferred4_1;
     try {
@@ -1904,7 +1905,7 @@ export function glifsWithComponentsRealigned(names_json, glyph_xml_by_name) {
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(glyph_xml_by_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.glifsWithComponentsRealigned(ptr0, len0, ptr1, len1);
+        const ret = wasm.glifsWithComponentsRealigned(ptr0, len0, ptr1, len1, units_per_em);
         var ptr3 = ret[0];
         var len3 = ret[1];
         if (ret[3]) {
@@ -3088,12 +3089,12 @@ function __wbg_get_imports() {
             arg0.writeTexture(arg1, arg2, arg3, arg4);
         }, arguments); },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 507, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 508, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h6a659fc9c8d6adff);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 549, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 550, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h61b71dc7eda4b46f);
             return ret;
         },

@@ -776,12 +776,16 @@ fn fit_scale(bbox: Rect, pane_aspect: f64) -> f64 {
 pub fn glifs_with_components_realigned(
     names_json: &str,
     glyph_xml_by_name: &str,
+    units_per_em: f64,
 ) -> Result<String, JsValue> {
     let names: Vec<String> = serde_json::from_str(names_json)
         .map_err(|e| JsValue::from_str(&format!("parse names: {e}")))?;
     let glyphs = parse_glif_xml_map(glyph_xml_by_name)?;
 
-    let mut changed: HashMap<String, String> = HashMap::new();
+    let upm = if units_per_em > 0.0 { units_per_em } else { 1000.0 };
+    // glif AND the redrawn thumbnail, so the caller does not have to come
+    // back for the SVG — that second trip re-parsed this whole map per glyph.
+    let mut changed: HashMap<String, (String, String)> = HashMap::new();
     for name in names {
         let Some(glyph) = glyphs.get(&name) else {
             continue;
@@ -828,14 +832,17 @@ pub fn glifs_with_components_realigned(
         if !moved {
             continue;
         }
-        let xml = glyph
+        let encoded = glyph
             .encode_xml()
             .map_err(|e| JsValue::from_str(&format!("serialize .glif: {e}")))?;
-        changed.insert(
-            name,
-            String::from_utf8(xml)
-                .map_err(|e| JsValue::from_str(&format!("glif not utf-8: {e}")))?,
-        );
+        let glif = String::from_utf8(encoded)
+            .map_err(|e| JsValue::from_str(&format!("glif not utf-8: {e}")))?;
+
+        let mut bez = norad_glyph_to_bezpath(&glyph);
+        append_norad_components_to_bezpath(&mut bez, &glyph, &glyphs, Affine::IDENTITY, 0);
+        let svg = svg_from_bezpath_em(&bez, upm).unwrap_or_default();
+
+        changed.insert(name, (glif, svg));
     }
 
     serde_json::to_string(&changed)

@@ -525,7 +525,7 @@ export function glifWithUnicode(bytes: Uint8Array, unicode: string): Uint8Array;
  * Components carrying `com.glyphsapp.component.alignment = -1` are left
  * alone: those have been unlocked deliberately.
  */
-export function glifsWithComponentsRealigned(names_json: string, glyph_xml_by_name: string): string;
+export function glifsWithComponentsRealigned(names_json: string, glyph_xml_by_name: string, units_per_em: number): string;
 
 /**
  * Map a Unicode codepoint to the matching `GlyphCategory`, returned
@@ -586,7 +586,7 @@ export interface InitOutput {
     readonly glifWithName: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glifWithOutlinesFrom: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glifWithUnicode: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly glifsWithComponentsRealigned: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly glifsWithComponentsRealigned: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly glyphCategoryForCodepoint: (a: number) => [number, number];
     readonly glypheditor_activateTextSort: (a: number, b: number) => number;
     readonly glypheditor_activateTextSortAt: (a: number, b: number, c: number) => number;

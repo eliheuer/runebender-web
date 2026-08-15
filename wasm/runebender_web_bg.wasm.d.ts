@@ -15,7 +15,7 @@ export const glifWithMarkColor: (a: number, b: number, c: number, d: number, e: 
 export const glifWithName: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const glifWithOutlinesFrom: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const glifWithUnicode: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-export const glifsWithComponentsRealigned: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const glifsWithComponentsRealigned: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
 export const glyphCategoryForCodepoint: (a: number) => [number, number];
 export const glypheditor_activateTextSort: (a: number, b: number) => number;
 export const glypheditor_activateTextSortAt: (a: number, b: number, c: number) => number;

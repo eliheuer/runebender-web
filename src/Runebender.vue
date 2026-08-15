@@ -7380,14 +7380,17 @@ function realignCompositesUsing(base: string) {
   if (!data) return;
   const users = componentUsersIndex(data).get(base);
   if (!users?.size) return;
-  // One call for all of them: the wasm side parses the font's glyph map once,
-  // and per-glyph calls made that a full re-parse each.
-  let changed: Record<string, string>;
+  // One call for the whole set, returning the glif AND the redrawn thumbnail.
+  // Parsing the font's glyph map costs ~100ms in wasm, and both the per-glyph
+  // realign and the per-glyph SVG refresh used to pay it separately — eight
+  // users of behDotless-ar.init meant most of a second before the dots moved.
+  let changed: Record<string, [string, string]>;
   try {
     changed = JSON.parse(
       glifsWithComponentsRealigned(
         JSON.stringify([...users]),
         cachedGlyphXmlByName(data),
+        data.unitsPerEm,
       ),
     );
   } catch (e) {
@@ -7395,11 +7398,20 @@ function realignCompositesUsing(base: string) {
     return;
   }
   const encoder = new TextEncoder();
-  for (const [user, xml] of Object.entries(changed)) {
-    const bytes = encoder.encode(xml);
-    data.glyphBytes.set(user, bytes);
+  for (const [user, [glif, svg]] of Object.entries(changed)) {
+    data.glyphBytes.set(user, encoder.encode(glif));
+    if (svg) data.glyphSvgs.set(user, svg);
+    else data.glyphSvgs.delete(user);
     markGlyphDirty(user);
-    refreshGridGlyphSvg(data, user, bytes);
+    // the text line draws its other sorts from these outlines
+    try {
+      editor?.setTextGlyphOutline(user, svg ?? "");
+    } catch (e) {
+      console.warn("[runebender] refreshing", user, "in the text line failed:", e);
+    }
+  }
+  if (Object.keys(changed).length) {
+    masterDataMap.value = new Map(masterDataMap.value);
   }
 }
 
