@@ -7375,11 +7375,21 @@ function refreshGridGlyphSvg(
  * Without this walk the anchor is decoration: the dot stays where it was
  * baked, and only the glyph under the cursor ever looks right.
  */
-function realignCompositesUsing(base: string) {
+function realignCompositesUsing(base: string, bytes: Uint8Array) {
   const data = activeMasterData.value;
   if (!editor || !data) return;
   const users = componentUsersIndex(data).get(base);
   if (!users?.size) return;
+  // Some sync paths skip the component-cache update to stay cheap — the
+  // keyboard nudge is one. Realigning against a stale copy of this glyph
+  // would place every dot from the anchor's *old* position, silently. One
+  // parse to make the cache honest costs far less than being wrong.
+  try {
+    editor.setComponentGlyph(base, bytes);
+  } catch (e) {
+    console.warn("[runebender] refreshing", base, "in the component cache failed:", e);
+    return;
+  }
   // The editor already holds every glyph parsed, so this hands it names and
   // nothing else. Passing the font's XML across the boundary meant re-parsing
   // all 799 glyphs per call — ~60ms each, several times per anchor move.
@@ -10366,7 +10376,7 @@ function syncCurrentGlyphBytesFromEditor(
     // This glyph's anchors may have moved, and composites store their
     // components as fixed offsets — so every glyph that places this one has
     // to be re-placed, or it keeps the position baked in before the edit.
-    realignCompositesUsing(currentGlyph.value);
+    realignCompositesUsing(currentGlyph.value, bytes);
     setRefNumber(currentWidth, info.width);
     setRefNumber(currentContours, info.contours);
     refreshSidebearingsFromEditor();
