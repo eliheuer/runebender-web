@@ -4596,6 +4596,54 @@ fn reverse_path_points(path: &mut Path) {
     }
 }
 
+/// One component's contribution to anchor alignment: the anchors its base
+/// glyph carries (in the base's own coordinates), where the component is
+/// currently placed, and whether it is still locked to its anchor.
+pub struct AlignInput {
+    pub anchors: Vec<(String, Point)>,
+    pub offset: Vec2,
+    pub aligned: bool,
+}
+
+/// Re-place anchor-locked components against the anchors in front of them,
+/// returning each component's corrected offset.
+///
+/// A composite stores its components as fixed offsets, so this is what has to
+/// run over every glyph that places a base whose anchors just moved — the
+/// alignment is not re-derived at render time, it is baked into the file.
+///
+/// Anchors accumulate as we go: a component's outgoing anchors are offered to
+/// the components after it, which is how a second mark stacks on the first
+/// rather than landing back on the letter.
+pub fn realign_component_offsets(components: &[AlignInput]) -> Vec<Vec2> {
+    let mut available: Vec<(&str, Point)> = Vec::new();
+    let mut out = Vec::with_capacity(components.len());
+
+    for component in components {
+        let mut offset = component.offset;
+        if component.aligned {
+            let delta = component.anchors.iter().find_map(|(name, point)| {
+                let target_name = name.strip_prefix('_')?;
+                let (_, target) = available
+                    .iter()
+                    .rev()
+                    .find(|(available, _)| *available == target_name)?;
+                Some(*target - (*point + offset))
+            });
+            if let Some(delta) = delta {
+                offset += delta;
+            }
+        }
+        out.push(offset);
+        for (name, point) in &component.anchors {
+            if !name.starts_with('_') {
+                available.push((name.as_str(), *point + offset));
+            }
+        }
+    }
+    out
+}
+
 /// Break a BezPath into one path per contour. A component's outline is a
 /// single BezPath holding every contour of the glyph it points at, and the
 /// editor wants them as separate editable paths.
@@ -5226,6 +5274,71 @@ mod tests {
             state.component_transform(0).expect("transform") * Point::new(100.0, 20.0),
             Point::new(250.0, 700.0)
         );
+    }
+
+    /// beh-ar.init as it actually is in Virtua Grotesk: the letter, then the
+    /// dot locked to the letter's `bottomDots`.
+    fn beh_init_components(dots_anchor: Point, dot_offset: Vec2) -> Vec<AlignInput> {
+        vec![
+            AlignInput {
+                anchors: vec![
+                    ("top".to_string(), Point::new(140.0, 420.0)),
+                    ("bottomDots".to_string(), dots_anchor),
+                ],
+                offset: Vec2::ZERO,
+                aligned: true,
+            },
+            AlignInput {
+                anchors: vec![("_bottomDots".to_string(), Point::new(124.0, 0.0))],
+                offset: dot_offset,
+                aligned: true,
+            },
+        ]
+    }
+
+    #[test]
+    fn moving_a_base_anchor_re_places_the_dot_in_every_composite() {
+        // Where the sources sit today: bottomDots (140,10), dot offset (16,10).
+        let placed = realign_component_offsets(&beh_init_components(
+            Point::new(140.0, 10.0),
+            Vec2::new(16.0, 10.0),
+        ));
+        assert_eq!(placed[1], Vec2::new(16.0, 10.0), "already aligned, must not drift");
+
+        // Drag the anchor: the stored offset is stale until this recomputes it.
+        let placed = realign_component_offsets(&beh_init_components(
+            Point::new(200.0, 40.0),
+            Vec2::new(16.0, 10.0),
+        ));
+        assert_eq!(placed[1], Vec2::new(76.0, 40.0));
+    }
+
+    #[test]
+    fn an_unlocked_component_is_left_where_it_was_put() {
+        let mut components =
+            beh_init_components(Point::new(200.0, 40.0), Vec2::new(16.0, 10.0));
+        components[1].aligned = false;
+        let placed = realign_component_offsets(&components);
+        assert_eq!(placed[1], Vec2::new(16.0, 10.0));
+    }
+
+    #[test]
+    fn a_second_mark_stacks_on_the_first_rather_than_on_the_letter() {
+        let mut components =
+            beh_init_components(Point::new(140.0, 10.0), Vec2::new(16.0, 10.0));
+        // the dot offers its own `bottom` for the next mark to hang under
+        components[1]
+            .anchors
+            .push(("bottom".to_string(), Point::new(124.0, -306.0)));
+        components.push(AlignInput {
+            anchors: vec![("_bottom".to_string(), Point::new(112.0, 8.0))],
+            offset: Vec2::ZERO,
+            aligned: true,
+        });
+        let placed = realign_component_offsets(&components);
+        // dot sits at (16,10), so its `bottom` is at (140,-296);
+        // the kasra's `_bottom` (112,8) lands there
+        assert_eq!(placed[2], Vec2::new(28.0, -304.0));
     }
 
     #[test]

@@ -475,6 +475,21 @@ export function glifToSvg(bytes: Uint8Array): string;
 export function glifToSvgWithComponents(bytes: Uint8Array, glyph_xml_by_name: string): string;
 
 /**
+ * Re-place a glyph's anchor-aligned components against the current anchors,
+ * and return the rewritten .glif — or `None` when nothing moved.
+ *
+ * A composite stores its components as fixed offsets, so moving an anchor on
+ * the base glyph leaves every composite that places it holding the old
+ * number. Editing `behDotless-ar.init`'s `bottomDots` has to walk out to
+ * `beh-ar.init`, `teh-ar.init` and the rest and re-place their dots, or the
+ * anchor is decoration and the real position is whatever was baked in.
+ *
+ * Components that carry `com.glyphsapp.component.alignment = -1` are left
+ * alone: those have been unlocked deliberately.
+ */
+export function glifWithComponentsRealigned(bytes: Uint8Array, glyph_xml_by_name: string): Uint8Array | undefined;
+
+/**
  * Update one UFO kerning group lib entry in a .glif file. `side`
  * accepts `left`/`public.kern2` or `right`/`public.kern1`; an empty
  * group or `-` clears that lib entry, matching xilem's active panel.
@@ -561,6 +576,7 @@ export interface InitOutput {
     readonly glifToGridSvgWithComponents: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly glifToSvg: (a: number, b: number) => [number, number, number, number];
     readonly glifToSvgWithComponents: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly glifWithComponentsRealigned: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glifWithKerningGroup: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly glifWithMarkColor: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly glifWithName: (a: number, b: number, c: number, d: number) => [number, number, number, number];

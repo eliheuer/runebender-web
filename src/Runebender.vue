@@ -16,6 +16,7 @@ import init, {
   glifToSvg,
   glifToSvgWithComponents,
   glifWithKerningGroup,
+  glifWithComponentsRealigned,
   glifWithMarkColor,
   glifWithName,
   glifWithOutlinesFrom,
@@ -7361,6 +7362,38 @@ function refreshGridGlyphSvg(
   return svg;
 }
 
+/**
+ * Re-place the anchor-locked components of every composite that uses
+ * `base`, after `base`'s anchors moved.
+ *
+ * A composite stores its components as fixed offsets, so moving an anchor
+ * here leaves every glyph that places this one holding the old number.
+ * Without this walk the anchor is decoration: the dot stays where it was
+ * baked, and only the glyph under the cursor ever looks right.
+ */
+function realignCompositesUsing(base: string) {
+  const data = activeMasterData.value;
+  if (!data) return;
+  const users = componentUsersIndex(data).get(base);
+  if (!users?.size) return;
+  const xml = cachedGlyphXmlByName(data);
+  for (const user of users) {
+    const userBytes = data.glyphBytes.get(user);
+    if (!userBytes) continue;
+    let next: Uint8Array | undefined;
+    try {
+      next = glifWithComponentsRealigned(userBytes, xml) ?? undefined;
+    } catch (e) {
+      console.warn("[runebender] realigning", user, "failed:", e);
+      continue;
+    }
+    if (!next) continue;
+    data.glyphBytes.set(user, next);
+    markGlyphDirty(user);
+    refreshGridGlyphSvg(data, user, next);
+  }
+}
+
 function refreshCompositesUsing(data: MasterData, base: string, seen: Set<string>) {
   const users = componentUsersIndex(data).get(base);
   if (!users?.size) return;
@@ -10313,6 +10346,10 @@ function syncCurrentGlyphBytesFromEditor(
     if (options.refreshGridSvg !== false) {
       refreshGridGlyphSvg(data, currentGlyph.value, bytes);
     }
+    // This glyph's anchors may have moved, and composites store their
+    // components as fixed offsets — so every glyph that places this one has
+    // to be re-placed, or it keeps the position baked in before the edit.
+    realignCompositesUsing(currentGlyph.value);
     setRefNumber(currentWidth, info.width);
     setRefNumber(currentContours, info.contours);
     refreshSidebearingsFromEditor();

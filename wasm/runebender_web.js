@@ -1762,6 +1762,39 @@ export function glifToSvgWithComponents(bytes, glyph_xml_by_name) {
 }
 
 /**
+ * Re-place a glyph's anchor-aligned components against the current anchors,
+ * and return the rewritten .glif — or `None` when nothing moved.
+ *
+ * A composite stores its components as fixed offsets, so moving an anchor on
+ * the base glyph leaves every composite that places it holding the old
+ * number. Editing `behDotless-ar.init`'s `bottomDots` has to walk out to
+ * `beh-ar.init`, `teh-ar.init` and the rest and re-place their dots, or the
+ * anchor is decoration and the real position is whatever was baked in.
+ *
+ * Components that carry `com.glyphsapp.component.alignment = -1` are left
+ * alone: those have been unlocked deliberately.
+ * @param {Uint8Array} bytes
+ * @param {string} glyph_xml_by_name
+ * @returns {Uint8Array | undefined}
+ */
+export function glifWithComponentsRealigned(bytes, glyph_xml_by_name) {
+    const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(glyph_xml_by_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.glifWithComponentsRealigned(ptr0, len0, ptr1, len1);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    let v3;
+    if (ret[0] !== 0) {
+        v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    }
+    return v3;
+}
+
+/**
  * Update one UFO kerning group lib entry in a .glif file. `side`
  * accepts `left`/`public.kern2` or `right`/`public.kern1`; an empty
  * group or `-` clears that lib entry, matching xilem's active panel.
