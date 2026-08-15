@@ -7346,6 +7346,16 @@ function refreshGridGlyphSvg(
   } else {
     data.glyphSvgs.delete(glyphName);
   }
+  // The glyph being edited is drawn live only under the cursor. Anywhere
+  // else it appears in the line draws this cached outline, so a letter that
+  // occurs twice kept showing its old dot until something else rebuilt it.
+  if (data === activeMasterData.value) {
+    try {
+      editor?.setTextGlyphOutline(glyphName, svg ?? "");
+    } catch (e) {
+      console.warn("[runebender] refreshing edited outline failed:", e);
+    }
+  }
   updateComponentUsers(data, glyphName, bytes);
   refreshCompositesUsing(data, glyphName, new Set([glyphName]));
   return svg;
