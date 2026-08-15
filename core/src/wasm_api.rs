@@ -2628,6 +2628,46 @@ impl GlyphEditor {
         self.state.clear_component_selection();
     }
 
+    /// Select the component under the given screen point, so a right-click
+    /// acts on what is beneath the cursor rather than on an earlier selection.
+    #[wasm_bindgen(js_name = selectComponentAt)]
+    pub fn select_component_at(&mut self, x: f64, y: f64) -> bool {
+        let design = self.state.screen_to_glyph_design(Point::new(x, y));
+        match self.state.hit_test_component(design) {
+            Some(id) => {
+                self.state.select_component(id);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Whether the selected component is locked to its anchor: `"locked"`,
+    /// `"free"`, or `""` when nothing is selected. The UI offers the opposite
+    /// of whatever this reports, so the menu never shows a no-op.
+    #[wasm_bindgen(js_name = componentAlignmentState)]
+    pub fn component_alignment_state(&self) -> String {
+        match self.state.selected_component_auto_align() {
+            Some(true) => "locked".into(),
+            Some(false) => "free".into(),
+            None => String::new(),
+        }
+    }
+
+    /// Lock the selected component back onto its anchor, or cut it loose.
+    /// Unlocking leaves it exactly where it sits; locking snaps it home.
+    #[wasm_bindgen(js_name = setComponentAlignment)]
+    pub fn set_component_alignment(&mut self, locked: bool) -> bool {
+        let snapshot = self.discrete_edit_snapshot();
+        if self.state.set_selected_component_auto_align(locked) {
+            self.undo.add_undo_group(snapshot);
+            self.pending_snapshot = None;
+            true
+        } else {
+            false
+        }
+    }
+
     #[wasm_bindgen(js_name = anchorContextAt)]
     pub fn anchor_context_at(&self, x: f64, y: f64) -> String {
         let design = self.state.screen_to_glyph_design(Point::new(x, y));

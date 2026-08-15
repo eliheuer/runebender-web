@@ -793,13 +793,57 @@ impl EditorState {
         else {
             return false;
         };
-        component.auto_align = false;
+        // An aligned component belongs to its anchor, so dragging it is
+        // refused rather than quietly breaking the link — the same contract
+        // Glyphs has, where you unlock it first and then move it. Silently
+        // dropping alignment is worse than doing nothing: the dot stays put
+        // on screen and stops following the anchor, with nothing to show why.
+        if component.auto_align {
+            return false;
+        }
         component.transform = Affine::translate(delta) * component.transform;
         rebuild_component_transformed_path(component);
         self.rebuild_component_preview();
         self.rebuild_propagated_anchors();
         self.bump_edit_revision();
         true
+    }
+
+    /// Turn a component's anchor alignment on or off. Off leaves it wherever
+    /// it currently sits, so unlocking never moves anything; on snaps it back
+    /// to the anchor immediately.
+    pub fn set_selected_component_auto_align(&mut self, aligned: bool) -> bool {
+        let Some(selected) = self.selected_component else {
+            return false;
+        };
+        let Some(component) = self
+            .component_previews
+            .iter_mut()
+            .find(|component| component.id == selected)
+        else {
+            return false;
+        };
+        if component.auto_align == aligned {
+            return false;
+        }
+        component.auto_align = aligned;
+        if aligned {
+            self.realign_components_to_anchors();
+        }
+        self.rebuild_component_preview();
+        self.rebuild_propagated_anchors();
+        self.bump_edit_revision();
+        true
+    }
+
+    /// Whether the selected component is currently anchor-aligned, so the UI
+    /// can offer the right half of the lock/unlock pair.
+    pub fn selected_component_auto_align(&self) -> Option<bool> {
+        let selected = self.selected_component?;
+        self.component_previews
+            .iter()
+            .find(|component| component.id == selected)
+            .map(|component| component.auto_align)
     }
 
     pub fn transform_selected_component(&mut self, transform: Affine) -> bool {
@@ -813,9 +857,15 @@ impl EditorState {
         else {
             return false;
         };
-        component.auto_align = false;
+        // Alignment owns the component's POSITION, not its shape. Flipping,
+        // rotating and scaling stay available while aligned — the anchor then
+        // puts the result back where it belongs, which is what Glyphs does.
+        let aligned = component.auto_align;
         component.transform = transform * component.transform;
         rebuild_component_transformed_path(component);
+        if aligned {
+            self.realign_components_to_anchors();
+        }
         self.rebuild_component_preview();
         self.rebuild_propagated_anchors();
         self.bump_edit_revision();
@@ -5029,6 +5079,77 @@ mod tests {
         assert_eq!(
             state.component_transform(0).expect("component transform") * Point::new(124.0, 0.0),
             Point::new(140.0, -8.0)
+        );
+    }
+
+    /// Build a base with a `top` anchor carrying one aligned mark component.
+    fn state_with_aligned_component() -> EditorState {
+        let mut state = EditorState::default();
+        state.anchors.push(AnchorPoint {
+            id: EntityId::next(),
+            index: 0,
+            name: Some("top".to_string()),
+            point: Point::new(250.0, 700.0),
+            color: None,
+            identifier: None,
+            lib: None,
+        });
+        let component_id = EntityId::next();
+        state.set_component_previews(vec![ComponentPreview {
+            id: component_id,
+            index: 0,
+            base: "acute".to_string(),
+            transform: Affine::IDENTITY,
+            path: Arc::new(BezPath::new()),
+            transformed_path: Arc::new(BezPath::new()),
+            anchors: vec![AnchorPoint {
+                id: EntityId::next(),
+                index: 0,
+                name: Some("_top".to_string()),
+                point: Point::new(100.0, 20.0),
+                color: None,
+                identifier: None,
+                lib: None,
+            }],
+            auto_align: true,
+        }]);
+        state.selected_component = Some(component_id);
+        state
+    }
+
+    #[test]
+    fn dragging_an_aligned_component_is_refused_rather_than_silently_unlocking() {
+        // Glyphs will not let you drag an auto-aligned component; you disable
+        // alignment first. Quietly dropping alignment on drag is worse than
+        // refusing: the component stops following its anchor and nothing says so.
+        let mut state = state_with_aligned_component();
+        let before = state.component_transform(0).expect("transform");
+
+        assert!(!state.translate_selected_component(Vec2::new(30.0, 12.0)));
+        assert_eq!(state.component_transform(0).expect("transform"), before);
+        assert_eq!(state.selected_component_auto_align(), Some(true));
+    }
+
+    #[test]
+    fn unlocking_leaves_the_component_where_it_sits_then_lets_it_move() {
+        let mut state = state_with_aligned_component();
+        let aligned_at = state.component_transform(0).expect("transform");
+
+        assert!(state.set_selected_component_auto_align(false));
+        // unlocking must not shift anything by itself
+        assert_eq!(state.component_transform(0).expect("transform"), aligned_at);
+
+        assert!(state.translate_selected_component(Vec2::new(30.0, 12.0)));
+        assert_eq!(
+            state.component_transform(0).expect("transform") * Point::new(100.0, 20.0),
+            Point::new(280.0, 712.0)
+        );
+
+        // locking again snaps it back onto the anchor
+        assert!(state.set_selected_component_auto_align(true));
+        assert_eq!(
+            state.component_transform(0).expect("transform") * Point::new(100.0, 20.0),
+            Point::new(250.0, 700.0)
         );
     }
 

@@ -40,6 +40,12 @@ export class GlyphEditor {
     clearComponentSelection(): void;
     clearSegmentHover(): boolean;
     clearTextBuffer(): void;
+    /**
+     * Whether the selected component is locked to its anchor: `"locked"`,
+     * `"free"`, or `""` when nothing is selected. The UI offers the opposite
+     * of whatever this reports, so the menu never shows a no-op.
+     */
+    componentAlignmentState(): string;
     componentBaseAt(x: number, y: number): string;
     contourContextAt(x: number, y: number): Float64Array;
     /**
@@ -220,6 +226,11 @@ export class GlyphEditor {
     roundSelectedCorners(): boolean;
     screenToDesign(x: number, y: number): Float64Array;
     selectAnchorAt(x: number, y: number): boolean;
+    /**
+     * Select the component under the given screen point, so a right-click
+     * acts on what is beneath the cursor rather than on an earlier selection.
+     */
+    selectComponentAt(x: number, y: number): boolean;
     selectContourAt(x: number, y: number): boolean;
     selectedAnchorInfo(): string;
     /**
@@ -260,6 +271,11 @@ export class GlyphEditor {
      * the host owns them, and the tools never see them.
      */
     setBackgroundOutline(outline: string): void;
+    /**
+     * Lock the selected component back onto its anchor, or cut it loose.
+     * Unlocking leaves it exactly where it sits; locking snaps it home.
+     */
+    setComponentAlignment(locked: boolean): boolean;
     setComponentGlyph(name: string, bytes: Uint8Array): void;
     setComponentGlyphs(glyph_xml_by_name: string): void;
     setCoordinateQuadrant(quadrant: string): void;
@@ -548,6 +564,7 @@ export interface InitOutput {
     readonly glypheditor_clearComponentSelection: (a: number) => void;
     readonly glypheditor_clearSegmentHover: (a: number) => number;
     readonly glypheditor_clearTextBuffer: (a: number) => void;
+    readonly glypheditor_componentAlignmentState: (a: number) => [number, number];
     readonly glypheditor_componentBaseAt: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_contourContextAt: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_contourCount: (a: number) => number;
@@ -615,6 +632,7 @@ export interface InitOutput {
     readonly glypheditor_roundSelectedCorners: (a: number) => number;
     readonly glypheditor_screenToDesign: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_selectAnchorAt: (a: number, b: number, c: number) => number;
+    readonly glypheditor_selectComponentAt: (a: number, b: number, c: number) => number;
     readonly glypheditor_selectContourAt: (a: number, b: number, c: number) => number;
     readonly glypheditor_selectedAnchorInfo: (a: number) => [number, number];
     readonly glypheditor_selectedContourCount: (a: number) => number;
@@ -623,6 +641,7 @@ export interface InitOutput {
     readonly glypheditor_selectionState: (a: number) => [number, number];
     readonly glypheditor_setAdvanceWidth: (a: number, b: number) => number;
     readonly glypheditor_setBackgroundOutline: (a: number, b: number, c: number) => void;
+    readonly glypheditor_setComponentAlignment: (a: number, b: number) => number;
     readonly glypheditor_setComponentGlyph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly glypheditor_setComponentGlyphs: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_setCoordinateQuadrant: (a: number, b: number, c: number) => void;

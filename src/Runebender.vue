@@ -500,6 +500,10 @@ type ContourContextMenuState = {
   anchorName?: string;
   anchorX?: number;
   anchorY?: number;
+  // the component under the cursor, if any, and whether it is currently
+  // locked to an anchor — the menu offers the opposite of whatever it is
+  componentBase?: string;
+  componentLocked?: boolean;
 };
 
 type AnchorContext = {
@@ -1617,6 +1621,9 @@ type Editor = {
   pointerUp(x: number, y: number, button: number, mods: number): boolean;
   pointerCancel(): boolean;
   componentBaseAt(x: number, y: number): string;
+  selectComponentAt(x: number, y: number): boolean;
+  componentAlignmentState(): string;
+  setComponentAlignment(locked: boolean): boolean;
   clearComponentSelection(): void;
   anchorContextAt(x: number, y: number): string;
   selectedAnchorInfo(): string;
@@ -6389,6 +6396,21 @@ function onCanvasContextMenu(e: MouseEvent) {
     refreshSelectionState();
     requestRender({ refreshDerivedState: false });
   }
+  // Select whatever component was right-clicked, so the lock/unlock item acts
+  // on the thing under the cursor rather than on a stale selection.
+  let componentBase = "";
+  let componentLocked: boolean | undefined;
+  if (!anchor) {
+    componentBase = editor.componentBaseAt(c[0], c[1]) ?? "";
+    if (componentBase) {
+      editor.selectComponentAt(c[0], c[1]);
+      const state = editor.componentAlignmentState();
+      componentLocked =
+        state === "locked" ? true : state === "free" ? false : undefined;
+      refreshSelectionState();
+      requestRender({ refreshDerivedState: false });
+    }
+  }
   const info = editor.contourContextAt(c[0], c[1]);
   if (info.length >= 4) {
     e.preventDefault();
@@ -6409,6 +6431,8 @@ function onCanvasContextMenu(e: MouseEvent) {
       anchorName: anchor?.name ?? undefined,
       anchorX: anchor?.x,
       anchorY: anchor?.y,
+      componentBase: componentBase || undefined,
+      componentLocked,
     };
     return;
   }
@@ -6431,6 +6455,8 @@ function onCanvasContextMenu(e: MouseEvent) {
       anchorName: anchor?.name ?? undefined,
       anchorX: anchor?.x,
       anchorY: anchor?.y,
+      componentBase: componentBase || undefined,
+      componentLocked,
     };
     return;
   }
@@ -6447,10 +6473,23 @@ function applyContourContextMenuAction(
     | "move-up"
     | "move-down"
     | "add-anchor"
-    | "delete-anchor",
+    | "delete-anchor"
+    | "lock-component"
+    | "unlock-component",
 ) {
   const menu = contourContextMenu.value;
   if (!editor || !menu) return;
+  if (action === "lock-component" || action === "unlock-component") {
+    const lock = action === "lock-component";
+    const changed = applyEditorMutation(() => editor.setComponentAlignment(lock));
+    dismissContourContextMenu();
+    if (changed) {
+      status.value = lock
+        ? "component locked to its anchor"
+        : "component unlocked — it no longer follows the anchor";
+    }
+    return;
+  }
   if (action === "add-anchor") {
     const name = defaultAnchorNameForPosition(menu.designY);
     const changed = applyEditorMutation(() => editor.addAnchorAt(menu.screenX, menu.screenY, name));
@@ -11563,6 +11602,25 @@ onBeforeUnmount(() => {
           @pointerdown.stop
           @contextmenu.prevent.stop
         >
+          <!-- Component items come first: when you right-click a component,
+               that is what you meant, and the lock is the thing you reach for
+               most while placing Arabic dots. -->
+          <button
+            v-if="contourContextMenu.componentLocked === true"
+            type="button"
+            role="menuitem"
+            @click="applyContourContextMenuAction('unlock-component')"
+          >
+            Unlock from Anchor
+          </button>
+          <button
+            v-if="contourContextMenu.componentLocked === false"
+            type="button"
+            role="menuitem"
+            @click="applyContourContextMenuAction('lock-component')"
+          >
+            Lock to Anchor
+          </button>
           <button
             v-if="contourContextMenu.canSetStart"
             type="button"

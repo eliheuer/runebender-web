@@ -135,6 +135,24 @@ export class GlyphEditor {
         wasm.glypheditor_clearTextBuffer(this.__wbg_ptr);
     }
     /**
+     * Whether the selected component is locked to its anchor: `"locked"`,
+     * `"free"`, or `""` when nothing is selected. The UI offers the opposite
+     * of whatever this reports, so the menu never shows a no-op.
+     * @returns {string}
+     */
+    componentAlignmentState() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.glypheditor_componentAlignmentState(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * @param {number} x
      * @param {number} y
      * @returns {string}
@@ -786,6 +804,17 @@ export class GlyphEditor {
         return ret !== 0;
     }
     /**
+     * Select the component under the given screen point, so a right-click
+     * acts on what is beneath the cursor rather than on an earlier selection.
+     * @param {number} x
+     * @param {number} y
+     * @returns {boolean}
+     */
+    selectComponentAt(x, y) {
+        const ret = wasm.glypheditor_selectComponentAt(this.__wbg_ptr, x, y);
+        return ret !== 0;
+    }
+    /**
      * @param {number} x
      * @param {number} y
      * @returns {boolean}
@@ -878,6 +907,16 @@ export class GlyphEditor {
         const ptr0 = passStringToWasm0(outline, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         wasm.glypheditor_setBackgroundOutline(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * Lock the selected component back onto its anchor, or cut it loose.
+     * Unlocking leaves it exactly where it sits; locking snaps it home.
+     * @param {boolean} locked
+     * @returns {boolean}
+     */
+    setComponentAlignment(locked) {
+        const ret = wasm.glypheditor_setComponentAlignment(this.__wbg_ptr, locked);
+        return ret !== 0;
     }
     /**
      * @param {string} name
