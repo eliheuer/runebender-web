@@ -7375,21 +7375,11 @@ function refreshGridGlyphSvg(
  * Without this walk the anchor is decoration: the dot stays where it was
  * baked, and only the glyph under the cursor ever looks right.
  */
-function realignCompositesUsing(base: string, bytes: Uint8Array) {
+function realignCompositesUsing(base: string) {
   const data = activeMasterData.value;
   if (!editor || !data) return;
   const users = componentUsersIndex(data).get(base);
   if (!users?.size) return;
-  // Some sync paths skip the component-cache update to stay cheap — the
-  // keyboard nudge is one. Realigning against a stale copy of this glyph
-  // would place every dot from the anchor's *old* position, silently. One
-  // parse to make the cache honest costs far less than being wrong.
-  try {
-    editor.setComponentGlyph(base, bytes);
-  } catch (e) {
-    console.warn("[runebender] refreshing", base, "in the component cache failed:", e);
-    return;
-  }
   // The editor already holds every glyph parsed, so this hands it names and
   // nothing else. Passing the font's XML across the boundary meant re-parsing
   // all 799 glyphs per call — ~60ms each, several times per anchor move.
@@ -7407,7 +7397,9 @@ function realignCompositesUsing(base: string, bytes: Uint8Array) {
   const encoder = new TextEncoder();
   for (const name of names) {
     const [glif, svg] = changed[name];
-    data.glyphBytes.set(name, encoder.encode(glif));
+    // through setGlyphBytes, not a raw map write: these glyphs' XML has
+    // changed, so the cached map string has to be invalidated with it
+    setGlyphBytes(data, name, encoder.encode(glif));
     if (svg) data.glyphSvgs.set(name, svg);
     else data.glyphSvgs.delete(name);
     markGlyphDirty(name);
@@ -7895,9 +7887,7 @@ async function applyExternalWorkspaceChanges(
           break;
         }
         const bytes = new TextEncoder().encode(change.text ?? "");
-        data.glyphBytes.set(name, bytes);
-        data.glyphXmlByName = null;
-        data.glyphXmlVersion += 1;
+        setGlyphBytes(data, name, bytes);
         const info = parseGlyphInfo(bytes);
         data.glyphMetadata.set(name, {
           name,
@@ -7915,7 +7905,6 @@ async function applyExternalWorkspaceChanges(
         if (label) data.glyphMarkLabels.set(name, label);
         else data.glyphMarkLabels.delete(name);
         refreshGridGlyphSvg(data, name, bytes);
-        syncEditorComponentGlyphCacheEntry(data, name, bytes);
         refreshGlyphCompatBadge(name);
         touched = true;
         if (
@@ -8372,18 +8361,24 @@ function cachedGlyphXmlByName(data: MasterData): string {
   return data.glyphXmlByName;
 }
 
-function setGlyphBytes(
-  data: MasterData,
-  name: string,
-  bytes: Uint8Array,
-  options: { syncComponentCache?: boolean } = {},
-) {
+/**
+ * The one place a glyph's bytes change, so it is the one place that keeps the
+ * editor's parsed copy in step.
+ *
+ * There is deliberately no way to opt out. The option that used to exist saved
+ * a single glyph parse — 0.076 ms, measured against this font — and in
+ * exchange let the parsed set drift behind the real one. Anything reading it
+ * then worked from the glyph as it was *before* the edit, with no error:
+ * anchor-driven components were re-placed from the anchor's old position on
+ * every path that had opted out.
+ *
+ * Freshness is not something a caller should have to know to ask for.
+ */
+function setGlyphBytes(data: MasterData, name: string, bytes: Uint8Array) {
   data.glyphBytes.set(name, bytes);
   data.glyphXmlByName = null;
   data.glyphXmlVersion += 1;
-  if (options.syncComponentCache !== false) {
-    syncEditorComponentGlyphCacheEntry(data, name, bytes);
-  }
+  syncEditorComponentGlyphCacheEntry(data, name, bytes);
 }
 
 function deleteGlyphBytes(data: MasterData, name: string): boolean {
@@ -9201,7 +9196,8 @@ function refreshDeferredGlyphDerivedState(glyphName: string, masterName: string)
   const data = masterDataMap.value.get(masterName);
   const bytes = data?.glyphBytes.get(glyphName);
   if (!data || !bytes) return false;
-  syncEditorComponentGlyphCacheEntry(data, glyphName, bytes);
+  // No cache catch-up here: setGlyphBytes already did it. This runs after the
+  // nudge path, which used to skip the update and needed repairing later.
   refreshGridGlyphSvg(data, glyphName, bytes);
   if (hasTextBufferSession.value) {
     const metadata = data.glyphMetadata.get(glyphName);
@@ -9293,7 +9289,6 @@ function scheduleDeferredGlyphSync(glyphName: string, masterName: string) {
         notifyMasterData: false,
         syncComfy: false,
         syncTextPreview: false,
-        syncComponentCache: false,
       })
     ) {
       markGlyphDirty(glyphName, masterName);
@@ -10312,7 +10307,6 @@ function syncCurrentGlyphBytesFromEditor(
     notifyMasterData?: boolean;
     syncComfy?: boolean;
     syncTextPreview?: boolean;
-    syncComponentCache?: boolean;
   } = {},
 ): boolean {
   if (!editor || !currentGlyph.value) return false;
@@ -10360,9 +10354,7 @@ function syncCurrentGlyphBytesFromEditor(
       unicode: info.unicode,
       unicodes: info.unicodes,
     };
-    setGlyphBytes(data, currentGlyph.value, bytes, {
-      syncComponentCache: options.syncComponentCache,
-    });
+    setGlyphBytes(data, currentGlyph.value, bytes);
     data.glyphMetadata.set(currentGlyph.value, metadata);
     setGlyphKerningGroupsFromInfo(data, currentGlyph.value, info);
     if (info.unicode) {
@@ -10376,7 +10368,7 @@ function syncCurrentGlyphBytesFromEditor(
     // This glyph's anchors may have moved, and composites store their
     // components as fixed offsets — so every glyph that places this one has
     // to be re-placed, or it keeps the position baked in before the edit.
-    realignCompositesUsing(currentGlyph.value, bytes);
+    realignCompositesUsing(currentGlyph.value);
     setRefNumber(currentWidth, info.width);
     setRefNumber(currentContours, info.contours);
     refreshSidebearingsFromEditor();
