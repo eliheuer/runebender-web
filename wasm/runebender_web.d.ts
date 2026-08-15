@@ -475,21 +475,6 @@ export function glifToSvg(bytes: Uint8Array): string;
 export function glifToSvgWithComponents(bytes: Uint8Array, glyph_xml_by_name: string): string;
 
 /**
- * Re-place a glyph's anchor-aligned components against the current anchors,
- * and return the rewritten .glif — or `None` when nothing moved.
- *
- * A composite stores its components as fixed offsets, so moving an anchor on
- * the base glyph leaves every composite that places it holding the old
- * number. Editing `behDotless-ar.init`'s `bottomDots` has to walk out to
- * `beh-ar.init`, `teh-ar.init` and the rest and re-place their dots, or the
- * anchor is decoration and the real position is whatever was baked in.
- *
- * Components that carry `com.glyphsapp.component.alignment = -1` are left
- * alone: those have been unlocked deliberately.
- */
-export function glifWithComponentsRealigned(bytes: Uint8Array, glyph_xml_by_name: string): Uint8Array | undefined;
-
-/**
  * Update one UFO kerning group lib entry in a .glif file. `side`
  * accepts `left`/`public.kern2` or `right`/`public.kern1`; an empty
  * group or `-` clears that lib entry, matching xilem's active panel.
@@ -521,6 +506,26 @@ export function glifWithOutlinesFrom(source_bytes: Uint8Array, target_bytes: Uin
  * or `0x41`.
  */
 export function glifWithUnicode(bytes: Uint8Array, unicode: string): Uint8Array;
+
+/**
+ * Re-place the anchor-locked components of several glyphs at once, and
+ * return the .glif for each one that actually moved.
+ *
+ * A composite stores its components as fixed offsets, so moving an anchor on
+ * a base leaves every glyph that places it holding the old number. Editing
+ * `behDotless-ar.init`'s `bottomDots` has to walk out to `beh-ar.init`,
+ * `teh-ar.init` and the rest and re-place their dots, or the anchor is
+ * decoration and the real position is whatever was baked in.
+ *
+ * Batched deliberately. Doing one glyph per call re-parsed the whole font
+ * each time: eight users of behDotless-ar.init meant 6,392 glyph parses over
+ * 5.8 MB of XML for one drag, and dotabove-ar's thirty-two users meant four
+ * times that. The map is parsed once here instead.
+ *
+ * Components carrying `com.glyphsapp.component.alignment = -1` are left
+ * alone: those have been unlocked deliberately.
+ */
+export function glifsWithComponentsRealigned(names_json: string, glyph_xml_by_name: string): string;
 
 /**
  * Map a Unicode codepoint to the matching `GlyphCategory`, returned
@@ -576,12 +581,12 @@ export interface InitOutput {
     readonly glifToGridSvgWithComponents: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly glifToSvg: (a: number, b: number) => [number, number, number, number];
     readonly glifToSvgWithComponents: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly glifWithComponentsRealigned: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glifWithKerningGroup: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly glifWithMarkColor: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly glifWithName: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glifWithOutlinesFrom: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glifWithUnicode: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly glifsWithComponentsRealigned: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly glyphCategoryForCodepoint: (a: number) => [number, number];
     readonly glypheditor_activateTextSort: (a: number, b: number) => number;
     readonly glypheditor_activateTextSortAt: (a: number, b: number, c: number) => number;

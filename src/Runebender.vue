@@ -16,7 +16,7 @@ import init, {
   glifToSvg,
   glifToSvgWithComponents,
   glifWithKerningGroup,
-  glifWithComponentsRealigned,
+  glifsWithComponentsRealigned,
   glifWithMarkColor,
   glifWithName,
   glifWithOutlinesFrom,
@@ -7376,21 +7376,26 @@ function realignCompositesUsing(base: string) {
   if (!data) return;
   const users = componentUsersIndex(data).get(base);
   if (!users?.size) return;
-  const xml = cachedGlyphXmlByName(data);
-  for (const user of users) {
-    const userBytes = data.glyphBytes.get(user);
-    if (!userBytes) continue;
-    let next: Uint8Array | undefined;
-    try {
-      next = glifWithComponentsRealigned(userBytes, xml) ?? undefined;
-    } catch (e) {
-      console.warn("[runebender] realigning", user, "failed:", e);
-      continue;
-    }
-    if (!next) continue;
-    data.glyphBytes.set(user, next);
+  // One call for all of them: the wasm side parses the font's glyph map once,
+  // and per-glyph calls made that a full re-parse each.
+  let changed: Record<string, string>;
+  try {
+    changed = JSON.parse(
+      glifsWithComponentsRealigned(
+        JSON.stringify([...users]),
+        cachedGlyphXmlByName(data),
+      ),
+    );
+  } catch (e) {
+    console.warn("[runebender] realigning composites of", base, "failed:", e);
+    return;
+  }
+  const encoder = new TextEncoder();
+  for (const [user, xml] of Object.entries(changed)) {
+    const bytes = encoder.encode(xml);
+    data.glyphBytes.set(user, bytes);
     markGlyphDirty(user);
-    refreshGridGlyphSvg(data, user, next);
+    refreshGridGlyphSvg(data, user, bytes);
   }
 }
 

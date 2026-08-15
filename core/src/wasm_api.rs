@@ -756,69 +756,90 @@ fn fit_scale(bbox: Rect, pane_aspect: f64) -> f64 {
     (aspect / width).min(1.0 / height)
 }
 
-/// Re-place a glyph's anchor-aligned components against the current anchors,
-/// and return the rewritten .glif — or `None` when nothing moved.
+/// Re-place the anchor-locked components of several glyphs at once, and
+/// return the .glif for each one that actually moved.
 ///
 /// A composite stores its components as fixed offsets, so moving an anchor on
-/// the base glyph leaves every composite that places it holding the old
-/// number. Editing `behDotless-ar.init`'s `bottomDots` has to walk out to
-/// `beh-ar.init`, `teh-ar.init` and the rest and re-place their dots, or the
-/// anchor is decoration and the real position is whatever was baked in.
+/// a base leaves every glyph that places it holding the old number. Editing
+/// `behDotless-ar.init`'s `bottomDots` has to walk out to `beh-ar.init`,
+/// `teh-ar.init` and the rest and re-place their dots, or the anchor is
+/// decoration and the real position is whatever was baked in.
 ///
-/// Components that carry `com.glyphsapp.component.alignment = -1` are left
+/// Batched deliberately. Doing one glyph per call re-parsed the whole font
+/// each time: eight users of behDotless-ar.init meant 6,392 glyph parses over
+/// 5.8 MB of XML for one drag, and dotabove-ar's thirty-two users meant four
+/// times that. The map is parsed once here instead.
+///
+/// Components carrying `com.glyphsapp.component.alignment = -1` are left
 /// alone: those have been unlocked deliberately.
-#[wasm_bindgen(js_name = glifWithComponentsRealigned)]
-pub fn glif_with_components_realigned(
-    bytes: &[u8],
+#[wasm_bindgen(js_name = glifsWithComponentsRealigned)]
+pub fn glifs_with_components_realigned(
+    names_json: &str,
     glyph_xml_by_name: &str,
-) -> Result<Option<Vec<u8>>, JsValue> {
+) -> Result<String, JsValue> {
+    let names: Vec<String> = serde_json::from_str(names_json)
+        .map_err(|e| JsValue::from_str(&format!("parse names: {e}")))?;
     let glyphs = parse_glif_xml_map(glyph_xml_by_name)?;
-    let mut glyph = norad::Glyph::parse_raw(bytes)
-        .map_err(|e| JsValue::from_str(&format!("parse .glif: {e}")))?;
 
-    let inputs: Vec<crate::editor::AlignInput> = glyph
-        .components
-        .iter()
-        .map(|component| {
-            let anchors = glyphs
-                .get(component.base.as_str())
-                .map(|base| {
-                    base.anchors
-                        .iter()
-                        .filter_map(|a| {
-                            Some((a.name.as_ref()?.to_string(), Point::new(a.x, a.y)))
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            crate::editor::AlignInput {
-                anchors,
-                offset: Vec2::new(component.transform.x_offset, component.transform.y_offset),
-                // a component unlocked on purpose stays where it was put
-                aligned: !component_alignment_disabled(component),
+    let mut changed: HashMap<String, String> = HashMap::new();
+    for name in names {
+        let Some(glyph) = glyphs.get(&name) else {
+            continue;
+        };
+        let mut glyph = glyph.clone();
+
+        let inputs: Vec<crate::editor::AlignInput> = glyph
+            .components
+            .iter()
+            .map(|component| {
+                let anchors = glyphs
+                    .get(component.base.as_str())
+                    .map(|base| {
+                        base.anchors
+                            .iter()
+                            .filter_map(|a| {
+                                Some((a.name.as_ref()?.to_string(), Point::new(a.x, a.y)))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                crate::editor::AlignInput {
+                    anchors,
+                    offset: Vec2::new(
+                        component.transform.x_offset,
+                        component.transform.y_offset,
+                    ),
+                    aligned: !component_alignment_disabled(component),
+                }
+            })
+            .collect();
+
+        let placed = crate::editor::realign_component_offsets(&inputs);
+        let mut moved = false;
+        for (component, offset) in glyph.components.iter_mut().zip(placed) {
+            if (component.transform.x_offset - offset.x).abs() > 1e-9
+                || (component.transform.y_offset - offset.y).abs() > 1e-9
+            {
+                component.transform.x_offset = offset.x;
+                component.transform.y_offset = offset.y;
+                moved = true;
             }
-        })
-        .collect();
-
-    let placed = crate::editor::realign_component_offsets(&inputs);
-    let mut moved = false;
-    for (component, offset) in glyph.components.iter_mut().zip(placed) {
-        if (component.transform.x_offset - offset.x).abs() > 1e-9
-            || (component.transform.y_offset - offset.y).abs() > 1e-9
-        {
-            component.transform.x_offset = offset.x;
-            component.transform.y_offset = offset.y;
-            moved = true;
         }
+        if !moved {
+            continue;
+        }
+        let xml = glyph
+            .encode_xml()
+            .map_err(|e| JsValue::from_str(&format!("serialize .glif: {e}")))?;
+        changed.insert(
+            name,
+            String::from_utf8(xml)
+                .map_err(|e| JsValue::from_str(&format!("glif not utf-8: {e}")))?,
+        );
     }
 
-    if !moved {
-        return Ok(None);
-    }
-    glyph
-        .encode_xml()
-        .map(Some)
-        .map_err(|e| JsValue::from_str(&format!("serialize .glif: {e}")))
+    serde_json::to_string(&changed)
+        .map_err(|e| JsValue::from_str(&format!("serialize result: {e}")))
 }
 
 fn parse_glif_xml_map(glyph_xml_by_name: &str) -> Result<HashMap<String, norad::Glyph>, JsValue> {
