@@ -504,6 +504,7 @@ type ContourContextMenuState = {
   // locked to an anchor — the menu offers the opposite of whatever it is
   componentBase?: string;
   componentLocked?: boolean;
+  hasComponents?: boolean;
 };
 
 type AnchorContext = {
@@ -1622,6 +1623,9 @@ type Editor = {
   pointerCancel(): boolean;
   componentBaseAt(x: number, y: number): string;
   selectComponentAt(x: number, y: number): boolean;
+  decomposeComponents(selectedOnly: boolean): number;
+  componentCount(): number;
+  addComponent(base: string): boolean;
   componentAlignmentState(): string;
   setComponentAlignment(locked: boolean): boolean;
   clearComponentSelection(): void;
@@ -6400,6 +6404,7 @@ function onCanvasContextMenu(e: MouseEvent) {
   // on the thing under the cursor rather than on a stale selection.
   let componentBase = "";
   let componentLocked: boolean | undefined;
+  const hasComponents = editor.componentCount() > 0;
   if (!anchor) {
     componentBase = editor.componentBaseAt(c[0], c[1]) ?? "";
     if (componentBase) {
@@ -6433,6 +6438,7 @@ function onCanvasContextMenu(e: MouseEvent) {
       anchorY: anchor?.y,
       componentBase: componentBase || undefined,
       componentLocked,
+      hasComponents,
     };
     return;
   }
@@ -6457,6 +6463,7 @@ function onCanvasContextMenu(e: MouseEvent) {
       anchorY: anchor?.y,
       componentBase: componentBase || undefined,
       componentLocked,
+      hasComponents,
     };
     return;
   }
@@ -6475,10 +6482,34 @@ function applyContourContextMenuAction(
     | "add-anchor"
     | "delete-anchor"
     | "lock-component"
-    | "unlock-component",
+    | "unlock-component"
+    | "decompose-component"
+    | "decompose-all"
+    | "add-component",
 ) {
   const menu = contourContextMenu.value;
   if (!editor || !menu) return;
+  if (action === "add-component") {
+    const base = window.prompt("Add component — glyph name:")?.trim();
+    dismissContourContextMenu();
+    if (!base) return;
+    const ok = applyEditorMutation(() => editor.addComponent(base));
+    status.value = ok
+      ? `added component ${base}`
+      : `no glyph named ${base}`;
+    return;
+  }
+  if (action === "decompose-component" || action === "decompose-all") {
+    const only = action === "decompose-component";
+    let n = 0;
+    applyEditorMutation(() => {
+      n = editor.decomposeComponents(only);
+      return n > 0;
+    });
+    dismissContourContextMenu();
+    if (n > 0) status.value = `decomposed ${n} component${n === 1 ? "" : "s"}`;
+    return;
+  }
   if (action === "lock-component" || action === "unlock-component") {
     const lock = action === "lock-component";
     const changed = applyEditorMutation(() => editor.setComponentAlignment(lock));
@@ -11620,6 +11651,29 @@ onBeforeUnmount(() => {
             @click="applyContourContextMenuAction('lock-component')"
           >
             Lock to Anchor
+          </button>
+          <button
+            v-if="contourContextMenu.componentBase"
+            type="button"
+            role="menuitem"
+            @click="applyContourContextMenuAction('decompose-component')"
+          >
+            Decompose Component
+          </button>
+          <button
+            v-if="contourContextMenu.hasComponents && !contourContextMenu.componentBase"
+            type="button"
+            role="menuitem"
+            @click="applyContourContextMenuAction('decompose-all')"
+          >
+            Decompose Components
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            @click="applyContourContextMenuAction('add-component')"
+          >
+            Add Component…
           </button>
           <button
             v-if="contourContextMenu.canSetStart"

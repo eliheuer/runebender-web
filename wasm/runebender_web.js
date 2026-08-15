@@ -80,6 +80,19 @@ export class GlyphEditor {
         return ret !== 0;
     }
     /**
+     * Drop a component for `base` into the current glyph, at the origin and
+     * locked to its anchor if the two glyphs share one. Returns false when
+     * the base is not a glyph this font has.
+     * @param {string} base
+     * @returns {boolean}
+     */
+    addComponent(base) {
+        const ptr0 = passStringToWasm0(base, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.glypheditor_addComponent(this.__wbg_ptr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Advance width of the currently-open glyph (design units).
      * Zero when no glyph is loaded.
      * @returns {number}
@@ -170,6 +183,15 @@ export class GlyphEditor {
         }
     }
     /**
+     * How many components the current glyph has, so the menu can hide the
+     * decompose item on a glyph that is drawn rather than assembled.
+     * @returns {number}
+     */
+    componentCount() {
+        const ret = wasm.glypheditor_componentCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
      * @param {number} x
      * @param {number} y
      * @returns {Float64Array}
@@ -237,6 +259,16 @@ export class GlyphEditor {
     cycleSelectedPoint(backwards) {
         const ret = wasm.glypheditor_cycleSelectedPoint(this.__wbg_ptr, backwards);
         return ret !== 0;
+    }
+    /**
+     * Replace components with their outlines. With a component selected,
+     * only that one; otherwise every component in the glyph.
+     * @param {boolean} selected_only
+     * @returns {number}
+     */
+    decomposeComponents(selected_only) {
+        const ret = wasm.glypheditor_decomposeComponents(this.__wbg_ptr, selected_only);
+        return ret >>> 0;
     }
     /**
      * @param {string} name

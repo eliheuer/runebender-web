@@ -836,6 +836,64 @@ impl EditorState {
         true
     }
 
+    /// Append a component for `base`, already resolved to its outline and
+    /// anchors by the caller. It starts locked, so a mark lands on its anchor
+    /// rather than at the origin waiting to be dragged into place.
+    pub fn add_component_preview(
+        &mut self,
+        base: String,
+        path: BezPath,
+        anchors: Vec<AnchorPoint>,
+    ) {
+        let index = self.component_previews.len();
+        self.component_previews.push(ComponentPreview {
+            id: EntityId::next(),
+            index,
+            base,
+            transform: Affine::IDENTITY,
+            transformed_path: Arc::new(path.clone()),
+            path: Arc::new(path),
+            anchors,
+            auto_align: true,
+        });
+        self.realign_components_to_anchors();
+        self.rebuild_component_preview();
+        self.rebuild_propagated_anchors();
+        self.bump_edit_revision();
+    }
+
+    /// Replace every component with its own outline, so the glyph stops
+    /// referencing other glyphs and becomes editable in place. If a component
+    /// is selected, only that one is decomposed; otherwise all of them are.
+    /// Returns how many were decomposed.
+    pub fn decompose_components(&mut self, selected_only: bool) -> usize {
+        let target = if selected_only { self.selected_component } else { None };
+        if selected_only && target.is_none() {
+            return 0;
+        }
+        let (taken, left): (Vec<_>, Vec<_>) = std::mem::take(&mut self.component_previews)
+            .into_iter()
+            .partition(|c| target.is_none_or(|id| c.id == id));
+        if taken.is_empty() {
+            self.component_previews = left;
+            return 0;
+        }
+        for component in &taken {
+            for sub in split_subpaths(&component.transformed_path) {
+                self.paths.push(Path::Cubic(bezpath_to_cubic(&sub)));
+            }
+        }
+        self.component_previews = left;
+        for (i, component) in self.component_previews.iter_mut().enumerate() {
+            component.index = i;
+        }
+        self.selected_component = None;
+        self.rebuild_component_preview();
+        self.rebuild_propagated_anchors();
+        self.bump_edit_revision();
+        taken.len()
+    }
+
     /// Whether the selected component is currently anchor-aligned, so the UI
     /// can offer the right half of the lock/unlock pair.
     pub fn selected_component_auto_align(&self) -> Option<bool> {
@@ -4538,6 +4596,23 @@ fn reverse_path_points(path: &mut Path) {
     }
 }
 
+/// Break a BezPath into one path per contour. A component's outline is a
+/// single BezPath holding every contour of the glyph it points at, and the
+/// editor wants them as separate editable paths.
+fn split_subpaths(bezpath: &BezPath) -> Vec<BezPath> {
+    let mut out: Vec<BezPath> = Vec::new();
+    for el in bezpath.elements() {
+        if matches!(el, PathEl::MoveTo(_)) {
+            out.push(BezPath::new());
+        }
+        if let Some(current) = out.last_mut() {
+            current.push(*el);
+        }
+    }
+    out.retain(|p| p.elements().len() > 1);
+    out
+}
+
 fn bezpath_to_cubic(bezpath: &BezPath) -> CubicPath {
     let mut points = Vec::new();
     let has_close = bezpath
@@ -5151,6 +5226,39 @@ mod tests {
             state.component_transform(0).expect("transform") * Point::new(100.0, 20.0),
             Point::new(250.0, 700.0)
         );
+    }
+
+    #[test]
+    fn decompose_turns_each_component_contour_into_its_own_path() {
+        let mut state = EditorState::default();
+        // two contours in one component, as a dot mark or an o would have
+        let mut outline = BezPath::new();
+        outline.move_to((0.0, 0.0));
+        outline.line_to((100.0, 0.0));
+        outline.line_to((100.0, 100.0));
+        outline.close_path();
+        outline.move_to((20.0, 20.0));
+        outline.line_to((60.0, 20.0));
+        outline.line_to((60.0, 60.0));
+        outline.close_path();
+        let placed = Affine::translate((10.0, 5.0)) * &outline;
+        state.set_component_previews(vec![ComponentPreview {
+            id: EntityId::next(),
+            index: 0,
+            base: "dotbelow-ar".to_string(),
+            transform: Affine::translate((10.0, 5.0)),
+            path: Arc::new(outline),
+            transformed_path: Arc::new(placed),
+            anchors: Vec::new(),
+            auto_align: false,
+        }]);
+
+        assert_eq!(state.decompose_components(false), 1);
+        assert!(state.component_previews.is_empty());
+        // one path per contour, and they land where the component sat
+        assert_eq!(state.paths.len(), 2);
+        let first = state.paths[0].to_bezpath();
+        assert_eq!(first.bounding_box().origin(), Point::new(10.0, 5.0));
     }
 
     #[test]

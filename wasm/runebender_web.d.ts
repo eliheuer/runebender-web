@@ -22,6 +22,12 @@ export class GlyphEditor {
     activeTextSortRtl(): boolean;
     addAnchorAt(x: number, y: number, name: string): boolean;
     /**
+     * Drop a component for `base` into the current glyph, at the origin and
+     * locked to its anchor if the two glyphs share one. Returns false when
+     * the base is not a glyph this font has.
+     */
+    addComponent(base: string): boolean;
+    /**
      * Advance width of the currently-open glyph (design units).
      * Zero when no glyph is loaded.
      */
@@ -47,6 +53,11 @@ export class GlyphEditor {
      */
     componentAlignmentState(): string;
     componentBaseAt(x: number, y: number): string;
+    /**
+     * How many components the current glyph has, so the menu can hide the
+     * decompose item on a glyph that is drawn rather than assembled.
+     */
+    componentCount(): number;
     contourContextAt(x: number, y: number): Float64Array;
     /**
      * Number of contours (path elements) in the currently-open
@@ -67,6 +78,11 @@ export class GlyphEditor {
      * Move point selection by outline order. `backwards` is Shift-Tab.
      */
     cycleSelectedPoint(backwards: boolean): boolean;
+    /**
+     * Replace components with their outlines. With a component selected,
+     * only that one; otherwise every component in the glyph.
+     */
+    decomposeComponents(selected_only: boolean): number;
     deleteComponentGlyph(name: string): void;
     deleteSelection(): boolean;
     deleteTextAfterCursor(): boolean;
@@ -557,6 +573,7 @@ export interface InitOutput {
     readonly glypheditor_activateTextSortAtState: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_activeTextSortRtl: (a: number) => number;
     readonly glypheditor_addAnchorAt: (a: number, b: number, c: number, d: number, e: number) => number;
+    readonly glypheditor_addComponent: (a: number, b: number, c: number) => number;
     readonly glypheditor_advanceWidth: (a: number) => number;
     readonly glypheditor_anchorContextAt: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_balanceSelection: (a: number) => number;
@@ -566,12 +583,14 @@ export interface InitOutput {
     readonly glypheditor_clearTextBuffer: (a: number) => void;
     readonly glypheditor_componentAlignmentState: (a: number) => [number, number];
     readonly glypheditor_componentBaseAt: (a: number, b: number, c: number) => [number, number];
+    readonly glypheditor_componentCount: (a: number) => number;
     readonly glypheditor_contourContextAt: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_contourCount: (a: number) => number;
     readonly glypheditor_convertHyperToCubic: (a: number) => number;
     readonly glypheditor_copySelection: (a: number) => number;
     readonly glypheditor_currentGlyphGlif: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly glypheditor_cycleSelectedPoint: (a: number, b: number) => number;
+    readonly glypheditor_decomposeComponents: (a: number, b: number) => number;
     readonly glypheditor_deleteComponentGlyph: (a: number, b: number, c: number) => void;
     readonly glypheditor_deleteSelection: (a: number) => number;
     readonly glypheditor_deleteTextAfterCursor: (a: number) => number;

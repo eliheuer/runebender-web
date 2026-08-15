@@ -2628,6 +2628,60 @@ impl GlyphEditor {
         self.state.clear_component_selection();
     }
 
+    /// How many components the current glyph has, so the menu can hide the
+    /// decompose item on a glyph that is drawn rather than assembled.
+    #[wasm_bindgen(js_name = componentCount)]
+    pub fn component_count(&self) -> usize {
+        self.state.component_previews.len()
+    }
+
+    /// Replace components with their outlines. With a component selected,
+    /// only that one; otherwise every component in the glyph.
+    #[wasm_bindgen(js_name = decomposeComponents)]
+    pub fn decompose_components(&mut self, selected_only: bool) -> usize {
+        let snapshot = self.discrete_edit_snapshot();
+        let n = self.state.decompose_components(selected_only);
+        if n > 0 {
+            self.undo.add_undo_group(snapshot);
+            self.pending_snapshot = None;
+        }
+        n
+    }
+
+    /// Drop a component for `base` into the current glyph, at the origin and
+    /// locked to its anchor if the two glyphs share one. Returns false when
+    /// the base is not a glyph this font has.
+    #[wasm_bindgen(js_name = addComponent)]
+    pub fn add_component(&mut self, base: &str) -> bool {
+        let Some((path, anchors)) = self.component_glyphs.get(base).map(|base_glyph| {
+            let mut path = norad_glyph_to_bezpath(base_glyph);
+            append_norad_components_to_bezpath(
+                &mut path,
+                base_glyph,
+                &self.component_glyphs,
+                Affine::IDENTITY,
+                0,
+            );
+            let mut anchors = Vec::new();
+            collect_component_anchors(
+                base_glyph,
+                &self.component_glyphs,
+                Affine::IDENTITY,
+                0,
+                &mut anchors,
+            );
+            (path, anchors)
+        }) else {
+            return false;
+        };
+        let snapshot = self.discrete_edit_snapshot();
+        self.state
+            .add_component_preview(base.to_string(), path, anchors);
+        self.undo.add_undo_group(snapshot);
+        self.pending_snapshot = None;
+        true
+    }
+
     /// Select the component under the given screen point, so a right-click
     /// acts on what is beneath the cursor rather than on an earlier selection.
     #[wasm_bindgen(js_name = selectComponentAt)]
