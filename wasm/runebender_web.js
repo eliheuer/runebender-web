@@ -497,6 +497,17 @@ export class GlyphEditor {
         return ret;
     }
     /**
+     * Re-place composites against the anchors as they stand mid-drag.
+     * Call it on pointer-move while an anchor is being dragged; returns true
+     * when something moved, so the caller only redraws if it needs to.
+     * @param {number} units_per_em
+     * @returns {boolean}
+     */
+    liveRealignComposites(units_per_em) {
+        const ret = wasm.glypheditor_liveRealignComposites(this.__wbg_ptr, units_per_em);
+        return ret !== 0;
+    }
+    /**
      * @returns {Float64Array}
      */
     measureInfo() {

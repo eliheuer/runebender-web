@@ -146,6 +146,12 @@ export class GlyphEditor {
     insertTextLineBreak(): void;
     intersectSelection(): boolean;
     leftSidebearing(): number;
+    /**
+     * Re-place composites against the anchors as they stand mid-drag.
+     * Call it on pointer-move while an anchor is being dragged; returns true
+     * when something moved, so the caller only redraws if it needs to.
+     */
+    liveRealignComposites(units_per_em: number): boolean;
     measureInfo(): Float64Array;
     /**
      * Active font vertical metric bounds as `[ascender, descender]`.
@@ -636,6 +642,7 @@ export interface InitOutput {
     readonly glypheditor_insertTextLineBreak: (a: number) => void;
     readonly glypheditor_intersectSelection: (a: number) => number;
     readonly glypheditor_leftSidebearing: (a: number) => number;
+    readonly glypheditor_liveRealignComposites: (a: number, b: number) => number;
     readonly glypheditor_measureInfo: (a: number) => [number, number];
     readonly glypheditor_metricBounds: (a: number) => [number, number];
     readonly glypheditor_moveContour: (a: number, b: number, c: number, d: number) => number;

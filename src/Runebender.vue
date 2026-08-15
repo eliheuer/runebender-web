@@ -1626,6 +1626,7 @@ type Editor = {
   decomposeComponents(selectedOnly: boolean): number;
   componentCount(): number;
   realignComposites(namesJson: string, unitsPerEm: number): string;
+  liveRealignComposites(unitsPerEm: number): boolean;
   glyphSvgsFromCache(namesJson: string, unitsPerEm: number): string;
   addComponent(base: string): boolean;
   componentAlignmentState(): string;
@@ -2157,6 +2158,13 @@ function requestRender(options: RenderRequestOptions = {}) {
                 setRefNumber(currentContours, metrics[1] ?? 0);
                 setRefNumber(currentLeftSidebearing, metrics[2] ?? 0);
                 setRefNumber(currentRightSidebearing, metrics[3] ?? 0);
+              }
+              // Dragging an anchor moves the dots in every glyph that places
+              // this one — under the cursor, not when you let go. Runs
+              // entirely inside wasm: nothing is parsed, nothing crosses the
+              // boundary, and only glyphs that place this one are touched.
+              if (selectedAnchorIsDragging()) {
+                editor.liveRealignComposites(activeMasterData.value?.unitsPerEm ?? 1000);
               }
               applySelectionState(selectionState, { reuseAnchorName: true }, 2);
             }
@@ -7389,6 +7397,11 @@ function refreshGridGlyphSvg(
  * Without this walk the anchor is decoration: the dot stays where it was
  * baked, and only the glyph under the cursor ever looks right.
  */
+/** True while a drag is moving an anchor, as opposed to points or a component. */
+function selectedAnchorIsDragging(): boolean {
+  return Boolean(editor && selectedAnchor.value);
+}
+
 function realignCompositesUsing(base: string) {
   const data = activeMasterData.value;
   if (!editor || !data) return;

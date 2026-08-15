@@ -2726,6 +2726,133 @@ impl GlyphEditor {
             .map_err(|e| JsValue::from_str(&format!("serialize result: {e}")))
     }
 
+    /// Re-place the dots in every glyph that places the one being edited, and
+    /// push the redrawn outlines into the text line — all from the anchors as
+    /// they are *right now*, mid-drag.
+    ///
+    /// Committing on release was the lag. However fast the commit got, the
+    /// dots could not move until you let go, so they always arrived a beat
+    /// late. Glyphs moves them under the cursor, and this is what that takes.
+    ///
+    /// Cheap enough to run per frame because nothing crosses the wasm
+    /// boundary and nothing is parsed: the anchors come from the live editor
+    /// state, every other glyph is already parsed in `component_glyphs`, and
+    /// only glyphs that actually place the open one are touched.
+    ///
+    /// Returns true when something moved, so the caller knows to redraw.
+    pub(crate) fn live_realign_users_of_open_glyph(&mut self, upm: f64) -> bool {
+        let Some(open) = self.source_glyph.as_ref().map(|s| s.name.clone()) else {
+            return false;
+        };
+        // the open glyph's anchors as the drag has them this instant
+        let live: Vec<(String, Point)> = self
+            .state
+            .anchors
+            .iter()
+            .filter_map(|a| Some((a.name.clone()?, a.point)))
+            .collect();
+        if live.is_empty() {
+            return false;
+        }
+
+        let users: Vec<String> = self
+            .component_glyphs
+            .iter()
+            .filter(|(name, glyph)| {
+                **name != open
+                    && glyph
+                        .components
+                        .iter()
+                        .any(|c| c.base.as_str() == open)
+            })
+            .map(|(name, _)| name.clone())
+            .collect();
+        if users.is_empty() {
+            return false;
+        }
+
+        let mut changed = false;
+        let mut updates: Vec<(String, norad::Glyph, String)> = Vec::new();
+
+        for name in users {
+            let Some(glyph) = self.component_glyphs.get(&name) else {
+                continue;
+            };
+            let mut glyph = glyph.clone();
+            let inputs: Vec<crate::editor::AlignInput> = glyph
+                .components
+                .iter()
+                .map(|component| {
+                    let base = component.base.as_str();
+                    let anchors = if base == open {
+                        live.clone()
+                    } else {
+                        self.component_glyphs
+                            .get(base)
+                            .map(|g| {
+                                g.anchors
+                                    .iter()
+                                    .filter_map(|a| {
+                                        Some((a.name.as_ref()?.to_string(), Point::new(a.x, a.y)))
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default()
+                    };
+                    crate::editor::AlignInput {
+                        anchors,
+                        offset: Vec2::new(
+                            component.transform.x_offset,
+                            component.transform.y_offset,
+                        ),
+                        aligned: !component_alignment_disabled(component),
+                    }
+                })
+                .collect();
+
+            let placed = crate::editor::realign_component_offsets(&inputs);
+            let mut moved = false;
+            for (component, offset) in glyph.components.iter_mut().zip(placed) {
+                if (component.transform.x_offset - offset.x).abs() > 1e-9
+                    || (component.transform.y_offset - offset.y).abs() > 1e-9
+                {
+                    component.transform.x_offset = offset.x;
+                    component.transform.y_offset = offset.y;
+                    moved = true;
+                }
+            }
+            if !moved {
+                continue;
+            }
+            let mut bez = norad_glyph_to_bezpath(&glyph);
+            append_norad_components_to_bezpath(
+                &mut bez,
+                &glyph,
+                &self.component_glyphs,
+                Affine::IDENTITY,
+                0,
+            );
+            let svg = svg_from_bezpath_em(&bez, if upm > 0.0 { upm } else { 1000.0 })
+                .unwrap_or_default();
+            updates.push((name, glyph, svg));
+            changed = true;
+        }
+
+        for (name, glyph, svg) in updates {
+            self.state.text_buffer.set_glyph_outline(&name, &svg);
+            self.component_glyphs.insert(name, glyph);
+        }
+        changed
+    }
+
+    /// Re-place composites against the anchors as they stand mid-drag.
+    /// Call it on pointer-move while an anchor is being dragged; returns true
+    /// when something moved, so the caller only redraws if it needs to.
+    #[wasm_bindgen(js_name = liveRealignComposites)]
+    pub fn live_realign_composites(&mut self, units_per_em: f64) -> bool {
+        self.live_realign_users_of_open_glyph(units_per_em)
+    }
+
     /// Redraw the thumbnails for the named glyphs from the parsed set the
     /// editor already holds, returning `{name: svg}`.
     ///
