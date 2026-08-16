@@ -2164,7 +2164,15 @@ function requestRender(options: RenderRequestOptions = {}) {
               // entirely inside wasm: nothing is parsed, nothing crosses the
               // boundary, and only glyphs that place this one are touched.
               if (selectedAnchorIsDragging()) {
-                editor.liveRealignComposites(activeMasterData.value?.unitsPerEm ?? 1000);
+                const _t0 = performance.now();
+                const _moved = editor.liveRealignComposites(
+                  activeMasterData.value?.unitsPerEm ?? 1000,
+                );
+                // Straight into the status bar: this has been diagnosed five
+                // times from reading the source and never once from watching
+                // it run. Says whether the live path fires at all, and what
+                // it costs, without anyone opening devtools.
+                anchorDragProbe(performance.now() - _t0, _moved);
               }
               applySelectionState(selectionState, { reuseAnchorName: true }, 2);
             }
@@ -6358,6 +6366,7 @@ function onPointerDown(e: PointerEvent) {
   if (!editor) return;
   const c = canvasCoords(e);
   if (!c) return;
+  anchorDragProbeReset();
   // Interpolated instances are read-only: touching the canvas snaps
   // the sliders to the nearest master and hands back an editable
   // outline, so this gesture starts a real edit.
@@ -7397,6 +7406,28 @@ function refreshGridGlyphSvg(
  * Without this walk the anchor is decoration: the dot stays where it was
  * baked, and only the glyph under the cursor ever looks right.
  */
+let anchorDragFrames = 0;
+let anchorDragMs = 0;
+let anchorDragMoved = 0;
+
+/** Per-frame cost of the live composite realign, reported in the status bar. */
+function anchorDragProbe(ms: number, moved: boolean) {
+  anchorDragFrames += 1;
+  anchorDragMs += ms;
+  if (moved) anchorDragMoved += 1;
+  status.value =
+    `anchor drag: ${anchorDragFrames} frames, ` +
+    `${(anchorDragMs / anchorDragFrames).toFixed(1)}ms/frame realign, ` +
+    `${anchorDragMoved} moved composites`;
+}
+
+/** Reset the probe so each drag reports its own numbers. */
+function anchorDragProbeReset() {
+  anchorDragFrames = 0;
+  anchorDragMs = 0;
+  anchorDragMoved = 0;
+}
+
 /** True while a drag is moving an anchor, as opposed to points or a component. */
 function selectedAnchorIsDragging(): boolean {
   return Boolean(editor && selectedAnchor.value);
