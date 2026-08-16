@@ -7183,16 +7183,17 @@ function syncTextKerningModelToEditor() {
       widths: glyphWidthMapToRecord(glyphMetadataMap.value),
       ...textShapingInventoryFields(),
     };
-    if (textInventoryFullySyncedFor === activeMasterName.value) {
+    const outlines = glyphOutlineMapToRecord(glyphSvgs.value);
+    const haveOutlines = Object.keys(outlines).length > 0;
+    if (textInventoryFullySyncedFor === activeMasterName.value && haveOutlines) {
       editor.setTextGlyphMetrics(JSON.stringify(metrics));
     } else {
-      editor.setTextGlyphInventory(
-        JSON.stringify({
-          ...metrics,
-          outlines: glyphOutlineMapToRecord(glyphSvgs.value),
-        }),
-      );
-      textInventoryFullySyncedFor = activeMasterName.value;
+      editor.setTextGlyphInventory(JSON.stringify({ ...metrics, outlines }));
+      // Only count it as sent once there was something to send. This runs
+      // during load too, before any outline has been built, and marking it
+      // done then meant outlines were never sent at all — the composites
+      // vanished instead of flashing.
+      if (haveOutlines) textInventoryFullySyncedFor = activeMasterName.value;
     }
     refreshTextStateFromEditor(false);
   } catch (e) {
