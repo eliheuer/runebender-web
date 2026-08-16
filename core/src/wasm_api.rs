@@ -2078,6 +2078,17 @@ impl GlyphEditor {
             .map_err(|e| JsValue::from_str(&format!("serialize text kerning model: {e}")))
     }
 
+    /// Update widths, unicodes and features, leaving the outlines alone —
+    /// those are pushed one glyph at a time as edits land. Use this on the
+    /// per-edit path; the full inventory is for loading a master.
+    #[wasm_bindgen(js_name = setTextGlyphMetrics)]
+    pub fn set_text_glyph_metrics(&mut self, json: &str) -> Result<(), JsValue> {
+        let inventory: crate::text::TextGlyphInventory = serde_json::from_str(json)
+            .map_err(|e| JsValue::from_str(&format!("parse glyph inventory: {e}")))?;
+        self.state.text_buffer.set_glyph_metrics(inventory);
+        Ok(())
+    }
+
     #[wasm_bindgen(js_name = setTextGlyphInventory)]
     pub fn set_text_glyph_inventory(&mut self, json: &str) -> Result<(), JsValue> {
         let inventory: TextGlyphInventory = serde_json::from_str(json)

@@ -469,6 +469,20 @@ impl TextBuffer {
         }
     }
 
+    /// Replace everything *except* the outlines, which are maintained one
+    /// glyph at a time as edits land.
+    ///
+    /// The wholesale replace re-sends every outline in the font on every
+    /// edit. That is slow — a few MB of JSON — but worse, it hands back the
+    /// outlines as the sender last knew them, undoing anything updated since.
+    /// Mid-nudge that reads as a flash: the composite snaps to its old shape
+    /// and forward again.
+    pub fn set_glyph_metrics(&mut self, mut inventory: TextGlyphInventory) {
+        std::mem::swap(&mut inventory.outlines, &mut self.glyph_inventory.outlines);
+        self.glyph_inventory = inventory;
+        self.shaping_font.clear();
+    }
+
     pub fn set_glyph_inventory(&mut self, glyph_inventory: TextGlyphInventory) {
         self.glyph_inventory = glyph_inventory;
         // Advances, codepoints and features all feed the shaping font.

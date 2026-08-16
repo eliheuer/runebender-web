@@ -385,6 +385,12 @@ export class GlyphEditor {
     setTextDirection(direction: string): void;
     setTextGlyphInventory(json: string): void;
     /**
+     * Update widths, unicodes and features, leaving the outlines alone —
+     * those are pushed one glyph at a time as edits land. Use this on the
+     * per-edit path; the full inventory is for loading a master.
+     */
+    setTextGlyphMetrics(json: string): void;
+    /**
      * Update one glyph's outline in the text inventory. Editing a base
      * glyph changes every composite that places it, and rebuilding the
      * whole inventory for that is far too much work per edit.
@@ -721,6 +727,7 @@ export interface InitOutput {
     readonly glypheditor_setStartPointAt: (a: number, b: number, c: number) => number;
     readonly glypheditor_setTextDirection: (a: number, b: number, c: number) => void;
     readonly glypheditor_setTextGlyphInventory: (a: number, b: number, c: number) => [number, number];
+    readonly glypheditor_setTextGlyphMetrics: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_setTextGlyphOutline: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly glypheditor_setTextKerningModel: (a: number, b: number, c: number) => [number, number];
     readonly glypheditor_setTheme: (a: number, b: number, c: number) => [number, number];

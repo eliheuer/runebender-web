@@ -1645,6 +1645,7 @@ type Editor = {
   setTextKerningModel(json: string): void;
   textKerningModel(): string;
   setTextGlyphInventory(json: string): void;
+  setTextGlyphMetrics(json: string): void;
   setTextGlyphOutline(name: string, outline: string): void;
   shapeTextBuffer(): boolean;
   textBufferSnapshot(): string;
@@ -7153,6 +7154,11 @@ function textShapingInventoryFields(): { features: string; units_per_em: number 
   };
 }
 
+// Which master's outlines the editor has in full. Until a master has been
+// sent once, the text inventory has no shapes to draw; after that, outlines
+// are kept current one glyph at a time.
+let textInventoryFullySyncedFor: string | null = null;
+
 // TODO(perf): every call reserializes the outline of every glyph in the
 // font (a few MB of JSON for a large source) even when one glyph
 // changed. Hand the wasm side single-glyph updates, and only rebuild the
@@ -7168,14 +7174,26 @@ function syncTextKerningModelToEditor() {
         kerning: nestedNumberMapToRecord(kerning.value),
       }),
     );
-    editor.setTextGlyphInventory(
-      JSON.stringify({
-        unicode: glyphUnicodeMapToRecord(glyphUnicodes.value),
-        widths: glyphWidthMapToRecord(glyphMetadataMap.value),
-        outlines: glyphOutlineMapToRecord(glyphSvgs.value),
-        ...textShapingInventoryFields(),
-      }),
-    );
+    // The first send for a master carries the outlines; after that they are
+    // maintained one glyph at a time as edits land, and re-sending the whole
+    // map would hand back the shapes as they were when it was built — undoing
+    // anything changed since. Mid-nudge that reads as a flash.
+    const metrics = {
+      unicode: glyphUnicodeMapToRecord(glyphUnicodes.value),
+      widths: glyphWidthMapToRecord(glyphMetadataMap.value),
+      ...textShapingInventoryFields(),
+    };
+    if (textInventoryFullySyncedFor === activeMasterName.value) {
+      editor.setTextGlyphMetrics(JSON.stringify(metrics));
+    } else {
+      editor.setTextGlyphInventory(
+        JSON.stringify({
+          ...metrics,
+          outlines: glyphOutlineMapToRecord(glyphSvgs.value),
+        }),
+      );
+      textInventoryFullySyncedFor = activeMasterName.value;
+    }
     refreshTextStateFromEditor(false);
   } catch (e) {
     console.warn("syncing Text model to editor failed:", e);
