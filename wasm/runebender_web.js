@@ -500,12 +500,24 @@ export class GlyphEditor {
      * Re-place composites against the anchors as they stand mid-drag.
      * Call it on pointer-move while an anchor is being dragged; returns true
      * when something moved, so the caller only redraws if it needs to.
+     * Returns `{name: svg}` for the composites that moved, so the caller can
+     * write them into its own outline map too. Keeping only the wasm side up
+     * to date is not enough: the text inventory gets rebuilt wholesale from
+     * the JS map, and that rebuild would put the stale outlines back.
      * @param {number} units_per_em
-     * @returns {boolean}
+     * @returns {string}
      */
     liveRealignComposites(units_per_em) {
-        const ret = wasm.glypheditor_liveRealignComposites(this.__wbg_ptr, units_per_em);
-        return ret !== 0;
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.glypheditor_liveRealignComposites(this.__wbg_ptr, units_per_em);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
     }
     /**
      * @returns {Float64Array}

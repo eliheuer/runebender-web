@@ -150,8 +150,12 @@ export class GlyphEditor {
      * Re-place composites against the anchors as they stand mid-drag.
      * Call it on pointer-move while an anchor is being dragged; returns true
      * when something moved, so the caller only redraws if it needs to.
+     * Returns `{name: svg}` for the composites that moved, so the caller can
+     * write them into its own outline map too. Keeping only the wasm side up
+     * to date is not enough: the text inventory gets rebuilt wholesale from
+     * the JS map, and that rebuild would put the stale outlines back.
      */
-    liveRealignComposites(units_per_em: number): boolean;
+    liveRealignComposites(units_per_em: number): string;
     measureInfo(): Float64Array;
     /**
      * Active font vertical metric bounds as `[ascender, descender]`.
@@ -642,7 +646,7 @@ export interface InitOutput {
     readonly glypheditor_insertTextLineBreak: (a: number) => void;
     readonly glypheditor_intersectSelection: (a: number) => number;
     readonly glypheditor_leftSidebearing: (a: number) => number;
-    readonly glypheditor_liveRealignComposites: (a: number, b: number) => number;
+    readonly glypheditor_liveRealignComposites: (a: number, b: number) => [number, number];
     readonly glypheditor_measureInfo: (a: number) => [number, number];
     readonly glypheditor_metricBounds: (a: number) => [number, number];
     readonly glypheditor_moveContour: (a: number, b: number, c: number, d: number) => number;

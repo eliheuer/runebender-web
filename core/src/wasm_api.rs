@@ -2740,9 +2740,13 @@ impl GlyphEditor {
     /// only glyphs that actually place the open one are touched.
     ///
     /// Returns true when something moved, so the caller knows to redraw.
-    pub(crate) fn live_realign_users_of_open_glyph(&mut self, upm: f64) -> bool {
+    pub(crate) fn live_realign_users_of_open_glyph(
+        &mut self,
+        upm: f64,
+    ) -> HashMap<String, String> {
+        let mut out: HashMap<String, String> = HashMap::new();
         let Some(open) = self.source_glyph.as_ref().map(|s| s.name.clone()) else {
-            return false;
+            return out;
         };
         // the open glyph's anchors as the drag has them this instant
         let live: Vec<(String, Point)> = self
@@ -2752,7 +2756,7 @@ impl GlyphEditor {
             .filter_map(|a| Some((a.name.clone()?, a.point)))
             .collect();
         if live.is_empty() {
-            return false;
+            return out;
         }
 
         let users: Vec<String> = self
@@ -2768,10 +2772,9 @@ impl GlyphEditor {
             .map(|(name, _)| name.clone())
             .collect();
         if users.is_empty() {
-            return false;
+            return out;
         }
 
-        let mut changed = false;
         let mut updates: Vec<(String, norad::Glyph, String)> = Vec::new();
 
         for name in users {
@@ -2843,22 +2846,27 @@ impl GlyphEditor {
                 continue;
             }
             updates.push((name, glyph, svg));
-            changed = true;
         }
 
         for (name, glyph, svg) in updates {
             self.state.text_buffer.set_glyph_outline(&name, &svg);
-            self.component_glyphs.insert(name, glyph);
+            self.component_glyphs.insert(name.clone(), glyph);
+            out.insert(name, svg);
         }
-        changed
+        out
     }
 
     /// Re-place composites against the anchors as they stand mid-drag.
     /// Call it on pointer-move while an anchor is being dragged; returns true
     /// when something moved, so the caller only redraws if it needs to.
+    /// Returns `{name: svg}` for the composites that moved, so the caller can
+    /// write them into its own outline map too. Keeping only the wasm side up
+    /// to date is not enough: the text inventory gets rebuilt wholesale from
+    /// the JS map, and that rebuild would put the stale outlines back.
     #[wasm_bindgen(js_name = liveRealignComposites)]
-    pub fn live_realign_composites(&mut self, units_per_em: f64) -> bool {
-        self.live_realign_users_of_open_glyph(units_per_em)
+    pub fn live_realign_composites(&mut self, units_per_em: f64) -> String {
+        let changed = self.live_realign_users_of_open_glyph(units_per_em);
+        serde_json::to_string(&changed).unwrap_or_else(|_| "{}".to_string())
     }
 
     /// Redraw the thumbnails for the named glyphs from the parsed set the

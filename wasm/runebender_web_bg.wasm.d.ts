@@ -64,7 +64,7 @@ export const glypheditor_insertTextGlyphAfterActive: (a: number, b: number, c: n
 export const glypheditor_insertTextLineBreak: (a: number) => void;
 export const glypheditor_intersectSelection: (a: number) => number;
 export const glypheditor_leftSidebearing: (a: number) => number;
-export const glypheditor_liveRealignComposites: (a: number, b: number) => number;
+export const glypheditor_liveRealignComposites: (a: number, b: number) => [number, number];
 export const glypheditor_measureInfo: (a: number) => [number, number];
 export const glypheditor_metricBounds: (a: number) => [number, number];
 export const glypheditor_moveContour: (a: number, b: number, c: number, d: number) => number;

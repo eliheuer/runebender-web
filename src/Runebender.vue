@@ -1626,7 +1626,7 @@ type Editor = {
   decomposeComponents(selectedOnly: boolean): number;
   componentCount(): number;
   realignComposites(namesJson: string, unitsPerEm: number): string;
-  liveRealignComposites(unitsPerEm: number): boolean;
+  liveRealignComposites(unitsPerEm: number): string;
   glyphSvgsFromCache(namesJson: string, unitsPerEm: number): string;
   addComponent(base: string): boolean;
   componentAlignmentState(): string;
@@ -2165,9 +2165,8 @@ function requestRender(options: RenderRequestOptions = {}) {
               // boundary, and only glyphs that place this one are touched.
               if (selectedAnchorIsDragging()) {
                 const _t0 = performance.now();
-                const _moved = editor.liveRealignComposites(
-                  activeMasterData.value?.unitsPerEm ?? 1000,
-                );
+                applyLiveRealign();
+                const _moved = true;
                 // Straight into the status bar: this has been diagnosed five
                 // times from reading the source and never once from watching
                 // it run. Says whether the live path fires at all, and what
@@ -7432,6 +7431,29 @@ function anchorDragProbeReset() {
   anchorDragMoved = 0;
 }
 
+/**
+ * Re-place composites against the anchors as they stand right now, and copy
+ * the redrawn outlines into our own map.
+ *
+ * Writing them only into wasm is not enough: syncTextKerningModelToEditor
+ * rebuilds the whole text inventory from glyphSvgs, so the next rebuild would
+ * put the pre-nudge outlines back — which is seen as a flash, the composite
+ * snapping back and then forward again.
+ */
+function applyLiveRealign() {
+  const data = activeMasterData.value;
+  if (!editor || !data) return;
+  let changed: Record<string, string>;
+  try {
+    changed = JSON.parse(editor.liveRealignComposites(data.unitsPerEm));
+  } catch {
+    return;
+  }
+  for (const [name, svg] of Object.entries(changed)) {
+    if (svg) data.glyphSvgs.set(name, svg);
+  }
+}
+
 /** True while a drag is moving an anchor, as opposed to points or a component. */
 function selectedAnchorIsDragging(): boolean {
   return Boolean(editor && selectedAnchor.value);
@@ -9448,7 +9470,7 @@ function applyEditorNudge(
   // dots followed. Re-place them now; the timer still defers the expensive
   // part — serializing the glyph and writing it back.
   if (selectedAnchor.value) {
-    editor.liveRealignComposites(activeMasterData.value?.unitsPerEm ?? 1000);
+    applyLiveRealign();
   }
   requestRender({ refreshDerivedState: false });
   scheduleDeferredGlyphSync(glyphName, masterName);
