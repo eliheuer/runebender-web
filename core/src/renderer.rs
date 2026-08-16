@@ -675,8 +675,9 @@ impl DesignGridCacheKey {
 
 #[derive(Clone)]
 struct TextOutlineCacheEntry {
-    outline_ptr: usize,
-    outline_len: usize,
+    /// The edit revision this path was resolved at. Every edit bumps it, so a
+    /// stale composite cannot survive a change to the anchors placing it.
+    revision: u64,
     path: Rc<BezPath>,
 }
 
@@ -932,11 +933,12 @@ impl Renderer {
     pub fn render(
         &mut self,
         state: &EditorState,
+        glyphs: &std::collections::HashMap<String, norad::Glyph>,
         preview_mode: bool,
         text_mode_active: bool,
     ) -> Result<(), JsValue> {
         self.scene.reset();
-        self.draw_state(state, preview_mode, text_mode_active, None);
+        self.draw_state(state, glyphs, preview_mode, text_mode_active, None);
         self.present()
     }
 
@@ -948,19 +950,21 @@ impl Renderer {
     pub fn render_changed_paths(
         &mut self,
         state: &EditorState,
+        glyphs: &std::collections::HashMap<String, norad::Glyph>,
         changed_path_indices: &[usize],
         preview_mode: bool,
         text_mode_active: bool,
     ) -> Result<(), JsValue> {
         self.scene.reset();
         let changed_paths = changed_path_indices.iter().copied().collect::<HashSet<_>>();
-        self.draw_state(state, preview_mode, text_mode_active, Some(&changed_paths));
+        self.draw_state(state, glyphs, preview_mode, text_mode_active, Some(&changed_paths));
         self.present()
     }
 
     fn draw_state(
         &mut self,
         state: &EditorState,
+        glyphs: &std::collections::HashMap<String, norad::Glyph>,
         preview_mode: bool,
         text_mode_active: bool,
         changed_path_indices: Option<&HashSet<usize>>,
@@ -1000,6 +1004,7 @@ impl Renderer {
         if has_text_session {
             self.draw_text_buffer(
                 state,
+                glyphs,
                 view,
                 preview_mode,
                 text_mode_active,
@@ -1056,7 +1061,7 @@ impl Renderer {
                     &combined,
                 );
             }
-            self.draw_text_buffer(state, view, true, text_mode_active, None);
+            self.draw_text_buffer(state, glyphs, view, true, text_mode_active, None);
             return;
         }
         for component in &state.component_previews {
@@ -1656,6 +1661,7 @@ impl Renderer {
     fn draw_text_buffer(
         &mut self,
         state: &EditorState,
+        glyphs: &std::collections::HashMap<String, norad::Glyph>,
         view: Affine,
         preview_mode: bool,
         text_mode_active: bool,
@@ -1805,10 +1811,12 @@ impl Renderer {
                 let Some(glyph_name) = sort.glyph_name() else {
                     continue;
                 };
-                let Some(outline) = state.text_buffer.glyph_outline_svg(glyph_name) else {
-                    continue;
-                };
-                let Some(path) = self.text_preview_path(glyph_name, outline) else {
+                // Straight from the parsed glyphs. These used to come from an
+                // SVG string in the text buffer, regenerated and re-sent on
+                // every edit, behind a cache keyed by the string's address —
+                // so a composite could keep drawing a shape its anchors no
+                // longer described. There is nothing left to invalidate.
+                let Some(path) = self.text_preview_path(glyph_name, state, glyphs) else {
                     continue;
                 };
                 if path.elements().is_empty() {
@@ -2008,21 +2016,31 @@ impl Renderer {
         }
     }
 
-    fn text_preview_path(&mut self, glyph_name: &str, outline: &str) -> Option<Rc<BezPath>> {
-        let outline_ptr = outline.as_ptr() as usize;
-        let outline_len = outline.len();
+    /// The outline drawn for a glyph beside the one being edited, resolved
+    /// from the parsed glyphs and memoised for the frame.
+    ///
+    /// The cache is keyed by the glyph revision, which every edit bumps, so a
+    /// composite cannot outlive a change to the anchors that place it. The
+    /// version this replaced keyed on the address of an SVG string, and a
+    /// regenerated string of the same length landing in the same allocation
+    /// returned the old path.
+    fn text_preview_path(
+        &mut self,
+        glyph_name: &str,
+        state: &EditorState,
+        glyphs: &std::collections::HashMap<String, norad::Glyph>,
+    ) -> Option<Rc<BezPath>> {
+        let revision = state.edit_revision();
         if let Some(entry) = self.text_outline_cache.get(glyph_name) {
-            if entry.outline_ptr == outline_ptr && entry.outline_len == outline_len {
+            if entry.revision == revision {
                 return Some(Rc::clone(&entry.path));
             }
         }
-
-        let path = Rc::new(BezPath::from_svg(outline).ok()?);
+        let path = Rc::new(crate::editor::resolve_glyph_bezpath(glyph_name, glyphs)?);
         self.text_outline_cache.insert(
             glyph_name.to_string(),
             TextOutlineCacheEntry {
-                outline_ptr,
-                outline_len,
+                revision,
                 path: Rc::clone(&path),
             },
         );

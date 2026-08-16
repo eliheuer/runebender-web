@@ -16,7 +16,8 @@ use runebender_core::{GlyphCategory, GlyphMetadata, mark_color};
 use crate::editing::{Modifiers, Mouse, MouseButton, MouseEvent, UndoState};
 use crate::editor::{
     AnchorPoint, ComponentPreview, EditorState, KnifePreview, MeasurePreview, NudgeSelectionResult,
-    PenPreview, SegmentHoverPreview, ShapePreview, SidebearingEdge, norad_glyph_to_bezpath,
+    PenPreview, SegmentHoverPreview, ShapePreview, SidebearingEdge,
+    append_norad_components_to_bezpath, norad_glyph_to_bezpath,
 };
 use crate::model::workspace::{
     Contour as WsContour, ContourPoint as WsContourPoint, PointType as WsPointType,
@@ -781,34 +782,6 @@ fn svg_from_bezpath(bez: &BezPath) -> Result<String, JsValue> {
         bbox.height(),
         bez.to_svg(),
     ))
-}
-
-fn append_norad_components_to_bezpath(
-    path: &mut BezPath,
-    glyph: &norad::Glyph,
-    glyphs: &HashMap<String, norad::Glyph>,
-    parent_transform: Affine,
-    depth: usize,
-) {
-    if depth > 16 {
-        return;
-    }
-
-    for component in &glyph.components {
-        let base_name = component.base.to_string();
-        let Some(base_glyph) = glyphs.get(&base_name) else {
-            continue;
-        };
-        let t = &component.transform;
-        let transform = parent_transform
-            * Affine::new([
-                t.x_scale, t.xy_scale, t.yx_scale, t.y_scale, t.x_offset, t.y_offset,
-            ]);
-        let base_path = norad_glyph_to_bezpath(base_glyph);
-        let transformed = transform * &base_path;
-        path.extend(transformed.elements().iter().cloned());
-        append_norad_components_to_bezpath(path, base_glyph, glyphs, transform, depth + 1);
-    }
 }
 
 fn build_component_previews(
@@ -1993,13 +1966,14 @@ impl GlyphEditor {
         {
             self.renderer.render_changed_paths(
                 &self.state,
+                &self.component_glyphs,
                 &self.pending_nudge_path_indices,
                 preview_mode,
                 text_mode_active,
             )
         } else {
             self.renderer
-                .render(&self.state, preview_mode, text_mode_active)
+                .render(&self.state, &self.component_glyphs, preview_mode, text_mode_active)
         }
     }
 

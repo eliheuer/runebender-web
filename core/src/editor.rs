@@ -4883,6 +4883,56 @@ pub(crate) fn drop_self_referential_components(glyph: &mut norad::Glyph) -> usiz
     before - glyph.components.len()
 }
 
+/// A glyph's complete outline: its own contours plus every component,
+/// resolved from the parsed glyph set.
+///
+/// This is what the renderer draws for the glyphs beside the one being
+/// edited. They used to be drawn from an SVG string held in the text buffer,
+/// regenerated and re-sent on every change, with a cache in front of it keyed
+/// by the string's address — three things to keep in step, and every one of
+/// them a way for a composite to show a shape its anchors no longer describe.
+pub fn resolve_glyph_bezpath(
+    name: &str,
+    glyphs: &std::collections::HashMap<String, norad::Glyph>,
+) -> Option<BezPath> {
+    let glyph = glyphs.get(name)?;
+    let mut path = norad_glyph_to_bezpath(glyph);
+    append_norad_components_to_bezpath(&mut path, glyph, glyphs, Affine::IDENTITY, 0);
+    Some(path)
+}
+
+/// Walk a glyph's components, appending each one's outline transformed into
+/// place. Lives here rather than in the wasm layer so the renderer can draw a
+/// composite straight from the parsed glyphs, with no SVG in between.
+pub fn append_norad_components_to_bezpath(
+    path: &mut BezPath,
+    glyph: &norad::Glyph,
+    glyphs: &std::collections::HashMap<String, norad::Glyph>,
+    parent_transform: Affine,
+    depth: usize,
+) {
+    if depth > 16 {
+        return;
+    }
+
+    for component in &glyph.components {
+        let base_name = component.base.to_string();
+        let Some(base_glyph) = glyphs.get(&base_name) else {
+            continue;
+        };
+        let t = &component.transform;
+        let transform = parent_transform
+            * Affine::new([
+                t.x_scale, t.xy_scale, t.yx_scale, t.y_scale, t.x_offset, t.y_offset,
+            ]);
+        let base_path = norad_glyph_to_bezpath(base_glyph);
+        let transformed = transform * &base_path;
+        path.extend(transformed.elements().iter().cloned());
+        append_norad_components_to_bezpath(path, base_glyph, glyphs, transform, depth + 1);
+    }
+}
+
+
 pub fn norad_glyph_to_bezpath(glyph: &norad::Glyph) -> BezPath {
     let mut combined = BezPath::new();
     for norad_contour in &glyph.contours {
