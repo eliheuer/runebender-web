@@ -9438,6 +9438,13 @@ function applyEditorNudge(
   const masterName = activeMasterName.value;
   const perf = startNudgePerf(raf !== null);
   if (!applyImmediateEditorNudge(dx, dy, shift, ctrl, independent, perf)) return false;
+  // Nudging an anchor with the arrow keys is how anchors actually get placed,
+  // and it was the one path still waiting on the 500ms idle timer before the
+  // dots followed. Re-place them now; the timer still defers the expensive
+  // part — serializing the glyph and writing it back.
+  if (selectedAnchor.value) {
+    editor.liveRealignComposites(activeMasterData.value?.unitsPerEm ?? 1000);
+  }
   requestRender({ refreshDerivedState: false });
   scheduleDeferredGlyphSync(glyphName, masterName);
   return true;
