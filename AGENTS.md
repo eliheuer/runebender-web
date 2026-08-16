@@ -95,6 +95,37 @@ and `installSketchResultGlif()`. The full model/training story lives in
   `../virtua-grotesk` checkout; `sh scripts/update-demo-font.sh
   --remote` fetches latest main from GitHub instead).
 
+## Publishing to runebender.org
+
+**Pushing this repo does not deploy anything.** There is no CI here, no
+CNAME, no deploy script. The live site is a separate Astro project:
+
+    ~/GH/repos/runebender-dot-org        git@github.com:eliheuer/runebender-dot-org
+
+It carries a *copy* of this editor's build under `public/cloud/editor/`, and
+`runebender.org` currently lands straight in it (see
+`TEMPORARY-EDITOR-AT-ROOT.md` over there — the root page inlines the embedded
+editor at build time). So the site can sit on an old editor indefinitely while
+this repo moves ahead, and nothing here will tell you.
+
+To ship an editor change to the live site:
+
+```sh
+cd ~/GH/repos/runebender-dot-org
+pnpm build-cloud-editor      # rebuilds this repo with base=/cloud/editor/
+                             # and replaces public/cloud/editor/
+git status public/cloud/editor
+git commit && git push       # GitHub Actions deploys from there
+```
+
+`scripts/build-cloud-editor.sh` expects a sibling `../runebender-web`
+checkout with `node_modules` present, and builds it itself — it does not use
+this repo's `dist/`.
+
+Local `pnpm serve` (`runebender-serve`) serves *this* repo's `dist/`, which is
+a different artifact from the one the site embeds. A change can be live for you
+and absent from runebender.org.
+
 ## Known limits (don't chase these as bugs)
 
 - **The browser host (no server) cannot save.** Every write path in

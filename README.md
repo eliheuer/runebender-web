@@ -51,6 +51,13 @@ RUNEBENDER_BASE=/cloud/editor/ pnpm build   # served from a subpath
 
 The output is fully static — host it anywhere.
 
+**runebender.org is not deployed from this repo.** The live site is a separate
+Astro project, [`runebender-dot-org`](https://github.com/eliheuer/runebender-dot-org)
+(`~/GH/repos/runebender-dot-org`), which embeds a copy of this editor under
+`public/cloud/editor/`. Pushing here changes nothing there. To publish, run
+`pnpm build-cloud-editor` in that repo and push — see "Publishing to
+runebender.org" in [AGENTS.md](AGENTS.md).
+
 ## Repo layout
 
 ```
