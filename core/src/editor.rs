@@ -1410,6 +1410,33 @@ impl EditorState {
     /// dragging handles should not leave tiny floating-point residue, but
     /// selected on-curve points keep the exact pointer delta until explicit
     /// grid commands/nudges snap them.
+    /// Put the selected anchors on the design grid, the way a dragged handle
+    /// lands on it. An anchor decides where a mark or a dot sits in every
+    /// glyph that inherits it, so leaving it on a fractional coordinate puts
+    /// all of them off by the same fraction.
+    pub fn snap_selected_anchors_to_grid(&mut self) -> bool {
+        if self.selected_anchors.is_empty() {
+            return false;
+        }
+        let selected = self.selected_anchors.clone();
+        let mut changed = false;
+        for anchor in self.anchors.iter_mut() {
+            if !selected.contains(&anchor.id) {
+                continue;
+            }
+            let snapped = snap_point_to_grid(anchor.point);
+            if snapped != anchor.point {
+                anchor.point = snapped;
+                changed = true;
+            }
+        }
+        if changed {
+            self.realign_components_to_anchors();
+            self.bump_edit_revision();
+        }
+        changed
+    }
+
     pub fn snap_selected_offcurves_to_grid(&mut self) -> bool {
         if self.selection.is_empty() {
             return false;

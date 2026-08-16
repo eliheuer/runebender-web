@@ -7415,7 +7415,9 @@ function anchorDragProbe(ms: number, moved: boolean) {
   anchorDragFrames += 1;
   anchorDragMs += ms;
   if (moved) anchorDragMoved += 1;
-  status.value =
+  // workspaceNotice, not status: status is not rendered in editor mode, which
+  // is why the first attempt at this reported into the void.
+  workspaceNotice.value =
     `anchor drag: ${anchorDragFrames} frames, ` +
     `${(anchorDragMs / anchorDragFrames).toFixed(1)}ms/frame realign, ` +
     `${anchorDragMoved} moved composites`;

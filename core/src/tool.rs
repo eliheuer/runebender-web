@@ -451,8 +451,14 @@ impl MouseDelegate for SelectTool {
     }
 
     fn left_drag_ended(&mut self, _event: MouseEvent, _drag: Drag, state: &mut Self::Data) {
-        if matches!(self.drag_kind, Some(SelectDragKind::Translate)) {
-            state.snap_selected_offcurves_to_grid();
+        match self.drag_kind {
+            Some(SelectDragKind::Translate) => {
+                state.snap_selected_offcurves_to_grid();
+            }
+            Some(SelectDragKind::AnchorTranslate) => {
+                state.snap_selected_anchors_to_grid();
+            }
+            _ => {}
         }
         state.marquee = None;
         state.segment_hover = None;
