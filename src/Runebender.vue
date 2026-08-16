@@ -7387,7 +7387,9 @@ function refreshGridGlyphSvg(
   // occurs twice kept showing its old dot until something else rebuilt it.
   if (data === activeMasterData.value) {
     try {
-      editor?.setTextGlyphOutline(glyphName, svg ?? "");
+      // an empty outline removes the glyph from the text line, which reads
+      // as a flash; keep the last good one instead
+      if (svg) editor?.setTextGlyphOutline(glyphName, svg);
     } catch (e) {
       console.warn("[runebender] refreshing edited outline failed:", e);
     }
@@ -7465,7 +7467,7 @@ function realignCompositesUsing(base: string) {
     markGlyphDirty(name);
     // the text line draws its other sorts from these outlines
     try {
-      editor.setTextGlyphOutline(name, svg ?? "");
+      if (svg) editor.setTextGlyphOutline(name, svg);
     } catch (e) {
       console.warn("[runebender] refreshing", name, "in the text line failed:", e);
     }
@@ -7515,11 +7517,14 @@ function refreshCompositesUsing(data: MasterData, base: string, seen: Set<string
   }
   for (const user of names) {
     const userSvg = svgs[user];
-    if (userSvg) data.glyphSvgs.set(user, userSvg);
-    else data.glyphSvgs.delete(user);
+    // Never blank a glyph on a miss. Writing "" and then the real outline a
+    // moment later reads as a flash — the composite vanishes and comes back,
+    // which makes a one-unit nudge impossible to see.
+    if (!userSvg) continue;
+    data.glyphSvgs.set(user, userSvg);
     // The text line draws its other sorts from the same outlines.
     try {
-      editor.setTextGlyphOutline(user, userSvg ?? "");
+      editor.setTextGlyphOutline(user, userSvg);
     } catch (e) {
       console.warn("[runebender] refreshing composite outline failed:", e);
     }

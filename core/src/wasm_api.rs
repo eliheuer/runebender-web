@@ -2832,8 +2832,16 @@ impl GlyphEditor {
                 Affine::IDENTITY,
                 0,
             );
-            let svg = svg_from_bezpath_em(&bez, if upm > 0.0 { upm } else { 1000.0 })
-                .unwrap_or_default();
+            // An empty outline would blank the glyph for a frame and then
+            // restore it — a flash, right where a one-unit nudge needs to be
+            // legible. Keep what is on screen instead.
+            let Ok(svg) = svg_from_bezpath_em(&bez, if upm > 0.0 { upm } else { 1000.0 })
+            else {
+                continue;
+            };
+            if svg.is_empty() {
+                continue;
+            }
             updates.push((name, glyph, svg));
             changed = true;
         }
