@@ -3,7 +3,7 @@ name = "runebender-web"
 version = "0.0.1"
 edition = "2024"
 rust-version = "1.88"
-license = "GPL-3.0-or-later"
+license = "Apache-2.0"
 description = "WASM core for the Runebender web editor — ported from runebender-xilem"
 repository = "https://github.com/eliheuer/runebender-web"
 

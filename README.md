@@ -87,4 +87,4 @@ mount `src/Runebender.vue`, and provide your own host.
 
 ## License
 
-GPL-3.0-or-later.
+Apache-2.0.

@@ -2,7 +2,7 @@
   "name": "runebender-web",
   "version": "0.0.1",
   "private": true,
-  "license": "GPL-3.0-or-later",
+  "license": "Apache-2.0",
   "type": "module",
   "bin": {
     "runebender-serve": "server/serve.mjs"

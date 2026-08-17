@@ -1,5 +1,5 @@
 // Copyright 2026 the Runebender Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 
 //! Vello + Kurbo WASM core for the Runebender ComfyUI node, ported from
 //! [runebender-xilem](https://github.com/eliheuer/runebender-xilem) (Apache-2.0).

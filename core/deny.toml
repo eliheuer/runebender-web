@@ -6,7 +6,7 @@
 #
 # Four passes:
 #   - advisories : RustSec database (known-vulnerable + yanked crates)
-#   - licenses   : SPDX-expression allowlist, GPL-3.0-compatible only
+#   - licenses   : SPDX-expression allowlist, permissive licenses only
 #   - bans       : flag duplicate versions of the same crate
 #   - sources    : restrict to crates.io and the one Linebender git URL
 #
@@ -30,9 +30,8 @@ ignore = []
 # licenses
 # ============================================================================
 #
-# This crate is GPL-3.0. Compatible inbound licenses (we can include
-# them) are listed below. We don't list "GPL-3.0" itself because
-# cargo-deny ignores the workspace's own license by default.
+# This crate is Apache-2.0. Compatible inbound licenses (we can
+# include them) are listed below.
 
 [licenses]
 version = 2

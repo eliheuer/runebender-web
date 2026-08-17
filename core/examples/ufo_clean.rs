@@ -1,5 +1,5 @@
 // Copyright 2026 the Runebender Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 
 //! Rewrite a UFO through norad, dropping every `com.schriftgestaltung.*`
 //! lib key (font-level and per-glyph).
