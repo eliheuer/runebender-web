@@ -792,6 +792,17 @@ impl Renderer {
         self.editable_outline_cache = None;
         self.path_outline_cache.clear();
         self.edit_controls_cache.clear();
+        self.text_outline_cache.clear();
+    }
+
+    /// Forget the text-preview outlines. They are built from the parsed
+    /// glyph set, which lives outside this struct and is replaced a glyph at
+    /// a time as edits land — and the revision the cache keys on only tracks
+    /// the glyph on the canvas, so a change to that set has to say so here.
+    /// A composite draws whatever its base draws, so one glyph changing can
+    /// change any of them: the whole cache goes.
+    pub fn invalidate_text_outlines(&mut self) {
+        self.text_outline_cache.clear();
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {

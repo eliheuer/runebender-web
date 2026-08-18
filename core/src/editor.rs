@@ -463,7 +463,10 @@ impl EditorState {
         self.knife_preview = None;
         self.last_transform = None;
         self.coord_quadrant = Quadrant::default();
-        self.edit_revision = 0;
+        // Not a reset: the revision is what the render caches key on, and
+        // starting over at 0 makes an old entry look current. See
+        // bump_edit_revision.
+        self.bump_edit_revision();
 
         let mut current_points: Vec<PathPoint> = Vec::new();
 
@@ -522,7 +525,12 @@ impl EditorState {
         self.knife_preview = None;
         self.last_transform = None;
         self.coord_quadrant = Quadrant::default();
-        self.edit_revision = 0;
+        // Opening a glyph is a change of what is on the canvas, so it moves
+        // the revision forward like any edit. It used to go back to 0, which
+        // meant every glyph session walked the same numbers as the last one
+        // and a cache entry from an earlier session could match by
+        // coincidence — see bump_edit_revision.
+        self.bump_edit_revision();
         self.advance_width = glyph.width;
 
         for norad_contour in &glyph.contours {
@@ -3293,6 +3301,9 @@ impl EditorState {
             + usize::from(self.selected_anchor.is_some())
     }
 
+    /// Move the revision forward. It only ever counts up, for the whole life
+    /// of the session: the render caches treat "same revision" as "same
+    /// geometry", so a number must never describe two different states.
     pub(crate) fn bump_edit_revision(&mut self) {
         self.edit_revision = self.edit_revision.wrapping_add(1);
     }
@@ -7356,5 +7367,27 @@ mod tests {
         // Width untouched: an LSB edit moves ink, the RSB absorbs it.
         assert_eq!(state.advance_width, 264.0);
     }
-}
+    /// The render caches read the revision as "same number, same geometry".
+    /// Opening a glyph used to set it back to 0, so every session counted
+    /// through the same values as the last one and a cached outline from an
+    /// earlier session could match the current number — a redrawn glyph kept
+    /// drawing its old shape, or a blank, until the page was reloaded.
+    #[test]
+    fn opening_glyphs_never_reuses_an_edit_revision() {
+        let mut state = EditorState::default();
+        let glyph = norad::Glyph::parse_raw(
+            br#"<glyph name="A" format="2"><advance width="500"/><anchor x="250" y="700" name="top"/></glyph>"#,
+        )
+        .expect("valid glyph");
 
+        let mut seen = std::collections::HashSet::new();
+        seen.insert(state.edit_revision());
+        for _ in 0..4 {
+            state.set_glyph_from_norad(&glyph);
+            assert!(seen.insert(state.edit_revision()), "revision reused on open");
+            state.select_anchor(state.anchors[0].id);
+            assert!(state.translate_selected_anchor(Vec2::new(1.0, 0.0)));
+            assert!(seen.insert(state.edit_revision()), "revision reused on edit");
+        }
+    }
+}

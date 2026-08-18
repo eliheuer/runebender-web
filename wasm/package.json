@@ -3,7 +3,7 @@
   "type": "module",
   "description": "WASM core for the Runebender web editor — ported from runebender-xilem",
   "version": "0.0.1",
-  "license": "GPL-3.0-or-later",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/eliheuer/runebender-web"

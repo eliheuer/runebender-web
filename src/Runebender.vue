@@ -9703,16 +9703,33 @@ async function onSave(options: { force?: boolean } = {}): Promise<boolean> {
   try {
     status.value = "saving…";
     mirroredSaveWrites.value = 0;
-    const needsEditorFlush =
-      currentGlyph.value &&
-      editor &&
-      (editorGlyphNeedsSync || nudgePreviewActive);
-    if (needsEditorFlush) {
+    // A pending editor sync has to land before anything is written, or the
+    // file gets the bytes from before the last drag. The flush is a no-op
+    // when nothing is pending, so it costs nothing to always run it — the
+    // old version skipped it whenever no glyph was open, which is one of
+    // the ways the flag below got stuck.
+    if (editorGlyphNeedsSync || nudgePreviewActive) {
       flushDeferredGlyphSync();
     }
     if (editorGlyphNeedsSync) {
-      status.value = "save failed";
-      return false;
+      // syncCurrentGlyphBytesFromEditor bails without clearing the flag
+      // when there is no glyph open, when the canvas is showing an
+      // interpolated instance, or when serialising throws. This used to
+      // answer "save failed" and write nothing — and since nothing else
+      // clears the flag, every later save failed the same way until the
+      // glyph was reopened. Save stopped working, with no way to tell why.
+      if (editor && currentGlyph.value) {
+        // The editor really is holding an outline newer than the bytes;
+        // writing now would save the old one.
+        status.value = interpolationPreviewActive.value
+          ? "save blocked: interpolation preview is on — the canvas is an instance, not this master"
+          : `save failed: could not read ${currentGlyph.value} back from the editor`;
+        return false;
+      }
+      // No glyph open, so there is nothing to read back and nothing to
+      // lose: the flag is left over. Clear it and save.
+      editorGlyphNeedsSync = false;
+      nudgePreviewActive = false;
     }
 
     let savedGlyphs = 0;

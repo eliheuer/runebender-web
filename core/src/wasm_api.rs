@@ -1756,6 +1756,7 @@ impl GlyphEditor {
     #[wasm_bindgen(js_name = setComponentGlyphs)]
     pub fn set_component_glyphs(&mut self, glyph_xml_by_name: &str) -> Result<(), JsValue> {
         self.component_glyphs = parse_glif_xml_map(glyph_xml_by_name)?;
+        self.renderer.invalidate_text_outlines();
         Ok(())
     }
 
@@ -1764,12 +1765,17 @@ impl GlyphEditor {
         let glyph = norad::Glyph::parse_raw(bytes)
             .map_err(|e| JsValue::from_str(&format!("parse .glif: {e}")))?;
         self.component_glyphs.insert(name.to_string(), glyph);
+        // This set is what the text preview draws from. Without this the
+        // preview kept whatever it had cached for the glyph — a redrawn lam
+        // showed as a hole in الجمال until the page was reloaded.
+        self.renderer.invalidate_text_outlines();
         Ok(())
     }
 
     #[wasm_bindgen(js_name = deleteComponentGlyph)]
     pub fn delete_component_glyph(&mut self, name: &str) {
         self.component_glyphs.remove(name);
+        self.renderer.invalidate_text_outlines();
     }
 
     #[wasm_bindgen(js_name = setGlyphGlifWithCachedComponents)]
